@@ -1,0 +1,38 @@
+ConfirmedBlockHeightExists
+Assertion whether a block with the specified blockNumber is confirmed with additional data to compute the block production rate within a given time window.
+
+Supported chains
+Network Type	Supported Chains
+Mainnet	BTC (Bitcoin), DOGE (Dogecoin), XRP (XRP Ledger)
+Testnet	testBTC (Bitcoin Testnet v3), testDOGE, testXRP
+Request
+Field	Solidity Type	Description
+blockNumber	uint64	The block number to confirm.
+queryWindow	uint64	The time period (in seconds) to calculate the block production rate.
+Response
+Field	Solidity Type	Description
+blockTimestamp	uint64	The timestamp of the block at blockNumber.
+numberOfConfirmations	uint64	The required number of confirmations for the block to be considered confirmed (chain-specific).
+lowestQueryWindowBlockNumber	uint64	The block number of the latest block with a timestamp strictly less than blockTimestamp - queryWindow.
+lowestQueryWindowBlockTimestamp	uint64	The timestamp of the block at lowestQueryWindowBlockNumber.
+Verification process
+The function checks if the block with blockNumber is confirmed by at least the required numberOfConfirmations for the specified chain.
+If the block does not meet this requirement, the request is rejected.
+A block at the tip of the chain has exactly 1 confirmation.
+The lowestQueryWindowBlock` is identified, and its block number and timestamp are extracted.
+The required confirmations are defined based on chain-specific finality.
+The returned timestamp is:
+mediantime for Bitcoin and Dogecoin.
+close_time for XRPL.
+Lowest used timestamp
+For the lowestUsedTimestamp parameter, the value of lowestQueryWindowBlockTimestamp is used.
+
+Finality
+Blockchains have varying confirmation depths to consider blocks as final.
+
+Chain	chainId	Confirmations required	Confirmation time
+Bitcoin	0	6	≈60 mins
+Dogecoin	2	60	≈60 mins
+XRPL	3	3	≈12 seconds
+Contract Interface
+For the complete interface definition, see IConfirmedBlockHeightExists.

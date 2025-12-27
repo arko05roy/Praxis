@@ -1,0 +1,138 @@
+BalanceDecreasingTransaction
+Information describing a transaction that either decreases the balance for a specified address.
+
+A transaction is considered "balance decreasing" for the specified address if:
+
+The balance after the transaction is lower than before.
+The address is among the signers of the transaction (even if its balance is not reduced).
+Supported chains
+Network Type	Supported Chains
+Mainnet	BTC (Bitcoin), DOGE (Dogecoin), XRP (XRP Ledger)
+Testnet	testBTC (Bitcoin Testnet v3), testDOGE, testXRP
+Request
+Field	Solidity Type	Description
+transactionId	bytes32	Unique ID of the transaction to be verified.
+sourceAddressIndicator	bytes32	Indicator of the address whose balance may have been decreased.
+Response
+Field	Solidity Type	Description
+blockNumber	uint64	Block number containing the transaction.
+blockTimestamp	uint64	Timestamp of the block containing the transaction.
+sourceAddressHash	bytes32	Standard hash of the address indicated by sourceAddressIndicator.
+spentAmount	int256	Amount spent by the source address in minimal units (can be negative).
+standardPaymentReference	bytes32	Standard payment reference of the transaction. Zero value if the transaction has no reference.
+Standard Payment Reference
+If a transaction has no standardPaymentReference, it is set to default value, thus, zero value reference should be used with caution.
+
+Verification process
+The transaction identified by transactionId is fetched from the source blockchain node or a relevant indexer.
+If the transaction cannot be fetched or is in a block with insufficient confirmations, the attestation request is rejected.
+Once the transaction is retrieved, the response fields are extracted if it qualifies as balance decreasing for the specified address.
+The verification process is chain-specific and can be computed with a balance decreasing summary, with details described below.
+
+UTXO chains (Bitcoin and Dogecoin)
+Address Indication
+sourceAddressIndicator: Represents the index of the transaction input, formatted as a 0x-prefixed 32-byte string.
+If the specified input does not exist or lacks an associated address, the attestation request is rejected.
+Data Calculation
+sourceAddress: Address associated with the specified transaction input.
+spentAmount: Calculated as Sum of all inputs with sourceAddress - Sum of all outputs with sourceAddress. The value can be negative.
+blockTimestamp: The mediantime of the block.
+Account-based chains (XRPL)
+Address Indication
+sourceAddressIndicator: The standard address hash of the address in question.
+If the indicated address is not among the transaction signers and its balance was not decreased, the attestation request is rejected.
+Data Calculation
+spentAmount: Difference between the balance of the address after and before the transaction. Can be negative.
+blockTimestamp: The close_time of the ledger, converted to Unix time.
+standardPaymentReference: [Standard payment reference] for Payment transactions, otherwise zero.
+Lowest used timestamp
+For the lowestUsedTimestamp parameter, the blockTimestamp of the transaction is used.
+
+Balance decreasing summary
+A balance-decreasing summary analyses a transaction that has decreased or could possibly decrease the balance of an account.
+
+A balance-decreasing summary is calculated for a given transaction and source address indicator (sourceAddressIndicator). The summary contains the fields as stated in the table below. The interpretation of some fields is chain dependent. Descriptions of these fields are left empty and are later explained for each specific blockchain.
+
+For a given transaction and an address indicator, the balance-decreasing summary can only be calculate if the transaction is considered to be balance-decreasing for the indicated address When implemented, the function that calculates the balance-decreasing summary tries to calculate it. If it is successful, it returns a success status and the summary itself. If not, it returns an error status.
+
+Field	Description
+transactionId	-
+transactionStatus	Transaction success status.
+sourceAddress	-
+spentAmount	-
+standardPaymentReference	Standard payment reference.
+The following are detailed descriptions of fields for each supported chain.
+
+Bitcoin and Dogecoin
+For Bitcoin and Dogecoin, sourceAddressIndicator is the index of a transaction input (in hex zero padded on the left to 0x prefixed 32 bytes). If the input with the given index does not exist or the indicated input does not have an address, no summary is made. In particular, no summary is made for coinbase transactions.
+
+Field	Description
+transactionId	The transaction ID found in the field txid. For segwit transactions, this is not the same as hash.
+sourceAddress	Address of the indicated input.
+spentAmount	The sum of values of all inputs with sourceAddress minus the sum of values of all outputs with sourceAddress. Can be negative.
+XRPL
+For XRPL, sourceAddressIndicator is standardAddressHash of the indicated address. If the sourceAddressIndicator does not match any of the addresses who signed the transaction or whose balance was decreased by the transaction, the summary is not made.
+
+Field	Description
+transactionId	Hash of the transaction found in the field hash.
+sourceAddress	Address whose standardAddressHash matches the sourceAddressIndicator.
+spentAmount	The amount for which the balance of the sourceAddress has lowered. Can be negative.
+Standard payment reference
+A standard payment reference is defined as a 32-byte sequence that can be added to a payment transaction, in the same way that a payment reference is attached to a traditional banking transaction.
+
+Bitcoin and Dogecoin
+Uses OP_RETURN to store references.
+A transaction is considered to have a standardPaymentReference defined if it has:
+Exactly one output UTXO with OP_RETURN script, and
+The script is of the form OP_RETURN <reference\> or 6a<lengthOfReferenceInHex\><reference\> in hex, where the length of the reference is 32 bytes.
+Then 0x<reference\> is the standardPaymentReference.
+XRPL
+Uses the memoData field.
+A transaction has a standardPaymentReference if it has:
+Exactly one Memo, and
+The memoData of this field is a hex string that represents a byte sequence of exactly 32 bytes.
+This 32-byte sequence defines the standardPaymentReference.
+Transaction success status
+Transactions on different blockchains have various success statuses. Some blockchains may include transactions even if they failed to execute as intended.
+
+Status	Code
+SUCCESS	0
+SENDER_FAILURE	1
+RECEIVER_FAILURE	2
+Bitcoin and Dogecoin
+
+It is not possible to include an unsuccessful transaction in a Bitcoin or Dogecoin block. Hence, if a transaction is included on a confirmed block, its status is "SUCCESS."
+
+XRPL
+
+On XRPL, some transactions that failed (based on the reason for failure) can be included in a confirmed block.
+
+tesSUCCESS: Transaction successful.
+tec-class codes: Indicate reasons for failure, such as:
+tecDST_TAG_NEEDED: Missing required destination tag.
+tecNO_DST: Nonexistent or unfunded destination address.
+tecNO_PERMISSION: Source address lacks permission to send funds.
+Standard address hash
+The standard address hash is defined as the keccak256 hash of the standard address as a string:
+
+keccak256(standardAddress)
+
+standard address
+If an address is case insensitive, the standard address is lowercase. If an address is case sensitive, there is always only one (correct) form of the address.
+
+Examples:
+
+Chain	Standard Address	Standard Address Hash
+Bitcoin (Base58)	1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd	0x8f651b6990a4754c58fcb5c5a11f4d40f8ddfdeb0e4f67cdd06c27f8d7bcbe33
+Bitcoin (Bech32)	bc1qrmvxmwgqfr5q4fvtvnxczwxwm966n53c4lxh4v	0xf75dc4b039ac72e037d67199bb92fa25db32b2210954df99637428473d47cedf
+Dogecoin	DL2H9FuaXsxivSs1sRtuJ8uryosyAj62XX	0x51064c88c6b8e9d58b2abeae37a773bf89c9b279f8a05fa0ac0e81ebe13d2f4f
+XRPL	rDsbeomae4FXwgQTJp9Rs64Qg9vDiTCdBv	0xa491aed10a1920ca31a85ff29e4bc410705d37d4dc9e690d4d500bcedfd8078f
+Finality
+Blockchains have varying confirmation depths to consider blocks as final.
+
+Chain	chainId	Confirmations required	Confirmation time
+Bitcoin	0	6	≈60 mins
+Dogecoin	2	60	≈60 mins
+XRPL	3	3	≈12 seconds
+Contract Interface
+For the complete interface definition, see IBalanceDecreasingTransaction.

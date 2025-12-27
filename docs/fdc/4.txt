@@ -1,0 +1,163 @@
+Payment
+Information about a transaction on an external chain that is classified as a native currency payment. Each supported blockchain specifies how a payment transaction should be formatted to be provable using this attestation type. These provable payments mimic traditional banking transactions where entity A sends a native currency to entity B, with an optional payment reference.
+
+Supported chains
+Network Type	Supported Chains
+Mainnet	BTC (Bitcoin), DOGE (Dogecoin), XRP (XRP Ledger)
+Testnet	testBTC (Bitcoin Testnet v3), testDOGE, testXRP
+Request
+Field	Solidity Type	Description
+transactionId	bytes32	Unique ID of the payment transaction.
+inUtxo	uint256	For UTXO chains, if the value is less than 2**16, this field is the index of the transaction input with the source address. Otherwise, it represents the standardAddressHash of the input address for which the payment proof will be constructed. For non-UTXO chains, this is always 0.
+utxo	uint256	For UTXO chains, if the value is less than 2**16, this field is the index of the transaction output with the receiving address. Otherwise, it represents the standardAddressHash of the output address for which the payment proof will be constructed. For non-UTXO chains, this is always 0.
+Response
+Field	Solidity Type	Description
+blockNumber	uint64	The block number in which the transaction is included.
+blockTimestamp	uint64	The timestamp of the block containing the transaction.
+sourceAddressHash	bytes32	Standardized address hash of the source address.
+sourceAddressesRoot	bytes32	The root of the Merkle tree of the source addresses.
+receivingAddressHash	bytes32	Standardized address hash of the receiving address. Returns a zero 32-byte string if the transaction status is not successful.
+intendedReceivingAddressHash	bytes32	Standardized address hash of the intended receiving address if the transaction failed.
+spentAmount	int256	Amount (in minimal units) spent by the source address.
+intendedSpentAmount	int256	Intended amount (in minimal units) to be spent by the source address, relevant if the transaction status is unsuccessful.
+receivedAmount	int256	Amount (in minimal units) received by the receiving address.
+intendedReceivedAmount	int256	Intended amount (in minimal units) to be received by the receiving address if the transaction failed.
+standardPaymentReference	bytes32	Standard payment reference.
+oneToOne	bool	Indicates if the transaction involves only one source and one receiver.
+status	uint8	Transaction success status.
+Standard Payment Reference
+If a transaction has no standardPaymentReference, it is set to default value; zero value reference should thus be used with caution.
+
+Verification Process
+The transaction identified by transactionId is fetched from the relevant blockchain node or indexer.
+If the transaction cannot be retrieved or is in a block with insufficient confirmations, the attestation request is rejected.
+Once the transaction data is fetched, a payment summary is computed according to the chain-specific rules.
+If the payment summary is successfully generated, the response is populated using this data.
+If the summary cannot be computed, the attestation request is rejected.
+The fields blockNumber and blockTimestamp are extracted from the block data if they are not directly available in the transaction data.
+For Bitcoin and Dogecoin, the blockTimestamp is derived from the mediantime of the block.
+For XRPL, the blockTimestamp is derived from the close time of the ledger, converted to UNIX time.
+Lowest used timestamp
+For the lowestUsedTimestamp parameter, the blockTimestamp of the transaction is used.
+
+Payment Summary
+A payment summary consolidates all relevant data about a transaction that represents a payment. This is particularly focused on payments between one source account (address) and one target account.
+
+UTXO Blockchains (e.g., BTC, DOGE): Payments can aggregate inputs from multiple addresses and distribute them to multiple outputs. The summary here is computed based on specified input and output indices that identify addresses of interest.
+XRPL: Supports various transaction types, but a payment summary is only fully calculated for transactions of type Payment.
+Structure
+The summary includes the fields detailed in the table below. The interpretation of certain fields may vary based on the blockchain. Chain-specific explanations are provided in the sections that follow.
+
+Field	Description
+transactionId	The unique identifier of the transaction.
+transactionStatus	The success status of the transaction.
+standardPaymentReference	A reference defined in the standard payment reference.
+oneToOne	Indicates if the transaction involves a single sender and a single receiver.
+sourceAddress	The originating address involved in the transaction.
+sourceAddressesRoot	The root of the Merkle tree of the source addresses.
+spentAmount	The total amount spent by the source address.
+intendedSourceAmount	The expected amount intended to be sent from the source address.
+receivingAddress	The target address receiving the payment.
+intendedReceivingAddress	The expected target address intended to receive the payment.
+receivedAmount	The actual amount received by the receiving address.
+intendedReceivingAmount	The expected amount intended to be received.
+note
+Standard Address Hashes: Standard address hashes can be derived from addresses.
+If transactionStatus is not SUCCESS, the receivingAddress is set to an empty string, and its hash defaults to a zeroed 32-byte string.
+Standard Addresses Root is the root of the Merkle tree build on double keccak256 hashes of the all source addresses of the transaction.
+UTXO chains (Bitcoin and Dogecoin)
+The payment summary for Bitcoin and Dogecoin is derived using specified indices for a transaction input and output.
+
+Conditions
+If the specified input or output does not exist, or lacks an address (e.g., outputs using OP_RETURN), no summary is generated.
+Coinbase transactions are not summarized.
+If a transaction has additional outputs with the same address as output, the request is rejected.
+Data Sources
+For Bitcoin, all transaction details are retrieved using the getrawtransaction endpoint (verbosity 2) and getblock. This requires a Bitcoin node version ≥ 25.0.
+For Dogecoin, since getrawtransaction with verbosity 2 is not supported, alternative methods must be used to access input transaction data.
+Field	Description
+transactionId	The transaction ID (txid). For SegWit transactions, this differs from hash.
+oneToOne	true if only sourceAddress is present in inputs, and outputs include only receivingAddress, sourceAddress (for change), or OP_RETURN.
+sourceAddress	Address of the specified input.
+spentAmount	Total value of all inputs with sourceAddress minus total value of all outputs to sourceAddress.
+intendedSourceAmount	Same as spentAmount.
+receivingAddress	Address of the specified output.
+intendedReceivingAddress	Always matches receivingAddress.
+receivedAmount	Total value of outputs to receivingAddress minus total value of inputs from receivingAddress.
+intendedReceivingAmount	Same as receivedAmount.
+Account-based chains (XRPL)
+The payment summary on XRPL is applicable only for transactions of type Payment.
+
+Conditions
+Only Payment transactions are summarized; other transaction types are ignored.
+A successful payment has exactly one sender and at most one receiver. If unsuccessful, no receiver is recorded.
+Data Sources
+Transaction details are obtained via the tx method.
+Changes made by the transaction are recorded in the meta field (or metaData if fetched via the ledger method) under AffectedNodes. Balance changes are found within ModifiedNodes, by comparing FinalFields and PreviousFields.
+Field	Description
+transactionId	Transaction hash found in the hash field.
+oneToOne	Always true, as each Payment transaction has exactly one sender and at most one receiver.
+sourceAddress	Address that sent the payment, reducing its balance.
+spentAmount	Amount by which sourceAddress's balance was reduced.
+intendedSourceAmount	Calculated as Amount + Fee. If transactionStatus is SUCCESS, it matches spentAmount.
+receivingAddress	Address that received the payment. If unsuccessful, this is an empty string.
+intendedReceivingAddress	Address specified in the Destination field.
+receivedAmount	Amount by which the receivingAddress's balance was increased. Can be zero if the transaction failed.
+intendedReceivingAmount	Expected increase in intendedReceivingAddress's balance if successful. Found in the Amount field. Matches spentAmount if successful.
+Standard payment reference
+A standard payment reference is defined as a 32-byte sequence that can be added to a payment transaction, in the same way that a payment reference is attached to a traditional banking transaction.
+
+Bitcoin and Dogecoin
+Uses OP_RETURN to store references.
+A transaction is considered to have a standardPaymentReference defined if it has:
+Exactly one output UTXO with OP_RETURN script, and
+The script is of the form OP_RETURN <reference\> or 6a<lengthOfReferenceInHex\><reference\> in hex, where the length of the reference is 32 bytes.
+Then 0x<reference\> is the standardPaymentReference.
+XRPL
+Uses the memoData field.
+A transaction has a standardPaymentReference if it has:
+Exactly one Memo, and
+The memoData of this field is a hex string that represents a byte sequence of exactly 32 bytes.
+This 32-byte sequence defines the standardPaymentReference.
+Transaction success status
+Transactions on different blockchains have various success statuses. Some blockchains may include transactions even if they failed to execute as intended.
+
+Status	Code
+SUCCESS	0
+SENDER_FAILURE	1
+RECEIVER_FAILURE	2
+Bitcoin and Dogecoin
+
+It is not possible to include an unsuccessful transaction in a Bitcoin or Dogecoin block. Hence, if a transaction is included on a confirmed block, its status is "SUCCESS."
+
+XRPL
+
+On XRPL, some transactions that failed (based on the reason for failure) can be included in a confirmed block.
+
+tesSUCCESS: Transaction successful.
+tec-class codes: Indicate reasons for failure, such as:
+tecDST_TAG_NEEDED: Missing required destination tag.
+tecNO_DST: Nonexistent or unfunded destination address.
+tecNO_PERMISSION: Source address lacks permission to send funds.
+Standard address hash
+The standard address hash is defined as the keccak256 hash of the standard address as a string:
+
+keccak256(standardAddress)
+
+standard address
+If an address is case insensitive, the standard address is lowercase. If an address is case sensitive, there is always only one (correct) form of the address.
+
+Examples:
+
+Chain	Standard Address	Standard Address Hash
+Bitcoin (Base58)	1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd	0x8f651b6990a4754c58fcb5c5a11f4d40f8ddfdeb0e4f67cdd06c27f8d7bcbe33
+Bitcoin (Bech32)	bc1qrmvxmwgqfr5q4fvtvnxczwxwm966n53c4lxh4v	0xf75dc4b039ac72e037d67199bb92fa25db32b2210954df99637428473d47cedf
+Dogecoin	DL2H9FuaXsxivSs1sRtuJ8uryosyAj62XX	0x51064c88c6b8e9d58b2abeae37a773bf89c9b279f8a05fa0ac0e81ebe13d2f4f
+XRPL	rDsbeomae4FXwgQTJp9Rs64Qg9vDiTCdBv	0xa491aed10a1920ca31a85ff29e4bc410705d37d4dc9e690d4d500bcedfd8078f
+Finality
+Blockchains have varying confirmation depths to consider blocks as final.
+
+Chain	chainId	Confirmations required	Confirmation time
+Bitcoin	0	6	≈60 mins
+Dogecoin	2	60	≈60 mins
+XRPL	3	3	≈12 seconds
