@@ -1,471 +1,1345 @@
-# PRAXIS Protocol: Exhaustive Implementation Specification
+# PRAXIS - The Unified Gateway to Digital Asset Finance on Flare
 
-**Version:** v1.0
-**Target Chain:** Flare (Coston2 Testnet / Mainnet)
-**Core Invariant:** *Capital is never lent. Execution is leased. Ownership transfers only at settlement.*
+**Version:** v3.0
+**Target Chain:** Flare (Coston2 Testnet -> Mainnet)
 
----
+## The Vision
 
-## 1. System Architecture (PRD §4)
-
-```
-Vault (capital owner)
-│
-├── Execution Liquidity Pools (ELPs)
-│     ├── Own strategy assets
-│     ├── Hold LP capital
-│     ├── Enforce execution bounds
-│
-└── Executors (Humans, Bots, AI Agents)
-```
+> **"Seamless access to digital asset finance. Any asset. Any protocol. One interface."**
+>
+> Flare is building the seamless platform for all digital asset business - a TAM in the hundreds of trillions.
+> PRAXIS is the unified gateway that makes this vision accessible to everyone.
 
 ---
 
-## 2. Smart Contract Specification
+## Narrative Alignment with Flare
 
-### 2.1 Shared Data Structures (`contracts/lib/PraxisStructs.sol`)
+**Flare's Promise:**
+- "Seamless platform for all digital asset business"
+- Hundreds of trillions in TAM
+- Starting with XRP, expanding to all digital assets
+- Both retail and institutional
 
-From **PRD §7, §9.2**:
+**PRAXIS's Role:**
+- The interface layer that makes Flare's infrastructure accessible
+- First true gateway for FAssets (FXRP, FBTC, FDOGE) into DeFi
+- One-click access to swap, lend, stake, and yield
+- Simple UI for retail, robust contracts for integrations
+
+---
+
+## Table of Contents
+
+1. [Why PRAXIS Matters](#1-why-praxis-matters)
+2. [Core Pillars](#2-core-pillars)
+3. [Architecture](#3-architecture)
+4. [Smart Contract Specification](#4-smart-contract-specification)
+5. [Implementation Phases](#5-implementation-phases)
+6. [Testing Strategy](#6-testing-strategy)
+7. [Deployment Strategy](#7-deployment-strategy)
+8. [Contract Addresses](#8-contract-addresses)
+
+---
+
+## 1. Why PRAXIS Matters
+
+### Without PRAXIS:
+```
+User has FXRP and wants to earn yield...
+
+1. Research which DEX has FXRP liquidity
+2. Find best swap rate manually
+3. Execute swap (pay gas)
+4. Research lending options
+5. Supply to Kinetic (pay gas)
+6. Research staking options
+7. Stake on Sceptre (pay gas)
+8. Track positions across 3 UIs
+
+Result: 8 steps, multiple gas fees, fragmented experience
+```
+
+### With PRAXIS:
+```
+User has FXRP and wants to earn yield...
+
+1. Connect wallet
+2. Select: "FXRP -> Yield Strategy"
+3. Choose: Conservative (Kinetic) or Aggressive (LP + Stake)
+4. Click execute
+
+Result: 1 interface, optimized gas, unified tracking
+```
+
+---
+
+## 2. Core Pillars
+
+### 2.1 FAssets First
+
+FAssets (FXRP, FBTC, FDOGE) are the entry point to Flare for hundreds of trillions in non-smart-contract assets.
+
+| FAsset | Underlying | Why It Matters |
+|--------|------------|----------------|
+| FXRP | XRP | $25B+ market cap, massive community |
+| FBTC | BTC | $800B+ market cap, biggest crypto asset |
+| FDOGE | DOGE | $10B+ market cap, retail favorite |
+
+**PRAXIS makes FAssets useful:**
+- Instant swap to any Flare asset
+- Supply as collateral to earn yield
+- Stake via liquid staking derivatives
+- Provide liquidity with one click
+
+### 2.2 Unified DeFi Access
+
+One interface for all DeFi actions across all Flare protocols.
+
+| Action | Protocol(s) | PRAXIS Flow |
+|--------|-------------|-------------|
+| **Swap** | SparkDEX, Enosys, BlazeSwap | Best rate auto-routing |
+| **Lend** | Kinetic | Supply -> earn interest |
+| **Borrow** | Kinetic | Collateralize -> borrow |
+| **Stake** | Sceptre (sFLR) | FLR -> sFLR + rewards |
+| **LP** | SparkDEX, Enosys | Provide liquidity |
+| **Yield** | All | Optimized yield strategies |
+
+### 2.3 FTSO + FDC: The Data Advantage
+
+Flare's native infrastructure gives PRAXIS unfair advantages:
+
+| Flare Native | What It Does | PRAXIS Use |
+|--------------|--------------|------------|
+| **FTSO v2** | Decentralized price feeds | Real-time quotes, no external oracle |
+| **FDC** | Verifiable cross-chain data | FAsset price verification |
+| **State Connector** | Cross-chain proofs | Future: direct bridge integration |
+
+---
+
+## 3. Architecture
+
+### 3.1 System Diagram
+
+```
++-----------------------------------------------------------------------------+
+|                              USERS                                           |
+|                    (Wallet + Frontend / Direct Contract)                     |
++-----------------------------------------------------------------------------+
+                                       |
+                                       v
++-----------------------------------------------------------------------------+
+|                         PRAXIS CORE CONTRACTS                                |
++-----------------------------------------------------------------------------+
+|                                                                              |
+|  +---------------------------------------------------------------------+    |
+|  |                         PraxisGateway.sol                            |    |
+|  |   - Unified entry point for all actions                              |    |
+|  |   - FAsset-aware routing                                             |    |
+|  |   - Strategy execution engine                                         |    |
+|  |   - Gas optimization (batching)                                       |    |
+|  +---------------------------------------------------------------------+    |
+|                                       |                                      |
+|           +---------------------------+---------------------------+          |
+|           |                           |                           |          |
+|           v                           v                           v          |
+|  +-----------------+      +-----------------+      +-----------------+       |
+|  |   SwapRouter    |      |   YieldRouter   |      | StrategyEngine  |       |
+|  | - Best rate     |      | - Optimal yield |      | - Multi-step    |       |
+|  | - Multi-DEX     |      | - Risk-adjusted |      | - Conditional   |       |
+|  | - Split routes  |      | - Auto-compound |      | - Preset flows  |       |
+|  +--------+--------+      +--------+--------+      +--------+--------+       |
+|           |                        |                        |                |
+|           +------------------------+------------------------+                |
+|                                    |                                         |
+|                                    v                                         |
+|  +---------------------------------------------------------------------+    |
+|  |                       Protocol Adapters                              |    |
+|  +----------+----------+----------+----------+----------+--------------+    |
+|  | SparkDEX |  Enosys  | BlazeSwap| Kinetic  | Sceptre  |  FAssets     |    |
+|  | Adapter  | Adapter  | Adapter  | Adapter  | Adapter  |  Handler     |    |
+|  +----------+----------+----------+----------+----------+--------------+    |
+|                                    |                                         |
+|                                    v                                         |
+|  +---------------------------------------------------------------------+    |
+|  |                         Flare Native Layer                           |    |
+|  +----------------------------------+----------------------------------+    |
+|  |      FlareOracle (FTSO v2)       |      FAssetsHandler (FDC)        |    |
+|  +----------------------------------+----------------------------------+    |
++-----------------------------------------------------------------------------+
+                                       |
+                                       v
++-----------------------------------------------------------------------------+
+|                          FLARE DEFI PROTOCOLS                                |
++----------+----------+----------+----------+----------+---------------------+
+| SparkDEX |  Enosys  | BlazeSwap| Kinetic  | Sceptre  |   FAsset Contracts  |
+|  (DEX)   |  (DEX)   |  (DEX)   | (Lending)| (Stake)  |   (FXRP,FBTC,FDOGE) |
++----------+----------+----------+----------+----------+---------------------+
+```
+
+### 3.2 Directory Structure
+
+```
+praxis/web3/
+├── contracts/
+│   ├── core/
+│   │   ├── PraxisGateway.sol       # Main entry point
+│   │   ├── SwapRouter.sol          # DEX aggregation
+│   │   ├── YieldRouter.sol         # Yield optimization
+│   │   ├── StrategyEngine.sol      # Multi-step strategies
+│   │   └── Batcher.sol             # Gas optimization
+│   │
+│   ├── adapters/
+│   │   ├── IAdapter.sol            # Common interface
+│   │   ├── ILendingAdapter.sol     # Lending interface
+│   │   ├── IStakingAdapter.sol     # Staking interface
+│   │   ├── BaseAdapter.sol         # Abstract base
+│   │   ├── SparkDEXAdapter.sol     # SparkDEX V3
+│   │   ├── EnosysAdapter.sol       # Enosys
+│   │   ├── BlazeSwapAdapter.sol    # BlazeSwap
+│   │   ├── KineticAdapter.sol      # Kinetic lending
+│   │   ├── SceptreAdapter.sol      # Sceptre staking
+│   │   └── FAssetsAdapter.sol      # FAsset handling
+│   │
+│   ├── oracles/
+│   │   ├── FlareOracle.sol         # FTSO v2 wrapper
+│   │   └── FDCVerifier.sol         # FDC price verification
+│   │
+│   ├── strategies/
+│   │   ├── IStrategy.sol           # Strategy interface
+│   │   ├── ConservativeYield.sol   # Low-risk yield
+│   │   ├── AggressiveYield.sol     # Higher yield, more risk
+│   │   └── FAssetOptimizer.sol     # FAsset-specific
+│   │
+│   ├── interfaces/
+│   │   └── external/
+│   │       ├── ISparkDEXRouter.sol
+│   │       ├── IEnosysRouter.sol
+│   │       ├── IBlazeSwapRouter.sol
+│   │       ├── IKToken.sol
+│   │       ├── IKineticComptroller.sol
+│   │       ├── ISceptre.sol
+│   │       └── IFAssetManager.sol
+│   │
+│   └── lib/
+│       ├── PraxisStructs.sol       # Data structures
+│       ├── PraxisErrors.sol        # Custom errors
+│       └── PraxisEvents.sol        # Events
+│
+├── test/
+│   ├── unit/
+│   │   ├── FlareOracle.t.sol
+│   │   ├── SparkDEXAdapter.t.sol
+│   │   ├── EnosysAdapter.t.sol
+│   │   ├── BlazeSwapAdapter.t.sol
+│   │   ├── KineticAdapter.t.sol
+│   │   ├── SceptreAdapter.t.sol
+│   │   └── PraxisGateway.t.sol
+│   │
+│   ├── integration/
+│   │   ├── Aggregation.t.sol       # Best route selection
+│   │   ├── CrossProtocol.t.sol     # Swap + Lend + Stake
+│   │   ├── FAssetFlows.t.sol       # FAsset workflows
+│   │   └── GasOptimization.t.sol   # Batching tests
+│   │
+│   └── fork/
+│       ├── Coston2Fork.t.sol       # Fork Coston2
+│       └── MainnetFork.t.sol       # Fork Flare mainnet
+│
+├── scripts/
+│   ├── deploy/
+│   │   ├── 01_FlareOracle.ts
+│   │   ├── 02_Adapters.ts
+│   │   ├── 03_Routers.ts
+│   │   ├── 04_Gateway.ts
+│   │   └── 05_Verify.ts
+│   │
+│   └── helpers/
+│       ├── addresses.ts            # Network-specific addresses
+│       └── testTokens.ts           # Testnet token helpers
+│
+└── hardhat.config.ts
+```
+
+---
+
+## 4. Smart Contract Specification
+
+### 4.1 Data Structures (`contracts/lib/PraxisStructs.sol`)
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 library PraxisStructs {
-    /// @dev Core struct for tracking execution leases.
-    /// PRD §7.1: Non-transferable, Time-bounded, Auto-revoked, Pool-specific.
-    struct ExecutionRight {
-        address executor;       // The actor allowed to execute
-        address pool;           // The target ELP
-        uint64 startTime;       // Vesting/Start time
-        uint64 expiryTime;      // Expiration
-        bool active;            // Revocation flag
+    // Risk levels for yield strategies
+    enum RiskLevel {
+        CONSERVATIVE,   // Staking, simple lending
+        MODERATE,       // LP with stable pairs
+        AGGRESSIVE      // LP with volatile pairs, leveraged
     }
 
-    /// @dev Risk bounds for a pool. PRD §9.2.
-    struct Bounds {
-        uint256 maxDrawdown;      // Max allowed loss (bps)
-        uint256 maxExposure;      // Max % of pool capital in active positions
-        uint256 maxPositionSize;  // Max capital per single action
+    // Action types for strategies
+    enum ActionType {
+        SWAP,
+        SUPPLY,
+        WITHDRAW,
+        BORROW,
+        REPAY,
+        STAKE,
+        UNSTAKE,
+        ADD_LIQUIDITY,
+        REMOVE_LIQUIDITY
     }
 
-    /// @dev Result of an execution attempt for internal tracking.
-    struct SimulationResult {
-        bool success;
-        uint256 startNAV;
-        uint256 endNAV;
-        int256 alpha;
+    /// @dev Single action in a strategy
+    struct Action {
+        ActionType actionType;
+        address adapter;
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;      // 0 = use all from previous step
+        uint256 minAmountOut;
+        bytes extraData;
+    }
+
+    /// @dev Quote from a DEX
+    struct Quote {
+        address adapter;
+        string name;
+        uint256 amountOut;
+        uint256 gasEstimate;
+        uint256 priceImpact;    // basis points
+    }
+
+    /// @dev Yield opportunity
+    struct YieldOption {
+        address protocol;
+        string name;
+        uint256 apy;            // basis points (500 = 5%)
+        RiskLevel risk;
+        uint256 tvl;
+        bool requiresLock;
+        uint256 lockPeriod;     // seconds
+    }
+
+    /// @dev User position
+    struct Position {
+        address protocol;
+        address asset;
+        uint256 balance;
+        uint256 value;          // in USD
+        uint256 apy;
+        uint256 earnedRewards;
+    }
+
+    /// @dev FAsset info
+    struct FAssetInfo {
+        address fAsset;
+        string symbol;
+        address underlying;     // e.g., XRP for FXRP
+        uint256 totalMinted;
+        uint256 collateralRatio;
+    }
+
+    /// @dev Swap parameters
+    struct SwapParams {
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        uint256 minAmountOut;
+        address recipient;
+        uint256 deadline;
+    }
+
+    /// @dev Route hop
+    struct Hop {
+        address adapter;
+        address tokenIn;
+        address tokenOut;
+        bytes extraData;
+    }
+
+    /// @dev Complete route
+    struct Route {
+        Hop[] hops;
+        uint256 expectedOutput;
+    }
+}
+```
+
+### 4.2 Adapter Interface (`contracts/adapters/IAdapter.sol`)
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+interface IAdapter {
+    /// @notice Get adapter name for identification
+    function name() external view returns (string memory);
+
+    /// @notice Get quote for a swap (view function, no state change)
+    /// @param tokenIn Input token address
+    /// @param tokenOut Output token address
+    /// @param amountIn Amount of input token
+    /// @return amountOut Expected output amount
+    /// @return gasEstimate Estimated gas for this swap
+    function getQuote(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external view returns (uint256 amountOut, uint256 gasEstimate);
+
+    /// @notice Execute a swap
+    /// @param tokenIn Input token address
+    /// @param tokenOut Output token address
+    /// @param amountIn Amount of input token
+    /// @param minAmountOut Minimum acceptable output
+    /// @param to Recipient address
+    /// @param extraData Adapter-specific data
+    /// @return amountOut Actual output amount
+    function swap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address to,
+        bytes calldata extraData
+    ) external returns (uint256 amountOut);
+}
+```
+
+### 4.3 Lending Adapter Interface (`contracts/adapters/ILendingAdapter.sol`)
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+interface ILendingAdapter {
+    /// @notice Get adapter name
+    function name() external view returns (string memory);
+
+    /// @notice Supply assets to earn yield
+    function supply(address asset, uint256 amount, address onBehalfOf)
+        external returns (uint256 shares);
+
+    /// @notice Withdraw assets
+    function withdraw(address asset, uint256 shares, address to)
+        external returns (uint256 amount);
+
+    /// @notice Borrow assets
+    function borrow(address asset, uint256 amount, address onBehalfOf)
+        external returns (uint256 borrowed);
+
+    /// @notice Repay borrowed assets
+    function repay(address asset, uint256 amount, address onBehalfOf)
+        external returns (uint256 repaid);
+
+    /// @notice Get current supply APY (in basis points)
+    function getSupplyAPY(address asset) external view returns (uint256);
+
+    /// @notice Get current borrow APY (in basis points)
+    function getBorrowAPY(address asset) external view returns (uint256);
+
+    /// @notice Get user's supply balance
+    function getSupplyBalance(address user, address asset) external view returns (uint256);
+}
+```
+
+### 4.4 Staking Adapter Interface (`contracts/adapters/IStakingAdapter.sol`)
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+interface IStakingAdapter {
+    /// @notice Get adapter name
+    function name() external view returns (string memory);
+
+    /// @notice Stake assets
+    function stake(uint256 amount, address onBehalfOf)
+        external payable returns (uint256 shares);
+
+    /// @notice Request unstake (may have cooldown)
+    function requestUnstake(uint256 shares, address onBehalfOf)
+        external returns (uint256 requestId);
+
+    /// @notice Complete unstake after cooldown
+    function completeUnstake(uint256 requestId, address to)
+        external returns (uint256 amount);
+
+    /// @notice Get staking APY (in basis points)
+    function getStakingAPY() external view returns (uint256);
+
+    /// @notice Get cooldown period in seconds
+    function getCooldownPeriod() external view returns (uint256);
+
+    /// @notice Get user's staked balance
+    function getStakedBalance(address user) external view returns (uint256);
+}
+```
+
+### 4.5 FlareOracle (`contracts/oracles/FlareOracle.sol`)
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
+import {IFtsoV2} from "@flarenetwork/flare-periphery-contracts/coston2/IFtsoV2.sol";
+
+contract FlareOracle {
+    // Maximum acceptable price age (5 minutes)
+    uint256 public constant MAX_PRICE_AGE = 300;
+
+    // Feed IDs (Crypto = 0x01 prefix)
+    bytes21 public constant FLR_USD = 0x01464c522f55534400000000000000000000000000;
+    bytes21 public constant ETH_USD = 0x014554482f55534400000000000000000000000000;
+    bytes21 public constant BTC_USD = 0x014254432f55534400000000000000000000000000;
+    bytes21 public constant XRP_USD = 0x015852502f55534400000000000000000000000000;
+    bytes21 public constant DOGE_USD = 0x01444f47452f555344000000000000000000000000;
+
+    // Token address to feed ID mapping
+    mapping(address => bytes21) public tokenFeeds;
+
+    // Owner for configuration
+    address public owner;
+
+    error PriceStale(uint256 age, uint256 maxAge);
+    error FeedNotConfigured(address token);
+    error Unauthorized();
+
+    event FeedConfigured(address indexed token, bytes21 feedId);
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    /// @notice Get price from FTSO v2
+    function getPrice(bytes21 feedId) public view returns (
+        uint256 value,
+        int8 decimals,
+        uint64 timestamp
+    ) {
+        IFtsoV2 ftso = ContractRegistry.getFtsoV2();
+        return ftso.getFeedById(feedId);
+    }
+
+    /// @notice Get price with staleness check
+    function getPriceWithCheck(bytes21 feedId) public view returns (uint256) {
+        (uint256 value, , uint64 timestamp) = getPrice(feedId);
+        uint256 age = block.timestamp - timestamp;
+        if (age > MAX_PRICE_AGE) revert PriceStale(age, MAX_PRICE_AGE);
+        return value;
+    }
+
+    /// @notice Get token price in USD
+    function getTokenPriceUSD(address token) external view returns (uint256) {
+        bytes21 feedId = tokenFeeds[token];
+        if (feedId == bytes21(0)) revert FeedNotConfigured(token);
+        return getPriceWithCheck(feedId);
+    }
+
+    /// @notice Configure feed for a token
+    function setTokenFeed(address token, bytes21 feedId) external {
+        if (msg.sender != owner) revert Unauthorized();
+        tokenFeeds[token] = feedId;
+        emit FeedConfigured(token, feedId);
+    }
+
+    /// @notice Transfer ownership
+    function transferOwnership(address newOwner) external {
+        if (msg.sender != owner) revert Unauthorized();
+        owner = newOwner;
+    }
+}
+```
+
+### 4.6 SwapRouter (`contracts/core/SwapRouter.sol`)
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {IAdapter} from "../adapters/IAdapter.sol";
+import {PraxisStructs} from "../lib/PraxisStructs.sol";
+
+contract SwapRouter is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // Registered adapters
+    address[] public adapters;
+    mapping(address => bool) public isAdapter;
+
+    // Owner
+    address public owner;
+
+    // Events
+    event AdapterAdded(address indexed adapter, string name);
+    event AdapterRemoved(address indexed adapter);
+    event SwapExecuted(
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        address indexed adapter
+    );
+
+    // Errors
+    error InvalidAdapter();
+    error InsufficientOutput(uint256 actual, uint256 minimum);
+    error DeadlineExpired();
+    error Unauthorized();
+    error NoRouteFound();
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // ============ ADAPTER MANAGEMENT ============
+
+    function addAdapter(address adapter) external {
+        if (msg.sender != owner) revert Unauthorized();
+        if (isAdapter[adapter]) revert InvalidAdapter();
+
+        adapters.push(adapter);
+        isAdapter[adapter] = true;
+
+        emit AdapterAdded(adapter, IAdapter(adapter).name());
+    }
+
+    function removeAdapter(address adapter) external {
+        if (msg.sender != owner) revert Unauthorized();
+        if (!isAdapter[adapter]) revert InvalidAdapter();
+
+        isAdapter[adapter] = false;
+
+        for (uint256 i = 0; i < adapters.length; i++) {
+            if (adapters[i] == adapter) {
+                adapters[i] = adapters[adapters.length - 1];
+                adapters.pop();
+                break;
+            }
+        }
+
+        emit AdapterRemoved(adapter);
+    }
+
+    // ============ QUOTING ============
+
+    /// @notice Get quotes from all adapters for a swap
+    function getAllQuotes(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external view returns (PraxisStructs.Quote[] memory quotes) {
+        quotes = new PraxisStructs.Quote[](adapters.length);
+
+        for (uint256 i = 0; i < adapters.length; i++) {
+            try IAdapter(adapters[i]).getQuote(tokenIn, tokenOut, amountIn)
+                returns (uint256 amountOut, uint256 gasEstimate)
+            {
+                quotes[i] = PraxisStructs.Quote({
+                    adapter: adapters[i],
+                    name: IAdapter(adapters[i]).name(),
+                    amountOut: amountOut,
+                    gasEstimate: gasEstimate,
+                    priceImpact: 0 // TODO: Calculate price impact
+                });
+            } catch {
+                quotes[i] = PraxisStructs.Quote({
+                    adapter: adapters[i],
+                    name: IAdapter(adapters[i]).name(),
+                    amountOut: 0,
+                    gasEstimate: 0,
+                    priceImpact: 0
+                });
+            }
+        }
+    }
+
+    /// @notice Find the best route (highest output)
+    function findBestRoute(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) public view returns (address bestAdapter, uint256 bestAmountOut) {
+        for (uint256 i = 0; i < adapters.length; i++) {
+            try IAdapter(adapters[i]).getQuote(tokenIn, tokenOut, amountIn)
+                returns (uint256 amountOut, uint256)
+            {
+                if (amountOut > bestAmountOut) {
+                    bestAmountOut = amountOut;
+                    bestAdapter = adapters[i];
+                }
+            } catch {
+                continue;
+            }
+        }
+    }
+
+    // ============ SWAPPING ============
+
+    /// @notice Execute a swap through the best route
+    function swap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient,
+        uint256 deadline
+    ) external nonReentrant returns (uint256 amountOut) {
+        if (block.timestamp > deadline) revert DeadlineExpired();
+
+        (address bestAdapter, ) = findBestRoute(tokenIn, tokenOut, amountIn);
+        if (bestAdapter == address(0)) revert NoRouteFound();
+
+        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn).safeIncreaseAllowance(bestAdapter, amountIn);
+
+        amountOut = IAdapter(bestAdapter).swap(
+            tokenIn,
+            tokenOut,
+            amountIn,
+            minAmountOut,
+            recipient,
+            ""
+        );
+
+        if (amountOut < minAmountOut) revert InsufficientOutput(amountOut, minAmountOut);
+
+        emit SwapExecuted(tokenIn, tokenOut, amountIn, amountOut, bestAdapter);
+    }
+
+    /// @notice Execute a swap through a specific adapter
+    function swapVia(
+        address adapter,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient,
+        uint256 deadline
+    ) external nonReentrant returns (uint256 amountOut) {
+        if (block.timestamp > deadline) revert DeadlineExpired();
+        if (!isAdapter[adapter]) revert InvalidAdapter();
+
+        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn).safeIncreaseAllowance(adapter, amountIn);
+
+        amountOut = IAdapter(adapter).swap(
+            tokenIn,
+            tokenOut,
+            amountIn,
+            minAmountOut,
+            recipient,
+            ""
+        );
+
+        if (amountOut < minAmountOut) revert InsufficientOutput(amountOut, minAmountOut);
+
+        emit SwapExecuted(tokenIn, tokenOut, amountIn, amountOut, adapter);
+    }
+
+    // ============ VIEW FUNCTIONS ============
+
+    function getAdapters() external view returns (address[] memory) {
+        return adapters;
+    }
+
+    function getAdapterCount() external view returns (uint256) {
+        return adapters.length;
+    }
+}
+```
+
+### 4.7 PraxisGateway (`contracts/core/PraxisGateway.sol`)
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {PraxisStructs} from "../lib/PraxisStructs.sol";
+
+interface ISwapRouter {
+    function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, address recipient, uint256 deadline) external returns (uint256);
+    function findBestRoute(address tokenIn, address tokenOut, uint256 amountIn) external view returns (address, uint256);
+    function getAllQuotes(address tokenIn, address tokenOut, uint256 amountIn) external view returns (PraxisStructs.Quote[] memory);
+}
+
+interface IYieldRouter {
+    function deposit(address asset, uint256 amount, PraxisStructs.RiskLevel risk, address onBehalfOf) external returns (uint256);
+    function withdraw(address asset, uint256 shares, address to) external returns (uint256);
+    function getOptions(address asset, uint256 amount) external view returns (PraxisStructs.YieldOption[] memory);
+}
+
+interface IStrategyEngine {
+    function execute(PraxisStructs.Action[] calldata actions, address user) external returns (bytes32);
+    function executePreset(bytes32 presetId, address tokenIn, uint256 amountIn, address user) external returns (bytes32);
+}
+
+/// @title PraxisGateway - Unified entry point for Flare DeFi
+/// @notice The gateway to digital asset finance on Flare
+contract PraxisGateway is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // Core components
+    address public swapRouter;
+    address public yieldRouter;
+    address public strategyEngine;
+    address public oracle;
+
+    // FAsset registry
+    mapping(address => bool) public isFAsset;
+    address[] public supportedFAssets;
+
+    // Owner
+    address public owner;
+
+    // Events
+    event SwapExecuted(address indexed user, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
+    event StrategyExecuted(address indexed user, bytes32 strategyId, uint256 totalValue);
+    event YieldDeposited(address indexed user, address protocol, address asset, uint256 amount);
+    event FAssetAdded(address indexed fAsset);
+
+    // Errors
+    error Unauthorized();
+    error DeadlineExpired();
+    error ZeroAddress();
+
+    constructor(
+        address _swapRouter,
+        address _yieldRouter,
+        address _strategyEngine,
+        address _oracle
+    ) {
+        if (_swapRouter == address(0)) revert ZeroAddress();
+        swapRouter = _swapRouter;
+        yieldRouter = _yieldRouter;
+        strategyEngine = _strategyEngine;
+        oracle = _oracle;
+        owner = msg.sender;
+    }
+
+    // ============ SWAP FUNCTIONS ============
+
+    /// @notice Swap any token for any token with best rate
+    function swap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient,
+        uint256 deadline
+    ) external nonReentrant returns (uint256 amountOut) {
+        if (block.timestamp > deadline) revert DeadlineExpired();
+
+        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn).safeIncreaseAllowance(swapRouter, amountIn);
+
+        amountOut = ISwapRouter(swapRouter).swap(
+            tokenIn, tokenOut, amountIn, minAmountOut, recipient, deadline
+        );
+
+        emit SwapExecuted(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
+    }
+
+    /// @notice Get best quote across all DEXs
+    function getQuote(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external view returns (address bestAdapter, uint256 bestAmountOut) {
+        return ISwapRouter(swapRouter).findBestRoute(tokenIn, tokenOut, amountIn);
+    }
+
+    /// @notice Get all quotes from all DEXs
+    function getAllQuotes(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external view returns (PraxisStructs.Quote[] memory) {
+        return ISwapRouter(swapRouter).getAllQuotes(tokenIn, tokenOut, amountIn);
+    }
+
+    // ============ YIELD FUNCTIONS ============
+
+    /// @notice Deposit to earn yield (auto-routes to best opportunity)
+    function deposit(
+        address asset,
+        uint256 amount,
+        PraxisStructs.RiskLevel risk
+    ) external nonReentrant returns (uint256 shares) {
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(asset).safeIncreaseAllowance(yieldRouter, amount);
+
+        shares = IYieldRouter(yieldRouter).deposit(asset, amount, risk, msg.sender);
+
+        emit YieldDeposited(msg.sender, yieldRouter, asset, amount);
+    }
+
+    /// @notice Get current best yield opportunities
+    function getYieldOptions(
+        address asset,
+        uint256 amount
+    ) external view returns (PraxisStructs.YieldOption[] memory) {
+        return IYieldRouter(yieldRouter).getOptions(asset, amount);
+    }
+
+    // ============ STRATEGY FUNCTIONS ============
+
+    /// @notice Execute a multi-step strategy
+    function executeStrategy(
+        PraxisStructs.Action[] calldata actions,
+        uint256 deadline
+    ) external nonReentrant returns (bytes32 strategyId) {
+        if (block.timestamp > deadline) revert DeadlineExpired();
+
+        strategyId = IStrategyEngine(strategyEngine).execute(actions, msg.sender);
+
+        emit StrategyExecuted(msg.sender, strategyId, 0);
+    }
+
+    /// @notice Execute preset strategy (e.g., "FAsset -> Max Yield")
+    function executePreset(
+        bytes32 presetId,
+        address tokenIn,
+        uint256 amountIn,
+        uint256 deadline
+    ) external nonReentrant returns (bytes32 strategyId) {
+        if (block.timestamp > deadline) revert DeadlineExpired();
+
+        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn).safeIncreaseAllowance(strategyEngine, amountIn);
+
+        strategyId = IStrategyEngine(strategyEngine).executePreset(
+            presetId, tokenIn, amountIn, msg.sender
+        );
+
+        emit StrategyExecuted(msg.sender, strategyId, amountIn);
+    }
+
+    // ============ FASSET FUNCTIONS ============
+
+    /// @notice Add a supported FAsset
+    function addFAsset(address fAsset) external {
+        if (msg.sender != owner) revert Unauthorized();
+        if (!isFAsset[fAsset]) {
+            isFAsset[fAsset] = true;
+            supportedFAssets.push(fAsset);
+            emit FAssetAdded(fAsset);
+        }
+    }
+
+    /// @notice Check if token is a supported FAsset
+    function isSupportedFAsset(address token) external view returns (bool) {
+        return isFAsset[token];
+    }
+
+    /// @notice Get all supported FAssets
+    function getSupportedFAssets() external view returns (address[] memory) {
+        return supportedFAssets;
+    }
+
+    // ============ ADMIN ============
+
+    function transferOwnership(address newOwner) external {
+        if (msg.sender != owner) revert Unauthorized();
+        owner = newOwner;
     }
 }
 ```
 
 ---
 
-### 2.2 `PraxisVault.sol` (The Core)
+## 5. Implementation Phases
 
-From **PRD §5.1, §8**:
+### Phase 1: Foundation
 
-**Responsibilities:**
-*   Trust pools (§8.1)
-*   Grant/revoke execution rights (§8.1)
-*   Fund pools (§8.1)
-*   Settle outcomes (§8.1)
-*   Distribute payouts (§5.1)
+**Goal:** Project setup + FTSO integration
 
-**State (PRD §8.2):**
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 1.1 | Initialize Hardhat + Foundry hybrid setup | Compiling project |
+| 1.2 | Configure Coston2 + Flare networks | Working RPC connections |
+| 1.3 | Install Flare periphery contracts | FTSO v2 access |
+| 1.4 | Implement FlareOracle.sol | Price feeds working |
+| 1.5 | Write oracle unit tests | 100% coverage |
+| 1.6 | Deploy oracle to Coston2 | Verified contract |
 
-```solidity
-// --- Rights Management ---
-mapping(bytes32 => PraxisStructs.ExecutionRight) public executionRights;
-
-// --- Pool Registry ---
-mapping(address => bool) public trustedPools;
-
-// --- Settlement ---
-address public settlementAuthority; // FDC Keeper or Governance
-IERC20 public settlementAsset;      // e.g., USDC, WFLR
+**Test Checkpoint 1:**
+```bash
+forge test --match-contract FlareOracleTest -vvv
+# All tests pass
 ```
 
-**Functions (PRD §8.3):**
-
-1.  **`registerPool(address pool)`**
-    *   *Access*: `onlyAuthority`.
-    *   *Logic*: `trustedPools[pool] = true`. Emit `PoolRegistered(pool)`.
-
-2.  **`unregisterPool(address pool)`**
-    *   *Access*: `onlyAuthority`.
-    *   *Logic*: `trustedPools[pool] = false`. Emit `PoolUnregistered(pool)`.
-
-3.  **`grantExecutionRight(address executor, address pool, uint64 expiry)`**
-    *   *Access*: `onlyAuthority`.
-    *   *PRD §8.3*: Generates right, stores it, emits event.
-    *   *Logic*:
-        1.  `require(trustedPools[pool], "Pool not trusted")`.
-        2.  `bytes32 rightId = keccak256(abi.encode(executor, pool, block.timestamp))`.
-        3.  `executionRights[rightId] = ExecutionRight(executor, pool, block.timestamp, expiry, true)`.
-        4.  Emit `RightGranted(rightId, executor, pool, expiry)`.
-
-4.  **`revokeExecutionRight(bytes32 rightId)`**
-    *   *Access*: `onlyAuthority` OR `right.executor`.
-    *   *Logic*: `executionRights[rightId].active = false`. Emit `RightRevoked(rightId)`.
-
-5.  **`execute(bytes32 rightId, bytes calldata action)`**
-    *   *Access*: Public.
-    *   *PRD §8.3*: Vault does not inspect calldata. Forwards execution to pool.
-    *   *Logic*:
-        1.  Load `right = executionRights[rightId]`.
-        2.  `require(msg.sender == right.executor, "Not executor")`.
-        3.  `require(block.timestamp >= right.startTime && block.timestamp < right.expiryTime, "Right not active")`.
-        4.  `require(right.active, "Right revoked")`.
-        5.  `(bool success, ) = right.pool.call(abi.encodeWithSignature("executeStrategy(bytes)", action))`.
-        6.  `require(success, "Execution failed in pool")`.
-        7.  Emit `ExecutionAttempted(rightId, action, success)`.
-
-6.  **`settle(address pool, bytes32 rightId)`**
-    *   *Access*: `onlySettlementAuthority` OR `right.executor`.
-    *   *PRD §8.3 (Settlement Sequence)*:
-        1.  **Revoke**: `executionRights[rightId].active = false`.
-        2.  **Liquidate**: `uint256 finalNAV = IELP(pool).liquidate()`.
-        3.  **Fetch Baseline (FTSO)**: `uint256 baseline = _getBaselineFromFTSO(pool)`.
-        4.  **Compute Alpha**: `int256 alpha = int256(finalNAV) - int256(baseline)`.
-        5.  **Distribute (PRD §11.2)**:
-            *   If `alpha > 0`: Executor gets `(alpha * executorFeeBps) / 10000`. LPs get the rest.
-            *   If `alpha <= 0`: LPs absorb the loss. Executor gets 0.
-        6.  Emit `SettlementOccurred(pool, rightId, alpha)`.
-
-7.  **`forceSettleByFDC(address pool, bytes32 rightId, IEVMTransaction.Proof calldata fdcProof)`**
-    *   *Access*: Public.
-    *   *PRD §13*: FDC triggers forced settlement. No governance required.
-    *   *Logic*:
-        1.  `require(praxisFDC.verifyEVMTransaction(fdcProof), "Invalid FDC proof")`.
-        2.  Call internal `_settle(pool, rightId)`.
-
-8.  **`emergencyHaltByFDC(IWeb2Json.Proof calldata fdcProof)`**
-    *   *Access*: Public.
-    *   *PRD §13*: FDC triggers emergency halt.
-    *   *Logic*:
-        1.  `require(praxisFDC.verifyWeb2Json(fdcProof), "Invalid FDC proof")`.
-        2.  Set a global `paused = true` flag.
-        3.  Emit `EmergencyHalt(reason)`.
-
 ---
 
-### 2.3 `BaseELP.sol` (Abstract Pool Implementation)
+### Phase 2: DEX Aggregation
 
-From **PRD §5.2, §9**:
+**Goal:** Best-rate swapping across all DEXs
 
-**Responsibilities:**
-*   Own strategy assets (§5.2)
-*   Enforce risk bounds (§5.2)
-*   Accept LP liquidity permissionlessly (§5.2)
-*   Absorb bounded losses (§5.2)
-*   Return value to Vault at settlement (§5.2)
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 2.1 | Create IAdapter interface | Standard adapter API |
+| 2.2 | Create BaseAdapter abstract | Common functionality |
+| 2.3 | Research SparkDEX V3 interface | ISparkDEXRouter.sol |
+| 2.4 | Implement SparkDEXAdapter | V3 swap support |
+| 2.5 | Research Enosys interface | IEnosysRouter.sol |
+| 2.6 | Implement EnosysAdapter | Enosys swap support |
+| 2.7 | Research BlazeSwap interface | V2-style router |
+| 2.8 | Implement BlazeSwapAdapter | V2 swap support |
+| 2.9 | Implement SwapRouter | Best-rate aggregation |
+| 2.10 | Write adapter unit tests | All adapters tested |
+| 2.11 | Write router integration tests | Aggregation tested |
+| 2.12 | Deploy all to Coston2 | Swaps working |
 
-**State (PRD §9.2):**
-
-```solidity
-// --- LP Accounting ---
-uint256 public totalCapital;
-uint256 public totalShares;
-mapping(address => uint256) public lpShares;
-
-// --- Fee Accounting ---
-uint256 public accruedExecutionFees;
-
-// --- Risk Bounds ---
-PraxisStructs.Bounds public bounds;
-
-// --- References ---
-address public vault;
-address public asset; // The underlying asset (e.g., USDC)
+**Test Checkpoint 2:**
+```bash
+forge test --match-contract SparkDEXAdapterTest -vvv
+forge test --match-contract SwapRouterTest -vvv
+# Verify: WFLR -> USDC routes through best DEX
 ```
 
-**Functions (PRD §9.3, §9.4, §9.5):**
-
-1.  **`addLiquidity(uint256 amount)` (PRD §9.3)**
-    *   *Access*: Public, Permissionless.
-    *   *Logic*:
-        1.  `IERC20(asset).transferFrom(msg.sender, address(this), amount)`.
-        2.  `uint256 sharesToMint = (totalShares == 0) ? amount : (amount * totalShares) / totalCapital`.
-        3.  `lpShares[msg.sender] += sharesToMint`.
-        4.  `totalShares += sharesToMint`. `totalCapital += amount`.
-        5.  Emit `LiquidityAdded(msg.sender, amount, sharesToMint)`.
-
-2.  **`removeLiquidity(uint256 shares)` (PRD §9.3)**
-    *   *Access*: Public.
-    *   *PRD Note*: "Withdrawals may be paused during execution".
-    *   *Logic*:
-        1.  `require(!_isExecutionActive(), "Withdrawal paused during execution")`.
-        2.  `uint256 amountToReturn = (shares * totalCapital) / totalShares`.
-        3.  `lpShares[msg.sender] -= shares`. `totalShares -= shares`. `totalCapital -= amountToReturn`.
-        4.  `IERC20(asset).transfer(msg.sender, amountToReturn)`.
-        5.  Emit `LiquidityRemoved(msg.sender, shares, amountToReturn)`.
-
-3.  **`executeStrategy(bytes calldata action)` (PRD §9.4)**
-    *   *Access*: `onlyVault`.
-    *   *Logic*:
-        1.  `uint256 startNAV = getNAV()`.
-        2.  `_performStrategy(action)`. // Virtual, implemented by child
-        3.  `uint256 endNAV = getNAV()`.
-        4.  **Enforce Bounds**:
-            *   `require((startNAV - endNAV) * 10000 / startNAV <= bounds.maxDrawdown, "Max drawdown exceeded")`.
-        5.  Emit `StrategyExecuted(action, startNAV, endNAV)`.
-
-4.  **`getNAV()` (PRD §9.5)**
-    *   *Logic*: Returns `IERC20(asset).balanceOf(address(this)) + _getPositionValue()`. Uses FTSO for live pricing of positions.
-
-5.  **`liquidate()` (PRD §9.5)**
-    *   *Access*: `onlyVault`.
-    *   *PRD §9.5*: Converts strategy assets to settlement asset.
-    *   *Logic*:
-        1.  `_closeAllPositions()`. // Virtual, sells all NFTs, closes all swaps, etc.
-        2.  `return getNAV()`.
-
-6.  **`_performStrategy(bytes calldata action)` - `virtual`**
-    *   To be implemented by concrete pools (e.g., `NFTExecutionPool`).
-
-7.  **`_getPositionValue()` - `virtual`**
-    *   To be implemented by concrete pools. Returns value of non-liquid holdings using FTSO.
-
 ---
 
-### 2.4 `NFTExecutionPool.sol` (Concrete Implementation)
+### Phase 3: Yield Integration
 
-From **PRD §10**:
+**Goal:** Lending and staking with one click
 
-**Additional State (PRD §10.1):**
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 3.1 | Create ILendingAdapter interface | Lending standard |
+| 3.2 | Create IStakingAdapter interface | Staking standard |
+| 3.3 | Research Kinetic (Compound-fork) | IKToken, IComptroller |
+| 3.4 | Implement KineticAdapter | Supply/withdraw/borrow |
+| 3.5 | Research Sceptre (sFLR) | ISceptre interface |
+| 3.6 | Implement SceptreAdapter | Stake/unstake with cooldown |
+| 3.7 | Implement YieldRouter | Best yield selection |
+| 3.8 | Add risk-level filtering | Conservative/Moderate/Aggressive |
+| 3.9 | Write integration tests | Cross-protocol tested |
+| 3.10 | Deploy to Coston2 | Yield working |
 
-```solidity
-address public marketplace; // e.g., Blur, OpenSea adapter
-mapping(address => bool) public allowedCollections;
-
-uint256 public maxNFTPrice;
-uint256 public maxPremiumBps; // Max premium over FTSO floor price
+**Test Checkpoint 3:**
+```bash
+forge test --match-contract KineticAdapterTest -vvv
+forge test --match-contract SceptreAdapterTest -vvv
+# Verify: Deposit WFLR -> routes to best yield option
 ```
 
-**Functions (PRD §10.2):**
-
-1.  **`_performStrategy(bytes calldata action)` (override)**
-    *   *Logic*:
-        1.  Decode `action` into `(ActionType actionType, address collection, uint256 tokenId, uint256 price)`.
-        2.  If `actionType == BUY`:
-            *   `require(allowedCollections[collection], "Collection not allowed")`.
-            *   `require(price <= maxNFTPrice, "Price exceeds max")`.
-            *   `uint256 floorPrice = _getFTSOFloorPrice(collection)`.
-            *   `require((price - floorPrice) * 10000 / floorPrice <= maxPremiumBps, "Premium too high")`.
-            *   `IMarketplace(marketplace).buy{value: price}(collection, tokenId)`.
-        3.  If `actionType == SELL`:
-            *   `IMarketplace(marketplace).sell(collection, tokenId, price)`.
-
-2.  **`_getPositionValue()` (override)**
-    *   *Logic*: Loop through held NFTs and sum their FTSO floor prices.
-
-3.  **`setAllowedCollection(address collection, bool allowed)`**
-    *   *Access*: `onlyOwner`.
-    *   *Logic*: `allowedCollections[collection] = allowed`.
-
 ---
 
-### 2.5 `PraxisFDC.sol` (Flare Data Connector Integration)
+### Phase 4: FAssets Support
 
-From **PRD §13** and **FDC Docs (`docs/fdc/10.txt`, `docs/fdc/12.txt`, `docs/fdc/13.txt`)**:
+**Goal:** First-class FAsset support
 
-**Responsibilities:**
-*   Execution gating
-*   Forced settlement
-*   Emergency halts
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 4.1 | Research FAsset contracts on Flare | IFAssetManager interface |
+| 4.2 | Implement FAssetsAdapter | FAsset-aware handling |
+| 4.3 | Add FXRP swap routing | FXRP -> any token |
+| 4.4 | Add FBTC swap routing | FBTC -> any token |
+| 4.5 | Add FDOGE swap routing | FDOGE -> any token |
+| 4.6 | Create FAsset-optimized strategies | Preset yield strategies |
+| 4.7 | Write FAsset flow tests | Full journey tested |
+| 4.8 | Deploy to Coston2 | FAssets working |
 
-**Imports:**
-
-```solidity
-import { ContractRegistry } from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
-import { IEVMTransaction } from "@flarenetwork/flare-periphery-contracts/coston2/IEVMTransaction.sol";
-import { IWeb2Json } from "@flarenetwork/flare-periphery-contracts/coston2/IWeb2Json.sol";
+**Test Checkpoint 4:**
+```bash
+forge test --match-contract FAssetsAdapterTest -vvv
+# Verify: FXRP -> swap -> yield in one transaction
 ```
 
-**Functions:**
-
-1.  **`verifyEVMTransaction(IEVMTransaction.Proof calldata proof)`**
-    *   Used for: Proving a transaction happened on another EVM chain (e.g., a liquidation event on Ethereum, a USDC transfer on Sepolia).
-    *   *Logic*: `return ContractRegistry.getFdcVerification().verifyEVMTransaction(proof);`
-
-2.  **`verifyWeb2Json(IWeb2Json.Proof calldata proof)`**
-    *   Used for: Proving data from a Web2 API (e.g., a price feed from CoinGecko, reserve data from a stablecoin issuer).
-    *   *Logic*: `return ContractRegistry.getFdcVerification().verifyWeb2Json(proof);`
-
-3.  **`verifyPayment(IPayment.Proof calldata proof)`**
-    *   Used for: Proving a native payment on BTC/DOGE/XRP.
-    *   *Logic*: `return ContractRegistry.getFdcVerification().verifyPayment(proof);`
-
 ---
 
-### 2.6 `PraxisFTSO.sol` (Flare Time Series Oracle Integration)
+### Phase 5: Strategy Engine
 
-From **PRD §12**:
+**Goal:** Multi-step strategy execution
 
-**Responsibilities:**
-*   Asset pricing
-*   Floor prices (for NFTs)
-*   NAV computation
-*   Alpha vs baseline
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 5.1 | Implement StrategyEngine.sol | Multi-action execution |
+| 5.2 | Create Action parser | ActionType -> execution |
+| 5.3 | Implement output chaining | Step N output -> Step N+1 input |
+| 5.4 | Create preset strategies | "FXRP -> Max Yield" etc |
+| 5.5 | Implement Batcher.sol | Gas optimization |
+| 5.6 | Write strategy tests | All presets tested |
+| 5.7 | Deploy to Coston2 | Strategies working |
 
-**Functions:**
+**Preset Strategies:**
+- `FXRP_MAX_YIELD`: FXRP -> swap to WFLR -> stake on Sceptre
+- `FBTC_CONSERVATIVE`: FBTC -> swap to USDC -> supply to Kinetic
+- `WFLR_LEVERAGE`: WFLR -> supply to Kinetic -> borrow USDC -> swap to WFLR -> repeat
 
-1.  **`getPrice(string memory symbol)`**
-    *   *Logic*: Returns (price, timestamp, decimals) from `FtsoRegistry.getCurrentPrice(symbol)`.
-
-2.  **`getPriceWithCheck(string memory symbol, uint256 maxAge)`**
-    *   *Logic*:
-        1.  `(uint256 price, uint256 timestamp, ) = getPrice(symbol)`.
-        2.  `require(block.timestamp - timestamp <= maxAge, "Price stale")`.
-        3.  `return price`.
-
----
-
-### 2.7 Interfaces (`contracts/interfaces/`)
-
-*   **`IELP.sol`**: `executeStrategy(bytes)`, `liquidate()`, `getNAV()`, `addLiquidity(uint256)`, `removeLiquidity(uint256)`.
-*   **`IVault.sol`**: `execute(bytes32, bytes)`, `settle(address, bytes32)`.
-*   **`IMarketplace.sol`**: `buy(address, uint256)`, `sell(address, uint256, uint256)`.
-
----
-
-## 3. Incentive Model (PRD §11)
-
-### 3.1 LP Revenue Streams
-
-| Stream                  | Description                                    | Implementation                                        |
-| ----------------------- | ---------------------------------------------- | ----------------------------------------------------- |
-| **Execution Access Fees** | Paid per execution or per day. Guaranteed.     | `accruedExecutionFees` in `BaseELP`. Charged in `executeStrategy`. |
-| **Risk Premium**          | Senior profit share. Paid before executors.    | Calculated in `Vault.settle()` from `alpha`.          |
-| **Idle Capital Yield**    | Optional passive yield. Benchmarking via FTSO. | Future: Integrate with Aave/Compound on Flare.        |
-
-### 3.2 Executor Compensation (PRD §11.2)
-
-*   Paid **only on alpha**.
-*   `alpha = finalNAV - baselineNAV`.
-*   No profit → No payout.
-*   Disappearing executor earns nothing.
-
----
-
-## 4. Cross-Chain Exposure via FAssets (PRD §14)
-
-*   Vault can hold **FAssets** (FBTC, FXRP, FDOGE).
-*   Pools operate on economic exposure only; they don't bridge.
-*   **No custody risk** for the underlying BTC/XRP/DOGE.
-
----
-
-## 5. Security Model (PRD §16, §17)
-
-### 5.1 Impossible Attacks (PRD §16.1)
-
-| Attack                    | Prevention Mechanism                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| Executor rug              | Executor never has custody. Assets are in Pool.                                      |
-| Capital disappearance     | Vault controls fund flow. Pool cannot send to arbitrary addresses.                   |
-| Unauthorized withdrawals  | `removeLiquidity` checks `lpShares[msg.sender]`.                                     |
-| RPC bypass                | All logic is on-chain. No off-chain dependencies for core operations.               |
-| Protocol spoofing         | Only trusted pools can be called via `execute`. Pool verifies `msg.sender == vault`. |
-
-### 5.2 Explicit Risks (PRD §16.2)
-
-| Risk                 | Mitigation                                                              |
-| -------------------- | ----------------------------------------------------------------------- |
-| Strategy loss        | Bounded by `maxDrawdown`. LP accepts this risk.                         |
-| Oracle delays (FTSO) | `getPriceWithCheck` reverts if price is stale.                          |
-| Pool-specific bugs   | Risk is isolated per pool. One pool bug doesn't affect others.          |
-
-### 5.3 Non-Negotiable Invariants (PRD §17)
-
-1.  Executors never custody assets.
-2.  Ownership transfers only at settlement.
-3.  Pools constrain effects, not protocols.
-4.  LPs are paid before executors.
-5.  Reality > governance (FDC overrides votes).
-
----
-
-## 6. Frontend Specification (PRD §15)
-
-**Theme:** "Cyber-Renaissance". Dark mode, gold accents, technical serif fonts.
-
-### 6.1 LP Interface (PRD §15.1)
-
-*   **View pools**: Grid of ELPs with TVL, APY, Risk params.
-*   **Risk parameters**: Display `Bounds` struct.
-*   **Historical PnL**: Chart of NAV over time.
-*   **Deposit / withdraw**: `addLiquidity` / `removeLiquidity` flows.
-
-### 6.2 Executor Interface (PRD §15.2)
-
-*   **Browse pools**: See available ELPs.
-*   **View constraints**: Display `Bounds`, allowed collections, etc.
-*   **Request execution rights**: Button to trigger `grantExecutionRight` (via authority).
-*   **Execute actions**: Form builder for `actionData`.
-*   **Track alpha**: Display `alpha` for current session.
-
-### 6.3 Vault Interface (PRD §15.3)
-
-*   **Pool management**: Register/unregister pools.
-*   **Settlement dashboard**: List of pending/completed settlements.
-*   **Capital routing**: Show where funds are allocated.
-
----
-
-## 7. Deployment Strategy (Coston2 Testnet)
-
-### 7.1 Directory Structure
-
-```
-praxis/
-├── contracts/
-│   ├── core/
-│   │   ├── PraxisVault.sol
-│   │   ├── PraxisFDC.sol
-│   │   └── PraxisFTSO.sol
-│   ├── pools/
-│   │   ├── BaseELP.sol
-│   │   └── NFTExecutionPool.sol
-│   ├── interfaces/
-│   │   ├── IELP.sol
-│   │   ├── IVault.sol
-│   │   └── IMarketplace.sol
-│   └── lib/
-│       └── PraxisStructs.sol
-├── scripts/
-│   ├── deploy_core.ts
-│   └── helpers/
-│       └── FdcHelpers.ts
-├── test/
-│   ├── VaultFlow.t.sol
-│   └── FDCIntegration.t.sol
-└── app/ (Next.js Frontend)
+**Test Checkpoint 5:**
+```bash
+forge test --match-contract StrategyEngineTest -vvv
+# Verify: Multi-step strategy executes atomically
 ```
 
-### 7.2 Deployment Script (`scripts/deploy_core.ts`)
+---
 
-1.  Deploy `PraxisStructs` library.
-2.  Deploy `PraxisFTSO`.
-3.  Deploy `PraxisFDC`.
-4.  Deploy `PraxisVault` (linking FTSO, FDC).
-5.  Deploy `NFTExecutionPool` (linking Vault, FTSO).
-6.  Call `vault.registerPool(poolAddress)`.
-7.  Verify all contracts on Coston2 Explorer.
+### Phase 6: PraxisGateway
 
-### 7.3 End-to-End Test Scenario
+**Goal:** Unified entry point
 
-1.  **LP**: Deposits 10,000 Mock USDC to `NFTExecutionPool`.
-2.  **Authority**: Calls `vault.grantExecutionRight(executor, pool, 1 day)`.
-3.  **Executor**: Calls `vault.execute(rightId, buyNftAction)`.
-4.  **Pool**: Verifies FTSO price, executes buy. NAV updates.
-5.  **Settlement**: After 1 day, `vault.settle(pool, rightId)` is called.
-6.  **(FDC Test)**: Simulate `forceSettleByFDC` using a mock proof.
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 6.1 | Implement PraxisGateway.sol | Single entry point |
+| 6.2 | Wire up SwapRouter | swap(), getQuote() |
+| 6.3 | Wire up YieldRouter | deposit(), getYieldOptions() |
+| 6.4 | Wire up StrategyEngine | executeStrategy(), executePreset() |
+| 6.5 | Add FAsset registry | isFAsset(), getSupportedFAssets() |
+| 6.6 | Security hardening | Reentrancy, access control |
+| 6.7 | Full integration tests | End-to-end tested |
+| 6.8 | Deploy to Coston2 | Gateway live |
+
+**Test Checkpoint 6:**
+```bash
+forge test --match-contract PraxisGatewayTest -vvv
+# Verify: All actions work through single gateway
+```
 
 ---
 
-## 8. Next Steps
+### Phase 7: Security & Audit
 
-> [!IMPORTANT]
-> This plan is awaiting user approval. Once approved, the next action is to scaffold the directory structure and begin implementing `contracts/lib/PraxisStructs.sol` and `contracts/core/PraxisVault.sol`.
+**Goal:** Production-ready security
+
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 7.1 | Slither static analysis | No high/medium issues |
+| 7.2 | Mythril symbolic analysis | No vulnerabilities |
+| 7.3 | Fork testing against mainnet | Real liquidity tests |
+| 7.4 | Flash loan attack testing | Economic security |
+| 7.5 | Reentrancy testing | All paths safe |
+| 7.6 | Access control audit | Ownership secure |
+| 7.7 | External audit (optional) | Third-party review |
+| 7.8 | Fix all findings | Issues resolved |
+
+**Test Checkpoint 7:**
+```bash
+slither contracts/ --print human-summary
+# No high or medium severity issues
+```
+
+---
+
+### Phase 8: Mainnet Launch
+
+**Goal:** Production deployment
+
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 8.1 | Pre-deployment checklist | All tests pass |
+| 8.2 | Deploy FlareOracle | Mainnet oracle |
+| 8.3 | Deploy all adapters | 5 adapters live |
+| 8.4 | Deploy SwapRouter | Aggregation live |
+| 8.5 | Deploy YieldRouter | Yield live |
+| 8.6 | Deploy StrategyEngine | Strategies live |
+| 8.7 | Deploy PraxisGateway | Gateway live |
+| 8.8 | Transfer to multisig | Secure ownership |
+| 8.9 | Verify all contracts | Explorer verified |
+| 8.10 | Small-scale testing | Real transactions |
+| 8.11 | Monitoring setup | Alerts configured |
+| 8.12 | Launch announcement | Public launch |
+
+**Test Checkpoint 8:**
+```bash
+npx hardhat run scripts/validate/mainnetCheck.ts --network flare
+# All contracts responding correctly
+```
+
+---
+
+## 6. Testing Strategy
+
+### 6.1 Test Levels
+
+```
+                    +-------------+
+                    |    E2E      |  Manual mainnet testing
+                   -+-------------+-
+                +---------------------+
+                |    Fork Tests       |  Real liquidity, forked state
+               -+---------------------+-
+            +---------------------------+
+            |   Integration Tests       |  Contract interactions
+           -+---------------------------+-
+        +---------------------------------+
+        |        Unit Tests               |  Individual functions
+       -+---------------------------------+-
+```
+
+### 6.2 Test Coverage Requirements
+
+| Contract | Min Coverage |
+|----------|-------------|
+| FlareOracle | 95% |
+| All Adapters | 90% |
+| SwapRouter | 95% |
+| YieldRouter | 90% |
+| StrategyEngine | 90% |
+| PraxisGateway | 95% |
+
+### 6.3 Test Commands
+
+```bash
+# Run all unit tests
+forge test --match-path test/unit/
+
+# Run integration tests
+forge test --match-path test/integration/
+
+# Run fork tests (Coston2)
+forge test --fork-url https://coston2-api.flare.network/ext/C/rpc
+
+# Run with coverage
+forge coverage
+
+# Run with gas report
+forge test --gas-report
+```
+
+---
+
+## 7. Deployment Strategy
+
+### 7.1 Network Progression
+
+```
++------------------+     +------------------+     +------------------+
+|   Local Tests    | --> |     Coston2      | --> |  Flare Mainnet   |
+|   (Foundry)      |     |   (Testnet)      |     |   (Production)   |
++------------------+     +------------------+     +------------------+
+        |                        |                        |
+        v                        v                        v
+   Unit tests              Integration             Audited +
+   Fork tests              Real protocols          Battle-tested
+   Gas analysis            48h monitoring          Multisig owned
+```
+
+### 7.2 Deployment Order
+
+1. FlareOracle (no dependencies)
+2. All Adapters (depend on oracle)
+3. SwapRouter (depends on adapters)
+4. YieldRouter (depends on adapters)
+5. StrategyEngine (depends on routers)
+6. PraxisGateway (depends on all)
+
+### 7.3 Pre-Mainnet Checklist
+
+- [ ] All Coston2 tests passing
+- [ ] 48 hours stable on testnet
+- [ ] Slither clean (no high/medium)
+- [ ] Fork tests against mainnet pass
+- [ ] Multisig wallet configured
+- [ ] Emergency pause tested
+- [ ] Monitoring configured
+
+---
+
+## 8. Contract Addresses
+
+### 8.1 Flare Mainnet (TBD after deployment)
+
+| Contract | Address | Verified |
+|----------|---------|----------|
+| FlareOracle | TBD | [ ] |
+| SparkDEXAdapter | TBD | [ ] |
+| EnosysAdapter | TBD | [ ] |
+| BlazeSwapAdapter | TBD | [ ] |
+| KineticAdapter | TBD | [ ] |
+| SceptreAdapter | TBD | [ ] |
+| SwapRouter | TBD | [ ] |
+| YieldRouter | TBD | [ ] |
+| StrategyEngine | TBD | [ ] |
+| PraxisGateway | TBD | [ ] |
+
+### 8.2 Coston2 Testnet (TBD after deployment)
+
+| Contract | Address | Verified |
+|----------|---------|----------|
+| FlareOracle | TBD | [ ] |
+| SwapRouter | TBD | [ ] |
+| PraxisGateway | TBD | [ ] |
+
+### 8.3 External Protocol Addresses (Flare Mainnet)
+
+| Protocol | Contract | Address |
+|----------|----------|---------|
+| SparkDEX | Router | `0x4a1E5A90e9943467FAd1acea1E7F0e5e88472a1e` |
+| Kinetic | Comptroller | `0x15F69897E6aEBE0463401345543C26d1Fd994abB` |
+| Sceptre | sFLR | `0x12e605bc104e93b45e1ad99f9e555f659051c2bb` |
+| - | WFLR | `0x1d80c49bbbcd1c0911346656b529df9e5c2f783d` |
+| - | USDC | `0xFbDa5F676cB37624f28265A144A48B0d6e87d3b6` |
+| FAssets | FXRP | TBD |
+| FAssets | FBTC | TBD |
+| FAssets | FDOGE | TBD |
+
+---
+
+## Revenue Model
+
+| Source | How It Works | Target |
+|--------|--------------|--------|
+| Swap Fee | 0.05% on aggregated swaps | Competitive with 1inch |
+| Strategy Fee | 0.1% on strategy execution | Value-add for complexity |
+| Yield Fee | 5% of earned yield | Performance-based |
+
+**Note:** All fees optional. Users can always go direct to protocols.
+
+---
+
+## Success Metrics
+
+| Metric | Target (6 months) |
+|--------|-------------------|
+| Total Value Routed | $10M+ |
+| Unique Users | 1,000+ |
+| FAsset Volume | $1M+ |
+| DEX Market Share | 20%+ of Flare DEX volume |
+
+---
+
+## The Pitch
+
+**For Retail Users:**
+> "Your gateway to Flare DeFi. Swap, earn, stake - all in one place. Best rates guaranteed. No complexity."
+
+**For Flare Ecosystem:**
+> "PRAXIS brings users to Flare. More volume for DEXs. More TVL for lending/staking. More FAsset adoption. Rising tide lifts all boats."
+
+**For Investors:**
+> "PRAXIS is the interface layer for Flare's vision of seamless digital asset finance. Hundreds of trillions TAM, starting with XRP's $25B+ community."
+
+---
+
+## Verification Plan
+
+### Unit Tests
+- Each adapter tested in isolation
+- Each router tested in isolation
+- Gateway tested with mocked routers
+
+### Integration Tests
+- Swap aggregation finds correct best route
+- Yield routing selects optimal protocol
+- Strategy execution chains correctly
+
+### Fork Tests
+- Against Coston2 testnet
+- Against Flare mainnet (forked)
+- Real liquidity, real protocol responses
+
+### Manual Test Scenarios
+1. User with FXRP swaps to WFLR (verify best rate used)
+2. User deposits USDC to earn yield (verify optimal protocol selected)
+3. User executes "FXRP -> Max Yield" strategy (verify all steps execute)
+4. User withdraws from yield position (verify correct amounts)
