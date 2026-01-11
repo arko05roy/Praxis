@@ -1,1506 +1,1934 @@
-# PRAXIS - The Unified Gateway to Digital Asset Finance on Flare
+# PRAXIS - Detailed Implementation Plan with Micro-Steps
 
-**Version:** v3.0
+**Version:** v4.0
 **Target Chain:** Flare (Coston2 Testnet -> Mainnet)
-
-## The Vision
-
-> **"Seamless access to digital asset finance. Any asset. Any protocol. One interface."**
->
-> Flare is building the seamless platform for all digital asset business - a TAM in the hundreds of trillions.
-> PRAXIS is the unified gateway that makes this vision accessible to everyone.
+**Code Locations:** `web3/` for smart contracts, `client/` for frontend
 
 ---
 
-## Narrative Alignment with Flare
+## Implementation Philosophy
 
-**Flare's Promise:**
-- "Seamless platform for all digital asset business"
-- Hundreds of trillions in TAM
-- Starting with XRP, expanding to all digital assets
-- Both retail and institutional
+### Testing Principles
+- **No Mock Data**: All tests run against live Coston2 testnet protocols
+- **No Hardcoded Values**: All addresses, feed IDs, and configurations are dynamically discovered
+- **End-to-End Verification**: Each micro-step includes verbose tests that validate the complete flow
+- **Failure Detection**: Tests are designed to catch even minor discrepancies in returned values, gas usage, and state changes
 
-**PRAXIS's Role:**
-- The interface layer that makes Flare's infrastructure accessible
-- First true gateway for FAssets (FXRP, FBTC, FDOGE) into DeFi
-- One-click access to swap, lend, stake, and yield
-- Simple UI for retail, robust contracts for integrations
+### Address Discovery Pattern
+All protocol addresses MUST be discovered dynamically:
+```solidity
+// CORRECT - Dynamic discovery via Flare's ContractRegistry
+IFtsoV2 ftso = ContractRegistry.getFtsoV2();
 
----
-
-## Table of Contents
-
-1. [Why PRAXIS Matters](#1-why-praxis-matters)
-2. [Core Pillars](#2-core-pillars)
-3. [Architecture](#3-architecture)
-4. [Smart Contract Specification](#4-smart-contract-specification)
-5. [Implementation Phases](#5-implementation-phases)
-6. [Testing Strategy](#6-testing-strategy)
-7. [Deployment Strategy](#7-deployment-strategy)
-8. [Contract Addresses](#8-contract-addresses)
-
----
-
-## 1. Why PRAXIS Matters
-
-### Without PRAXIS:
-```
-User has FXRP and wants to earn yield...
-
-1. Research which DEX has FXRP liquidity
-2. Find best swap rate manually
-3. Execute swap (pay gas)
-4. Research lending options
-5. Supply to Kinetic (pay gas)
-6. Research staking options
-7. Stake on Sceptre (pay gas)
-8. Track positions across 3 UIs
-
-Result: 8 steps, multiple gas fees, fragmented experience
-```
-
-### With PRAXIS:
-```
-User has FXRP and wants to earn yield...
-
-1. Connect wallet
-2. Select: "FXRP -> Yield Strategy"
-3. Choose: Conservative (Kinetic) or Aggressive (LP + Stake)
-4. Click execute
-
-Result: 1 interface, optimized gas, unified tracking
+// INCORRECT - Hardcoded address
+IFtsoV2 ftso = IFtsoV2(0x1234...);
 ```
 
 ---
 
-## 2. Core Pillars
+## Phase 1: Foundation - Project Setup & FTSO Integration
 
-### 2.1 FAssets First
+### 1.1 Project Infrastructure Setup
 
-FAssets (FXRP, FBTC, FDOGE) are the entry point to Flare for hundreds of trillions in non-smart-contract assets.
+#### 1.1.1 Initialize Hardhat Project Structure
+**Deliverable:** Properly configured Hardhat project with Flare network support
 
-| FAsset | Underlying | Why It Matters |
-|--------|------------|----------------|
-| FXRP | XRP | $25B+ market cap, massive community |
-| FBTC | BTC | $800B+ market cap, biggest crypto asset |
-| FDOGE | DOGE | $10B+ market cap, retail favorite |
+**Tasks:**
+- 1.1.1.1 Verify existing hardhat.config.ts has correct Coston2 and Flare network configurations
+- 1.1.1.2 Install Flare periphery contracts package: `@flarenetwork/flare-periphery-contracts`
+- 1.1.1.3 Create the directory structure as specified in architecture
+- 1.1.1.4 Configure TypeScript paths and compiler settings for Solidity 0.8.28
 
-**PRAXIS makes FAssets useful:**
-- Instant swap to any Flare asset
-- Supply as collateral to earn yield
-- Stake via liquid staking derivatives
-- Provide liquidity with one click
+**Test 1.1.1-T1: Project Configuration Validation**
+```bash
+# Run from web3/
+npx hardhat compile
+```
+**Expected:** Compilation succeeds with no errors
+**Verbose Check:**
+- Verify Solidity version is 0.8.28
+- Verify EVM version is "cancun"
+- Verify all networks (coston2, flare, coston, songbird) are accessible
 
-### 2.2 Unified DeFi Access
-
-One interface for all DeFi actions across all Flare protocols.
-
-| Action | Protocol(s) | PRAXIS Flow |
-|--------|-------------|-------------|
-| **Swap** | SparkDEX, Enosys, BlazeSwap | Best rate auto-routing |
-| **Lend** | Kinetic | Supply -> earn interest |
-| **Borrow** | Kinetic | Collateralize -> borrow |
-| **Stake** | Sceptre (sFLR) | FLR -> sFLR + rewards |
-| **LP** | SparkDEX, Enosys | Provide liquidity |
-| **Perpetuals** | SparkDEX Eternal | Long/short with up to 100x leverage |
-| **Yield** | All | Optimized yield strategies |
-
-### 2.3 FTSO + FDC: The Data Advantage
-
-Flare's native infrastructure gives PRAXIS unfair advantages:
-
-| Flare Native | What It Does | PRAXIS Use |
-|--------------|--------------|------------|
-| **FTSO v2** | Decentralized price feeds | Real-time quotes, no external oracle |
-| **FDC** | Verifiable cross-chain data | FAsset price verification |
-| **State Connector** | Cross-chain proofs | Future: direct bridge integration |
+**Test 1.1.1-T2: Flare Periphery Package Installation**
+```typescript
+// test/unit/setup/FlarePackage.test.ts
+import { ContractRegistry } from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
+// Should compile without errors
+```
+**Expected:** Import resolves correctly
 
 ---
 
-## 3. Architecture
+#### 1.1.2 Create Contracts Directory Structure
+**Deliverable:** Complete folder structure for all contract types
 
-### 3.1 System Diagram
+**Tasks:**
+- 1.1.2.1 Create `contracts/core/` directory
+- 1.1.2.2 Create `contracts/adapters/` directory
+- 1.1.2.3 Create `contracts/oracles/` directory
+- 1.1.2.4 Create `contracts/strategies/` directory
+- 1.1.2.5 Create `contracts/interfaces/external/` directory
+- 1.1.2.6 Create `contracts/lib/` directory
+- 1.1.2.7 Create test directories: `test/unit/`, `test/integration/`, `test/fork/`
+- 1.1.2.8 Create deployment scripts directory: `scripts/deploy/`
+- 1.1.2.9 Create helper scripts directory: `scripts/helpers/`
 
+**Test 1.1.2-T1: Directory Structure Verification**
+```bash
+# Verify all directories exist
+ls -la contracts/core contracts/adapters contracts/oracles contracts/strategies contracts/interfaces/external contracts/lib
+ls -la test/unit test/integration test/fork
+ls -la scripts/deploy scripts/helpers
 ```
-+-----------------------------------------------------------------------------+
-|                              USERS                                           |
-|                    (Wallet + Frontend / Direct Contract)                     |
-+-----------------------------------------------------------------------------+
-                                       |
-                                       v
-+-----------------------------------------------------------------------------+
-|                         PRAXIS CORE CONTRACTS                                |
-+-----------------------------------------------------------------------------+
-|                                                                              |
-|  +---------------------------------------------------------------------+    |
-|  |                         PraxisGateway.sol                            |    |
-|  |   - Unified entry point for all actions                              |    |
-|  |   - FAsset-aware routing                                             |    |
-|  |   - Strategy execution engine                                         |    |
-|  |   - Gas optimization (batching)                                       |    |
-|  +---------------------------------------------------------------------+    |
-|                                       |                                      |
-|           +---------------------------+---------------------------+          |
-|           |                           |                           |          |
-|           v                           v                           v          |
-|  +-----------------+      +-----------------+      +-----------------+       |
-|  |   SwapRouter    |      |   YieldRouter   |      | StrategyEngine  |       |
-|  | - Best rate     |      | - Optimal yield |      | - Multi-step    |       |
-|  | - Multi-DEX     |      | - Risk-adjusted |      | - Conditional   |       |
-|  | - Split routes  |      | - Auto-compound |      | - Preset flows  |       |
-|  +--------+--------+      +--------+--------+      +--------+--------+       |
-|           |                        |                        |                |
-|           +------------------------+------------------------+                |
-|                                    |                                         |
-|                                    v                                         |
-|  +---------------------------------------------------------------------+    |
-|  |                       Protocol Adapters                              |    |
-|  +----------+----------+----------+----------+----------+--------------+    |
-|  | SparkDEX |  Enosys  | BlazeSwap| Kinetic  | Sceptre  |  FAssets     |    |
-|  | Adapter  | Adapter  | Adapter  | Adapter  | Adapter  |  Handler     |    |
-|  +----------+----------+----------+----------+----------+--------------+    |
-|  |                    SparkDEX Eternal Adapter                          |    |
-|  |                    (Perpetuals: Long/Short/Margin)                   |    |
-|  +---------------------------------------------------------------------+    |
-|                                    |                                         |
-|                                    v                                         |
-|  +---------------------------------------------------------------------+    |
-|  |                         Flare Native Layer                           |    |
-|  +----------------------------------+----------------------------------+    |
-|  |      FlareOracle (FTSO v2)       |      FAssetsHandler (FDC)        |    |
-|  +----------------------------------+----------------------------------+    |
-+-----------------------------------------------------------------------------+
-                                       |
-                                       v
-+-----------------------------------------------------------------------------+
-|                          FLARE DEFI PROTOCOLS                                |
-+----------+----------+----------+----------+----------+---------------------+
-| SparkDEX |  Enosys  | BlazeSwap| Kinetic  | Sceptre  |   FAsset Contracts  |
-|  (DEX)   |  (DEX)   |  (DEX)   | (Lending)| (Stake)  |   (FXRP,FBTC,FDOGE) |
-+----------+----------+----------+----------+----------+---------------------+
-|                     SparkDEX Eternal (Perpetuals)                           |
-+-----------------------------------------------------------------------------+
-```
+**Expected:** All directories exist and are accessible
 
-### 3.2 Directory Structure
+---
 
+#### 1.1.3 Create Library Contracts
+**Deliverable:** Shared data structures, errors, and events
+
+**Tasks:**
+- 1.1.3.1 Create `contracts/lib/PraxisStructs.sol` with all data structures (RiskLevel, ActionType, PositionSide, Action, Quote, YieldOption, Position, FAssetInfo, PerpPosition, PerpMarket, SwapParams, Hop, Route)
+- 1.1.3.2 Create `contracts/lib/PraxisErrors.sol` with custom error definitions
+- 1.1.3.3 Create `contracts/lib/PraxisEvents.sol` with event definitions
+
+**Test 1.1.3-T1: Library Compilation**
+```bash
+npx hardhat compile
 ```
-praxis/web3/
-├── contracts/
-│   ├── core/
-│   │   ├── PraxisGateway.sol       # Main entry point
-│   │   ├── SwapRouter.sol          # DEX aggregation
-│   │   ├── YieldRouter.sol         # Yield optimization
-│   │   ├── StrategyEngine.sol      # Multi-step strategies
-│   │   └── Batcher.sol             # Gas optimization
-│   │
-│   ├── adapters/
-│   │   ├── IAdapter.sol            # Common interface
-│   │   ├── ILendingAdapter.sol     # Lending interface
-│   │   ├── IStakingAdapter.sol     # Staking interface
-│   │   ├── IPerpetualAdapter.sol   # Perpetuals interface
-│   │   ├── BaseAdapter.sol         # Abstract base
-│   │   ├── SparkDEXAdapter.sol     # SparkDEX V3
-│   │   ├── SparkDEXEternalAdapter.sol # SparkDEX Eternal (perps)
-│   │   ├── EnosysAdapter.sol       # Enosys
-│   │   ├── BlazeSwapAdapter.sol    # BlazeSwap
-│   │   ├── KineticAdapter.sol      # Kinetic lending
-│   │   ├── SceptreAdapter.sol      # Sceptre staking
-│   │   └── FAssetsAdapter.sol      # FAsset handling
-│   │
-│   ├── oracles/
-│   │   ├── FlareOracle.sol         # FTSO v2 wrapper
-│   │   └── FDCVerifier.sol         # FDC price verification
-│   │
-│   ├── strategies/
-│   │   ├── IStrategy.sol           # Strategy interface
-│   │   ├── ConservativeYield.sol   # Low-risk yield
-│   │   ├── AggressiveYield.sol     # Higher yield, more risk
-│   │   └── FAssetOptimizer.sol     # FAsset-specific
-│   │
-│   ├── interfaces/
-│   │   └── external/
-│   │       ├── ISparkDEXRouter.sol
-│   │       ├── ISparkDEXEternal.sol    # Perpetuals interface
-│   │       ├── IEnosysRouter.sol
-│   │       ├── IBlazeSwapRouter.sol
-│   │       ├── IKToken.sol
-│   │       ├── IKineticComptroller.sol
-│   │       ├── ISceptre.sol
-│   │       └── IFAssetManager.sol
-│   │
-│   └── lib/
-│       ├── PraxisStructs.sol       # Data structures
-│       ├── PraxisErrors.sol        # Custom errors
-│       └── PraxisEvents.sol        # Events
-│
-├── test/
-│   ├── unit/
-│   │   ├── FlareOracle.t.sol
-│   │   ├── SparkDEXAdapter.t.sol
-│   │   ├── SparkDEXEternalAdapter.t.sol  # Perpetuals tests
-│   │   ├── EnosysAdapter.t.sol
-│   │   ├── BlazeSwapAdapter.t.sol
-│   │   ├── KineticAdapter.t.sol
-│   │   ├── SceptreAdapter.t.sol
-│   │   └── PraxisGateway.t.sol
-│   │
-│   ├── integration/
-│   │   ├── Aggregation.t.sol       # Best route selection
-│   │   ├── CrossProtocol.t.sol     # Swap + Lend + Stake
-│   │   ├── Perpetuals.t.sol        # Perp position workflows
-│   │   ├── FAssetFlows.t.sol       # FAsset workflows
-│   │   └── GasOptimization.t.sol   # Batching tests
-│   │
-│   └── fork/
-│       ├── Coston2Fork.t.sol       # Fork Coston2
-│       └── MainnetFork.t.sol       # Fork Flare mainnet
-│
-├── scripts/
-│   ├── deploy/
-│   │   ├── 01_FlareOracle.ts
-│   │   ├── 02_Adapters.ts
-│   │   ├── 03_Routers.ts
-│   │   ├── 04_Gateway.ts
-│   │   └── 05_Verify.ts
-│   │
-│   └── helpers/
-│       ├── addresses.ts            # Network-specific addresses
-│       └── testTokens.ts           # Testnet token helpers
-│
-└── hardhat.config.ts
+**Expected:** All library contracts compile without errors
+
+**Test 1.1.3-T2: Struct Size Validation**
+```typescript
+// test/unit/lib/PraxisStructs.test.ts
+describe("PraxisStructs", () => {
+  it("should have correct enum values", async () => {
+    // Deploy a test contract that uses PraxisStructs
+    // Verify RiskLevel.CONSERVATIVE = 0
+    // Verify RiskLevel.MODERATE = 1
+    // Verify RiskLevel.AGGRESSIVE = 2
+    // Verify all ActionType values
+    // Verify PositionSide values
+  });
+});
 ```
 
 ---
 
-## 4. Smart Contract Specification
+### 1.2 FTSO v2 Oracle Integration
 
-### 4.1 Data Structures (`contracts/lib/PraxisStructs.sol`)
+#### 1.2.1 Research FTSO v2 Feed IDs
+**Deliverable:** Documentation of all available feed IDs and their formats
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+**Tasks:**
+- 1.2.1.1 Query Coston2 FTSO v2 contract for available feeds
+- 1.2.1.2 Document the feed ID format (0x01 prefix for crypto assets)
+- 1.2.1.3 Document decimal precision for each feed
+- 1.2.1.4 Create a feed ID constants file in `scripts/helpers/feedIds.ts`
 
-library PraxisStructs {
-    // Risk levels for yield strategies
-    enum RiskLevel {
-        CONSERVATIVE,   // Staking, simple lending
-        MODERATE,       // LP with stable pairs
-        AGGRESSIVE      // LP with volatile pairs, leveraged
-    }
+**Test 1.2.1-T1: Feed Discovery on Coston2**
+```typescript
+// scripts/helpers/discoverFeeds.ts
+// Connect to Coston2
+// Query ContractRegistry for FtsoV2 address
+// Query for FLR/USD, BTC/USD, XRP/USD, ETH/USD, DOGE/USD
+// Log feed values and timestamps
+```
+**Expected:** All feed IDs return valid price data with timestamps within last 5 minutes
 
-    // Action types for strategies
-    enum ActionType {
-        SWAP,
-        SUPPLY,
-        WITHDRAW,
-        BORROW,
-        REPAY,
-        STAKE,
-        UNSTAKE,
-        ADD_LIQUIDITY,
-        REMOVE_LIQUIDITY,
-        OPEN_LONG,
-        OPEN_SHORT,
-        CLOSE_POSITION,
-        ADJUST_MARGIN
-    }
+---
 
-    // Perpetual position side
-    enum PositionSide {
-        LONG,
-        SHORT
-    }
+#### 1.2.2 Implement FlareOracle Contract
+**Deliverable:** Working FlareOracle.sol that wraps FTSO v2
 
-    /// @dev Single action in a strategy
-    struct Action {
-        ActionType actionType;
-        address adapter;
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;      // 0 = use all from previous step
-        uint256 minAmountOut;
-        bytes extraData;
-    }
+**Tasks:**
+- 1.2.2.1 Create `contracts/oracles/FlareOracle.sol` with ContractRegistry import
+- 1.2.2.2 Implement `getPrice(bytes21 feedId)` function using ContractRegistry.getFtsoV2()
+- 1.2.2.3 Implement staleness check with MAX_PRICE_AGE constant (300 seconds)
+- 1.2.2.4 Implement `getPriceWithCheck(bytes21 feedId)` with staleness validation
+- 1.2.2.5 Implement token-to-feed mapping with `setTokenFeed()` admin function
+- 1.2.2.6 Implement `getTokenPriceUSD(address token)` lookup function
+- 1.2.2.7 Add owner-based access control for configuration
+- 1.2.2.8 Add custom errors: `PriceStale`, `FeedNotConfigured`, `Unauthorized`
+- 1.2.2.9 Add events: `FeedConfigured`
 
-    /// @dev Quote from a DEX
-    struct Quote {
-        address adapter;
-        string name;
-        uint256 amountOut;
-        uint256 gasEstimate;
-        uint256 priceImpact;    // basis points
-    }
+**Test 1.2.2-T1: FlareOracle Unit Tests**
+```typescript
+// test/unit/oracles/FlareOracle.test.ts
+describe("FlareOracle", () => {
+  describe("getPrice", () => {
+    it("should return FLR/USD price from FTSO v2", async () => {
+      // Deploy FlareOracle to Coston2 fork
+      // Call getPrice with FLR_USD feed ID
+      // Verify: value > 0
+      // Verify: decimals is valid (typically 7 or 8)
+      // Verify: timestamp is within last 5 minutes
+    });
 
-    /// @dev Yield opportunity
-    struct YieldOption {
-        address protocol;
-        string name;
-        uint256 apy;            // basis points (500 = 5%)
-        RiskLevel risk;
-        uint256 tvl;
-        bool requiresLock;
-        uint256 lockPeriod;     // seconds
-    }
+    it("should return BTC/USD price", async () => {
+      // Similar test for BTC
+    });
 
-    /// @dev User position
-    struct Position {
-        address protocol;
-        address asset;
-        uint256 balance;
-        uint256 value;          // in USD
-        uint256 apy;
-        uint256 earnedRewards;
-    }
+    it("should return XRP/USD price", async () => {
+      // Similar test for XRP
+    });
 
-    /// @dev FAsset info
-    struct FAssetInfo {
-        address fAsset;
-        string symbol;
-        address underlying;     // e.g., XRP for FXRP
-        uint256 totalMinted;
-        uint256 collateralRatio;
-    }
+    it("should return DOGE/USD price", async () => {
+      // Similar test for DOGE
+    });
 
-    /// @dev Perpetual position
-    struct PerpPosition {
-        bytes32 positionId;
-        address market;         // e.g., BTC/USD, ETH/USD
-        PositionSide side;      // LONG or SHORT
-        uint256 size;           // Position size
-        uint256 collateral;     // Margin deposited
-        uint256 entryPrice;     // Average entry price
-        uint256 leverage;       // Current leverage (e.g., 10 = 10x)
-        int256 unrealizedPnl;   // Current unrealized P&L
-        uint256 liquidationPrice;
-    }
+    it("should return ETH/USD price", async () => {
+      // Similar test for ETH
+    });
+  });
 
-    /// @dev Perpetual market info
-    struct PerpMarket {
-        address market;
-        string symbol;          // e.g., "BTC/USD"
-        uint256 maxLeverage;    // e.g., 100 for 100x
-        uint256 fundingRate;    // Current funding rate (basis points)
-        uint256 openInterest;
-        uint256 indexPrice;     // From FTSO
-        uint256 markPrice;
-    }
+  describe("getPriceWithCheck", () => {
+    it("should revert PriceStale if price is older than MAX_PRICE_AGE", async () => {
+      // This requires manipulating block.timestamp or using a stale feed
+      // On testnet, verify the staleness check logic works
+    });
 
-    /// @dev Swap parameters
-    struct SwapParams {
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;
-        uint256 minAmountOut;
-        address recipient;
-        uint256 deadline;
-    }
+    it("should return price if within MAX_PRICE_AGE", async () => {
+      // Call with fresh feed
+      // Verify price is returned
+    });
+  });
 
-    /// @dev Route hop
-    struct Hop {
-        address adapter;
-        address tokenIn;
-        address tokenOut;
-        bytes extraData;
-    }
+  describe("setTokenFeed", () => {
+    it("should only allow owner to set feeds", async () => {
+      // Call from non-owner, expect Unauthorized revert
+    });
 
-    /// @dev Complete route
-    struct Route {
-        Hop[] hops;
-        uint256 expectedOutput;
-    }
-}
+    it("should correctly map token to feed ID", async () => {
+      // Set WFLR token address to FLR_USD feed
+      // Call getTokenPriceUSD with WFLR address
+      // Verify returns correct price
+    });
+
+    it("should emit FeedConfigured event", async () => {
+      // Set feed
+      // Verify event emission with correct parameters
+    });
+  });
+
+  describe("getTokenPriceUSD", () => {
+    it("should revert FeedNotConfigured for unknown token", async () => {
+      // Call with unmapped token address
+      // Expect FeedNotConfigured revert
+    });
+  });
+});
 ```
 
-### 4.2 Adapter Interface (`contracts/adapters/IAdapter.sol`)
+---
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+#### 1.2.3 Deploy FlareOracle to Coston2
+**Deliverable:** Verified FlareOracle contract on Coston2 testnet
 
-interface IAdapter {
-    /// @notice Get adapter name for identification
-    function name() external view returns (string memory);
+**Tasks:**
+- 1.2.3.1 Create deployment script `scripts/deploy/01_FlareOracle.ts`
+- 1.2.3.2 Deploy FlareOracle contract
+- 1.2.3.3 Configure token feeds for known tokens (WFLR, USDC, etc.)
+- 1.2.3.4 Verify contract on Coston2 block explorer
+- 1.2.3.5 Save deployed address to `scripts/helpers/addresses.ts`
 
-    /// @notice Get quote for a swap (view function, no state change)
-    /// @param tokenIn Input token address
-    /// @param tokenOut Output token address
-    /// @param amountIn Amount of input token
-    /// @return amountOut Expected output amount
-    /// @return gasEstimate Estimated gas for this swap
-    function getQuote(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) external view returns (uint256 amountOut, uint256 gasEstimate);
+**Test 1.2.3-T1: Deployment Verification**
+```typescript
+// After deployment, run:
+describe("FlareOracle Deployment", () => {
+  it("should be deployed and verified on Coston2", async () => {
+    // Load deployed address from addresses.ts
+    // Connect to deployed contract
+    // Call getPrice(FLR_USD)
+    // Verify returns valid price
+  });
 
-    /// @notice Execute a swap
-    /// @param tokenIn Input token address
-    /// @param tokenOut Output token address
-    /// @param amountIn Amount of input token
-    /// @param minAmountOut Minimum acceptable output
-    /// @param to Recipient address
-    /// @param extraData Adapter-specific data
-    /// @return amountOut Actual output amount
-    function swap(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minAmountOut,
-        address to,
-        bytes calldata extraData
-    ) external returns (uint256 amountOut);
-}
+  it("should have correct owner", async () => {
+    // Verify owner is deployer address
+  });
+
+  it("should have feeds configured", async () => {
+    // Check tokenFeeds mapping for WFLR
+    // Verify it's mapped to FLR_USD
+  });
+});
 ```
 
-### 4.3 Lending Adapter Interface (`contracts/adapters/ILendingAdapter.sol`)
+---
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+### 1.3 FDC (Flare Data Connector) Integration
 
-interface ILendingAdapter {
-    /// @notice Get adapter name
-    function name() external view returns (string memory);
+#### 1.3.1 Research FDC Attestation Types
+**Deliverable:** Documentation of relevant attestation types for PRAXIS
 
-    /// @notice Supply assets to earn yield
-    function supply(address asset, uint256 amount, address onBehalfOf)
-        external returns (uint256 shares);
+**Tasks:**
+- 1.3.1.1 Document EVMTransaction attestation type and use cases
+- 1.3.1.2 Document Payment attestation type for BTC/DOGE/XRP
+- 1.3.1.3 Document AddressValidity attestation type
+- 1.3.1.4 Document BalanceDecreasingTransaction attestation type
+- 1.3.1.5 Identify which attestation types are needed for FAsset price verification
+- 1.3.1.6 Document FDC verifier endpoints for testnet and mainnet
 
-    /// @notice Withdraw assets
-    function withdraw(address asset, uint256 shares, address to)
-        external returns (uint256 amount);
-
-    /// @notice Borrow assets
-    function borrow(address asset, uint256 amount, address onBehalfOf)
-        external returns (uint256 borrowed);
-
-    /// @notice Repay borrowed assets
-    function repay(address asset, uint256 amount, address onBehalfOf)
-        external returns (uint256 repaid);
-
-    /// @notice Get current supply APY (in basis points)
-    function getSupplyAPY(address asset) external view returns (uint256);
-
-    /// @notice Get current borrow APY (in basis points)
-    function getBorrowAPY(address asset) external view returns (uint256);
-
-    /// @notice Get user's supply balance
-    function getSupplyBalance(address user, address asset) external view returns (uint256);
-}
+**Test 1.3.1-T1: FDC Endpoint Accessibility**
+```typescript
+// scripts/helpers/testFdcEndpoints.ts
+// Test that verifier endpoints respond
+// https://fdc-verifiers-testnet.flare.network/
+// Verify API documentation is accessible
 ```
 
-### 4.4 Staking Adapter Interface (`contracts/adapters/IStakingAdapter.sol`)
+---
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+#### 1.3.2 Implement FDCVerifier Contract
+**Deliverable:** Contract that can verify FDC proofs on-chain
 
-interface IStakingAdapter {
-    /// @notice Get adapter name
-    function name() external view returns (string memory);
+**Tasks:**
+- 1.3.2.1 Create `contracts/oracles/FDCVerifier.sol`
+- 1.3.2.2 Import IFdcVerification from Flare periphery contracts
+- 1.3.2.3 Implement `verifyEVMTransaction(proof)` wrapper
+- 1.3.2.4 Implement `verifyPayment(proof)` wrapper for cross-chain payments
+- 1.3.2.5 Implement `verifyAddressValidity(proof)` wrapper
+- 1.3.2.6 Add helper functions to decode response data
 
-    /// @notice Stake assets
-    function stake(uint256 amount, address onBehalfOf)
-        external payable returns (uint256 shares);
+**Test 1.3.2-T1: FDCVerifier Unit Tests**
+```typescript
+// test/unit/oracles/FDCVerifier.test.ts
+describe("FDCVerifier", () => {
+  describe("verifyEVMTransaction", () => {
+    it("should verify a valid EVMTransaction proof from Sepolia", async () => {
+      // This is a complex integration test
+      // 1. Use an existing transaction on Sepolia
+      // 2. Request attestation via FDC verifier API
+      // 3. Wait for round finalization
+      // 4. Get proof from DA Layer
+      // 5. Submit to FDCVerifier contract
+      // 6. Verify it returns true
+    });
 
-    /// @notice Request unstake (may have cooldown)
-    function requestUnstake(uint256 shares, address onBehalfOf)
-        external returns (uint256 requestId);
-
-    /// @notice Complete unstake after cooldown
-    function completeUnstake(uint256 requestId, address to)
-        external returns (uint256 amount);
-
-    /// @notice Get staking APY (in basis points)
-    function getStakingAPY() external view returns (uint256);
-
-    /// @notice Get cooldown period in seconds
-    function getCooldownPeriod() external view returns (uint256);
-
-    /// @notice Get user's staked balance
-    function getStakedBalance(address user) external view returns (uint256);
-}
+    it("should reject an invalid proof", async () => {
+      // Submit malformed proof
+      // Verify returns false
+    });
+  });
+});
 ```
 
-### 4.5 Perpetual Adapter Interface (`contracts/adapters/IPerpetualAdapter.sol`)
+---
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+## Phase 2: DEX Aggregation
 
-import {PraxisStructs} from "../lib/PraxisStructs.sol";
+### 2.1 Adapter Interface Design
 
-interface IPerpetualAdapter {
-    /// @notice Get adapter name
-    function name() external view returns (string memory);
+#### 2.1.1 Create Base Adapter Interfaces
+**Deliverable:** Standard interfaces for all DEX adapters
 
-    /// @notice Open a perpetual position
-    /// @param market The market address (e.g., BTC/USD)
-    /// @param collateral Amount of collateral to deposit
-    /// @param size Position size
-    /// @param leverage Leverage multiplier (e.g., 10 for 10x)
-    /// @param isLong True for long, false for short
-    /// @param onBehalfOf Position owner
-    /// @return positionId Unique position identifier
-    function openPosition(
-        address market,
-        uint256 collateral,
-        uint256 size,
-        uint256 leverage,
-        bool isLong,
-        address onBehalfOf
-    ) external returns (bytes32 positionId);
+**Tasks:**
+- 2.1.1.1 Create `contracts/adapters/IAdapter.sol` with:
+  - `name()` - returns adapter name
+  - `getQuote(tokenIn, tokenOut, amountIn)` - view function for quotes
+  - `swap(tokenIn, tokenOut, amountIn, minAmountOut, to, extraData)` - execute swap
+- 2.1.1.2 Create `contracts/adapters/BaseAdapter.sol` abstract contract with:
+  - Common validation logic
+  - Token approval helpers
+  - Emergency withdrawal function
+- 2.1.1.3 Document the extraData format for each adapter type
 
-    /// @notice Close a perpetual position
-    /// @param positionId The position to close
-    /// @param to Address to receive proceeds
-    /// @return pnl Realized profit/loss
-    function closePosition(bytes32 positionId, address to)
-        external returns (int256 pnl);
+**Test 2.1.1-T1: Interface Compilation**
+```bash
+npx hardhat compile
+```
+**Expected:** IAdapter.sol and BaseAdapter.sol compile without errors
 
-    /// @notice Add margin to an existing position
-    /// @param positionId The position to modify
-    /// @param amount Additional collateral to add
-    function addMargin(bytes32 positionId, uint256 amount) external;
+---
 
-    /// @notice Remove margin from an existing position
-    /// @param positionId The position to modify
-    /// @param amount Collateral to remove
-    /// @param to Address to receive removed collateral
-    function removeMargin(bytes32 positionId, uint256 amount, address to) external;
+### 2.2 SparkDEX V3 Adapter
 
-    /// @notice Get position details
-    /// @param positionId The position to query
-    /// @return position The position details
-    function getPosition(bytes32 positionId)
-        external view returns (PraxisStructs.PerpPosition memory position);
+#### 2.2.1 Research SparkDEX V3 Interface
+**Deliverable:** Complete interface documentation for SparkDEX
 
-    /// @notice Get market info
-    /// @param market The market address
-    /// @return info Market details including funding rate, open interest
-    function getMarketInfo(address market)
-        external view returns (PraxisStructs.PerpMarket memory info);
+**Tasks:**
+- 2.2.1.1 Find SparkDEX Router address on Coston2 (dynamically via their registry or docs)
+- 2.2.1.2 Document the swap function signature
+- 2.2.1.3 Document the quote function signature
+- 2.2.1.4 Document pool fee tiers (100, 500, 3000, 10000 bps)
+- 2.2.1.5 Create `contracts/interfaces/external/ISparkDEXRouter.sol`
+- 2.2.1.6 Create `contracts/interfaces/external/ISparkDEXQuoter.sol`
+- 2.2.1.7 Document path encoding format for multi-hop swaps
 
-    /// @notice Get current funding rate for a market
-    /// @param market The market address
-    /// @return fundingRate Current funding rate in basis points (positive = longs pay shorts)
-    function getFundingRate(address market) external view returns (int256 fundingRate);
+**Test 2.2.1-T1: SparkDEX Interface Verification**
+```typescript
+// test/integration/sparkdex/InterfaceTest.ts
+describe("SparkDEX Interface", () => {
+  it("should connect to SparkDEX Router on Coston2", async () => {
+    // Get SparkDEX router address (from their docs or registry)
+    // Verify the contract exists at that address
+    // Call a view function to verify interface compatibility
+  });
 
-    /// @notice Get available markets
-    /// @return markets Array of supported market addresses
-    function getMarkets() external view returns (address[] memory markets);
-
-    /// @notice Get user's all open positions
-    /// @param user The user address
-    /// @return positions Array of user's open positions
-    function getUserPositions(address user)
-        external view returns (PraxisStructs.PerpPosition[] memory positions);
-}
+  it("should have liquidity for WFLR/USDC pair", async () => {
+    // Query SparkDEX for pool
+    // Verify liquidity exists
+  });
+});
 ```
 
-### 4.7 FlareOracle (`contracts/oracles/FlareOracle.sol`)
+---
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+#### 2.2.2 Implement SparkDEXAdapter
+**Deliverable:** Working adapter for SparkDEX V3 swaps
 
-import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
-import {IFtsoV2} from "@flarenetwork/flare-periphery-contracts/coston2/IFtsoV2.sol";
+**Tasks:**
+- 2.2.2.1 Create `contracts/adapters/SparkDEXAdapter.sol` extending BaseAdapter
+- 2.2.2.2 Implement constructor to set router address (passed in, not hardcoded)
+- 2.2.2.3 Implement `name()` returning "SparkDEX"
+- 2.2.2.4 Implement `getQuote()` using SparkDEX quoter
+- 2.2.2.5 Implement `swap()` with exact input swap
+- 2.2.2.6 Handle fee tier selection in extraData
+- 2.2.2.7 Implement multi-hop path encoding
+- 2.2.2.8 Add slippage protection
 
-contract FlareOracle {
-    // Maximum acceptable price age (5 minutes)
-    uint256 public constant MAX_PRICE_AGE = 300;
+**Test 2.2.2-T1: SparkDEXAdapter Quote Tests**
+```typescript
+// test/unit/adapters/SparkDEXAdapter.test.ts
+describe("SparkDEXAdapter", () => {
+  // These tests run on Coston2 fork with real liquidity
 
-    // Feed IDs (Crypto = 0x01 prefix)
-    bytes21 public constant FLR_USD = 0x01464c522f55534400000000000000000000000000;
-    bytes21 public constant ETH_USD = 0x014554482f55534400000000000000000000000000;
-    bytes21 public constant BTC_USD = 0x014254432f55534400000000000000000000000000;
-    bytes21 public constant XRP_USD = 0x015852502f55534400000000000000000000000000;
-    bytes21 public constant DOGE_USD = 0x01444f47452f555344000000000000000000000000;
+  describe("getQuote", () => {
+    it("should return valid quote for WFLR -> USDC", async () => {
+      const adapter = await deploySparkDEXAdapter();
+      const wflrAddress = await getWFLRAddress(); // Dynamic discovery
+      const usdcAddress = await getUSDCAddress(); // Dynamic discovery
 
-    // Token address to feed ID mapping
-    mapping(address => bytes21) public tokenFeeds;
+      const [amountOut, gasEstimate] = await adapter.getQuote(
+        wflrAddress,
+        usdcAddress,
+        ethers.parseEther("100") // 100 WFLR
+      );
 
-    // Owner for configuration
-    address public owner;
+      // Verify amountOut > 0
+      expect(amountOut).to.be.gt(0);
 
-    error PriceStale(uint256 age, uint256 maxAge);
-    error FeedNotConfigured(address token);
-    error Unauthorized();
+      // Verify gas estimate is reasonable (100k - 300k)
+      expect(gasEstimate).to.be.gt(100000);
+      expect(gasEstimate).to.be.lt(500000);
 
-    event FeedConfigured(address indexed token, bytes21 feedId);
+      // Log for verbose output
+      console.log(`Quote: 100 WFLR -> ${ethers.formatUnits(amountOut, 6)} USDC`);
+      console.log(`Gas estimate: ${gasEstimate}`);
+    });
 
-    constructor() {
-        owner = msg.sender;
-    }
+    it("should return 0 for pairs without liquidity", async () => {
+      // Query a pair that doesn't exist
+      // Verify returns (0, 0)
+    });
 
-    /// @notice Get price from FTSO v2
-    function getPrice(bytes21 feedId) public view returns (
-        uint256 value,
-        int8 decimals,
-        uint64 timestamp
-    ) {
-        IFtsoV2 ftso = ContractRegistry.getFtsoV2();
-        return ftso.getFeedById(feedId);
-    }
+    it("should handle different fee tiers", async () => {
+      // Test 0.01%, 0.05%, 0.3%, 1% fee tiers
+      // Verify quotes differ based on fee tier
+    });
+  });
 
-    /// @notice Get price with staleness check
-    function getPriceWithCheck(bytes21 feedId) public view returns (uint256) {
-        (uint256 value, , uint64 timestamp) = getPrice(feedId);
-        uint256 age = block.timestamp - timestamp;
-        if (age > MAX_PRICE_AGE) revert PriceStale(age, MAX_PRICE_AGE);
-        return value;
-    }
+  describe("swap", () => {
+    it("should execute WFLR -> USDC swap successfully", async () => {
+      // Setup: Get test WFLR from faucet or wrap FLR
+      // Approve adapter
+      // Execute swap
+      // Verify: USDC balance increased
+      // Verify: WFLR balance decreased
+      // Verify: Actual output >= minAmountOut
+    });
 
-    /// @notice Get token price in USD
-    function getTokenPriceUSD(address token) external view returns (uint256) {
-        bytes21 feedId = tokenFeeds[token];
-        if (feedId == bytes21(0)) revert FeedNotConfigured(token);
-        return getPriceWithCheck(feedId);
-    }
+    it("should revert if slippage exceeds minAmountOut", async () => {
+      // Set minAmountOut very high
+      // Expect revert
+    });
 
-    /// @notice Configure feed for a token
-    function setTokenFeed(address token, bytes21 feedId) external {
-        if (msg.sender != owner) revert Unauthorized();
-        tokenFeeds[token] = feedId;
-        emit FeedConfigured(token, feedId);
-    }
-
-    /// @notice Transfer ownership
-    function transferOwnership(address newOwner) external {
-        if (msg.sender != owner) revert Unauthorized();
-        owner = newOwner;
-    }
-}
+    it("should send output to specified recipient", async () => {
+      // Swap with different recipient
+      // Verify recipient receives tokens
+    });
+  });
+});
 ```
 
-### 4.8 SwapRouter (`contracts/core/SwapRouter.sol`)
+---
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+### 2.3 Enosys Adapter
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {IAdapter} from "../adapters/IAdapter.sol";
-import {PraxisStructs} from "../lib/PraxisStructs.sol";
+#### 2.3.1 Research Enosys Interface
+**Deliverable:** Complete interface documentation for Enosys DEX
 
-contract SwapRouter is ReentrancyGuard {
-    using SafeERC20 for IERC20;
+**Tasks:**
+- 2.3.1.1 Find Enosys Router address on Coston2/Flare
+- 2.3.1.2 Document the router interface (likely UniswapV2-style)
+- 2.3.1.3 Create `contracts/interfaces/external/IEnosysRouter.sol`
+- 2.3.1.4 Document available trading pairs
 
-    // Registered adapters
-    address[] public adapters;
-    mapping(address => bool) public isAdapter;
+**Test 2.3.1-T1: Enosys Interface Verification**
+```typescript
+// test/integration/enosys/InterfaceTest.ts
+describe("Enosys Interface", () => {
+  it("should connect to Enosys Router on Coston2", async () => {
+    // Similar to SparkDEX test
+  });
+});
+```
 
-    // Owner
-    address public owner;
+---
 
-    // Events
-    event AdapterAdded(address indexed adapter, string name);
-    event AdapterRemoved(address indexed adapter);
-    event SwapExecuted(
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256 amountIn,
-        uint256 amountOut,
-        address indexed adapter
+#### 2.3.2 Implement EnosysAdapter
+**Deliverable:** Working adapter for Enosys swaps
+
+**Tasks:**
+- 2.3.2.1 Create `contracts/adapters/EnosysAdapter.sol`
+- 2.3.2.2 Implement `getQuote()` using getAmountsOut
+- 2.3.2.3 Implement `swap()` with swapExactTokensForTokens
+- 2.3.2.4 Handle multi-hop paths
+
+**Test 2.3.2-T1: EnosysAdapter Tests**
+```typescript
+// test/unit/adapters/EnosysAdapter.test.ts
+// Similar comprehensive tests as SparkDEXAdapter
+```
+
+---
+
+### 2.4 BlazeSwap Adapter
+
+#### 2.4.1 Research BlazeSwap Interface
+**Deliverable:** Complete interface documentation for BlazeSwap
+
+**Tasks:**
+- 2.4.1.1 Find BlazeSwap Router address (V2-style router)
+- 2.4.1.2 Create `contracts/interfaces/external/IBlazeSwapRouter.sol`
+- 2.4.1.3 Document available pairs and liquidity
+
+**Test 2.4.1-T1: BlazeSwap Interface Verification**
+```typescript
+// Similar pattern
+```
+
+---
+
+#### 2.4.2 Implement BlazeSwapAdapter
+**Deliverable:** Working adapter for BlazeSwap
+
+**Tasks:**
+- 2.4.2.1 Create `contracts/adapters/BlazeSwapAdapter.sol`
+- 2.4.2.2 Implement standard V2 router integration
+- 2.4.2.3 Implement quote and swap functions
+
+**Test 2.4.2-T1: BlazeSwapAdapter Tests**
+```typescript
+// Similar comprehensive tests
+```
+
+---
+
+### 2.5 SwapRouter Implementation
+
+#### 2.5.1 Implement SwapRouter Core
+**Deliverable:** DEX aggregator that finds best rates
+
+**Tasks:**
+- 2.5.1.1 Create `contracts/core/SwapRouter.sol`
+- 2.5.1.2 Implement adapter registry with `addAdapter()` and `removeAdapter()`
+- 2.5.1.3 Implement `getAllQuotes()` - queries all adapters
+- 2.5.1.4 Implement `findBestRoute()` - returns adapter with best output
+- 2.5.1.5 Implement `swap()` - executes through best route
+- 2.5.1.6 Implement `swapVia()` - executes through specific adapter
+- 2.5.1.7 Add ReentrancyGuard protection
+- 2.5.1.8 Add deadline validation
+- 2.5.1.9 Add events for swap execution
+- 2.5.1.10 Add custom errors
+
+**Test 2.5.1-T1: SwapRouter Unit Tests**
+```typescript
+// test/unit/core/SwapRouter.test.ts
+describe("SwapRouter", () => {
+  describe("adapter management", () => {
+    it("should allow owner to add adapter", async () => {
+      // Add adapter
+      // Verify isAdapter returns true
+      // Verify adapters array includes it
+    });
+
+    it("should prevent non-owner from adding adapter", async () => {
+      // Call from non-owner
+      // Expect Unauthorized revert
+    });
+
+    it("should allow owner to remove adapter", async () => {
+      // Add then remove adapter
+      // Verify isAdapter returns false
+    });
+
+    it("should emit AdapterAdded event", async () => {
+      // Add adapter
+      // Check event emission
+    });
+  });
+
+  describe("getAllQuotes", () => {
+    it("should return quotes from all registered adapters", async () => {
+      // Register 3 adapters (SparkDEX, Enosys, BlazeSwap)
+      // Call getAllQuotes for WFLR -> USDC
+      // Verify 3 quotes returned
+      // Log all quotes for comparison
+      console.log("SparkDEX quote:", quotes[0].amountOut);
+      console.log("Enosys quote:", quotes[1].amountOut);
+      console.log("BlazeSwap quote:", quotes[2].amountOut);
+    });
+
+    it("should handle adapters that fail gracefully", async () => {
+      // Include a mock adapter that reverts
+      // Verify other quotes still returned
+      // Verify failed adapter returns 0
+    });
+  });
+
+  describe("findBestRoute", () => {
+    it("should return adapter with highest output", async () => {
+      // Register multiple adapters
+      // Get best route
+      // Verify it matches the highest quote from getAllQuotes
+    });
+
+    it("should return zero address if no routes found", async () => {
+      // Query pair with no liquidity
+      // Verify returns (address(0), 0)
+    });
+  });
+
+  describe("swap", () => {
+    it("should execute swap through best route", async () => {
+      // Get initial balances
+      // Execute swap
+      // Verify output matches or exceeds expected
+      // Verify event emitted with correct adapter
+    });
+
+    it("should revert DeadlineExpired if deadline passed", async () => {
+      // Set deadline to past timestamp
+      // Expect revert
+    });
+
+    it("should revert InsufficientOutput if output below minimum", async () => {
+      // Set very high minAmountOut
+      // Expect revert
+    });
+
+    it("should revert NoRouteFound for unknown pairs", async () => {
+      // Query pair with no liquidity
+      // Expect revert
+    });
+  });
+
+  describe("swapVia", () => {
+    it("should execute swap through specified adapter", async () => {
+      // Specify adapter
+      // Execute swap
+      // Verify event shows correct adapter
+    });
+
+    it("should revert InvalidAdapter for unregistered adapter", async () => {
+      // Specify unregistered adapter
+      // Expect revert
+    });
+  });
+});
+```
+
+---
+
+#### 2.5.2 Deploy SwapRouter and Adapters to Coston2
+**Deliverable:** All DEX infrastructure deployed and tested on Coston2
+
+**Tasks:**
+- 2.5.2.1 Create `scripts/deploy/02_Adapters.ts`
+- 2.5.2.2 Create `scripts/deploy/03_SwapRouter.ts`
+- 2.5.2.3 Deploy all adapters
+- 2.5.2.4 Deploy SwapRouter
+- 2.5.2.5 Register adapters with SwapRouter
+- 2.5.2.6 Verify all contracts
+- 2.5.2.7 Save addresses to addresses.ts
+
+**Test 2.5.2-T1: Deployment Integration Test**
+```typescript
+// test/integration/Aggregation.test.ts
+describe("DEX Aggregation Integration", () => {
+  it("should find and execute best swap across all DEXs", async () => {
+    // Using deployed contracts on Coston2
+    const swapRouter = await getDeployedSwapRouter();
+
+    // Get quotes from all DEXs
+    const quotes = await swapRouter.getAllQuotes(WFLR, USDC, parseEther("1000"));
+
+    // Log all quotes
+    for (const quote of quotes) {
+      console.log(`${quote.name}: ${formatUnits(quote.amountOut, 6)} USDC`);
+      console.log(`  Gas: ${quote.gasEstimate}`);
+      console.log(`  Price impact: ${quote.priceImpact} bps`);
+    }
+
+    // Execute swap
+    const tx = await swapRouter.swap(WFLR, USDC, parseEther("100"), 0, user.address, deadline);
+    const receipt = await tx.wait();
+
+    // Log execution details
+    console.log(`Executed via: ${receipt.logs[0].args.adapter}`);
+    console.log(`Gas used: ${receipt.gasUsed}`);
+  });
+});
+```
+
+---
+
+## Phase 3: Yield Integration
+
+### 3.1 Lending Adapter Interface
+
+#### 3.1.1 Create ILendingAdapter Interface
+**Deliverable:** Standard interface for lending protocols
+
+**Tasks:**
+- 3.1.1.1 Create `contracts/adapters/ILendingAdapter.sol` with:
+  - `supply(asset, amount, onBehalfOf)` - deposit to earn yield
+  - `withdraw(asset, shares, to)` - withdraw assets
+  - `borrow(asset, amount, onBehalfOf)` - borrow against collateral
+  - `repay(asset, amount, onBehalfOf)` - repay borrowed amount
+  - `getSupplyAPY(asset)` - current supply APY in basis points
+  - `getBorrowAPY(asset)` - current borrow APY
+  - `getSupplyBalance(user, asset)` - user's supply position
+
+**Test 3.1.1-T1: Interface Compilation**
+```bash
+npx hardhat compile
+```
+
+---
+
+### 3.2 Kinetic Adapter
+
+#### 3.2.1 Research Kinetic Protocol Interface
+**Deliverable:** Complete interface documentation for Kinetic (Compound-fork)
+
+**Tasks:**
+- 3.2.1.1 Find Kinetic Comptroller address on Flare/Coston2
+- 3.2.1.2 Document kToken interfaces (similar to cTokens)
+- 3.2.1.3 Create `contracts/interfaces/external/IKToken.sol`
+- 3.2.1.4 Create `contracts/interfaces/external/IKineticComptroller.sol`
+- 3.2.1.5 Document supported assets and their kToken addresses
+- 3.2.1.6 Document interest rate models
+
+**Test 3.2.1-T1: Kinetic Interface Verification**
+```typescript
+describe("Kinetic Interface", () => {
+  it("should connect to Kinetic Comptroller", async () => {
+    // Verify comptroller at documented address
+    // Query allMarkets()
+    // Log all supported markets
+  });
+
+  it("should query kToken for USDC", async () => {
+    // Get kUSDC address from comptroller
+    // Query underlying(), exchangeRateCurrent(), supplyRatePerBlock()
+    // Calculate APY
+    console.log(`USDC Supply APY: ${calculatedAPY}%`);
+  });
+});
+```
+
+---
+
+#### 3.2.2 Implement KineticAdapter
+**Deliverable:** Working adapter for Kinetic lending/borrowing
+
+**Tasks:**
+- 3.2.2.1 Create `contracts/adapters/KineticAdapter.sol`
+- 3.2.2.2 Implement `supply()` using kToken.mint()
+- 3.2.2.3 Implement `withdraw()` using kToken.redeem() or redeemUnderlying()
+- 3.2.2.4 Implement `borrow()` using kToken.borrow()
+- 3.2.2.5 Implement `repay()` using kToken.repayBorrow()
+- 3.2.2.6 Implement `getSupplyAPY()` from supply rate
+- 3.2.2.7 Implement `getBorrowAPY()` from borrow rate
+- 3.2.2.8 Implement `getSupplyBalance()` using balanceOfUnderlying()
+- 3.2.2.9 Handle token approvals
+- 3.2.2.10 Handle market entry (enterMarkets) for borrowing
+
+**Test 3.2.2-T1: KineticAdapter Tests**
+```typescript
+// test/unit/adapters/KineticAdapter.test.ts
+describe("KineticAdapter", () => {
+  describe("supply", () => {
+    it("should successfully supply USDC to Kinetic", async () => {
+      const adapter = await deployKineticAdapter();
+      const usdc = await getUSDCContract();
+      const initialBalance = await usdc.balanceOf(user.address);
+
+      // Approve and supply
+      await usdc.approve(adapter.address, parseUnits("100", 6));
+      const shares = await adapter.supply(usdc.address, parseUnits("100", 6), user.address);
+
+      // Verify shares received > 0
+      expect(shares).to.be.gt(0);
+
+      // Verify USDC was transferred
+      const finalBalance = await usdc.balanceOf(user.address);
+      expect(initialBalance.sub(finalBalance)).to.equal(parseUnits("100", 6));
+
+      // Verify supply balance on Kinetic
+      const supplyBalance = await adapter.getSupplyBalance(user.address, usdc.address);
+      expect(supplyBalance).to.be.gte(parseUnits("99.99", 6)); // Allow for rounding
+
+      console.log(`Supplied: 100 USDC`);
+      console.log(`Shares received: ${shares}`);
+      console.log(`Supply balance: ${formatUnits(supplyBalance, 6)} USDC`);
+    });
+
+    it("should accrue interest over time", async () => {
+      // Supply USDC
+      // Advance time by 1 day
+      // Check supplyBalance increased
+    });
+  });
+
+  describe("withdraw", () => {
+    it("should successfully withdraw USDC from Kinetic", async () => {
+      // Setup: Supply first
+      // Withdraw half
+      // Verify USDC received
+      // Verify supply balance decreased
+    });
+
+    it("should allow full withdrawal", async () => {
+      // Supply then withdraw all
+      // Verify supply balance is 0
+    });
+  });
+
+  describe("borrow", () => {
+    it("should allow borrowing against collateral", async () => {
+      // Supply collateral (e.g., WFLR)
+      // Enter market
+      // Borrow USDC
+      // Verify USDC received
+    });
+
+    it("should respect collateral factor limits", async () => {
+      // Try to borrow more than allowed
+      // Expect revert
+    });
+  });
+
+  describe("repay", () => {
+    it("should successfully repay borrowed amount", async () => {
+      // Setup: Borrow first
+      // Repay half
+      // Verify borrow balance decreased
+    });
+
+    it("should handle repaying full amount with interest", async () => {
+      // Borrow
+      // Advance time
+      // Repay full (use max uint for full repayment)
+      // Verify borrow balance is 0
+    });
+  });
+
+  describe("getSupplyAPY", () => {
+    it("should return current APY in basis points", async () => {
+      const apy = await adapter.getSupplyAPY(usdc.address);
+
+      // APY should be reasonable (0.1% - 50%)
+      expect(apy).to.be.gt(10); // > 0.1%
+      expect(apy).to.be.lt(5000); // < 50%
+
+      console.log(`USDC Supply APY: ${apy / 100}%`);
+    });
+  });
+});
+```
+
+---
+
+### 3.3 Staking Adapter Interface
+
+#### 3.3.1 Create IStakingAdapter Interface
+**Deliverable:** Standard interface for staking protocols
+
+**Tasks:**
+- 3.3.1.1 Create `contracts/adapters/IStakingAdapter.sol` with:
+  - `stake(amount, onBehalfOf)` - stake assets
+  - `requestUnstake(shares, onBehalfOf)` - request unstake (may have cooldown)
+  - `completeUnstake(requestId, to)` - complete unstake after cooldown
+  - `getStakingAPY()` - current staking APY
+  - `getCooldownPeriod()` - cooldown duration in seconds
+  - `getStakedBalance(user)` - user's staked position
+
+**Test 3.3.1-T1: Interface Compilation**
+```bash
+npx hardhat compile
+```
+
+---
+
+### 3.4 Sceptre Adapter
+
+#### 3.4.1 Research Sceptre Protocol Interface
+**Deliverable:** Complete interface for Sceptre (sFLR liquid staking)
+
+**Tasks:**
+- 3.4.1.1 Find Sceptre sFLR contract address
+- 3.4.1.2 Document stake/unstake functions
+- 3.4.1.3 Document cooldown mechanism
+- 3.4.1.4 Create `contracts/interfaces/external/ISceptre.sol`
+- 3.4.1.5 Document exchange rate (sFLR:FLR)
+
+**Test 3.4.1-T1: Sceptre Interface Verification**
+```typescript
+describe("Sceptre Interface", () => {
+  it("should connect to sFLR contract", async () => {
+    // Verify sFLR contract exists
+    // Query exchange rate
+    // Query total staked
+    console.log(`sFLR exchange rate: ${exchangeRate}`);
+    console.log(`Total staked: ${formatEther(totalStaked)} FLR`);
+  });
+});
+```
+
+---
+
+#### 3.4.2 Implement SceptreAdapter
+**Deliverable:** Working adapter for Sceptre staking
+
+**Tasks:**
+- 3.4.2.1 Create `contracts/adapters/SceptreAdapter.sol`
+- 3.4.2.2 Implement `stake()` - deposits FLR, receives sFLR
+- 3.4.2.3 Implement `requestUnstake()` - initiates cooldown
+- 3.4.2.4 Implement `completeUnstake()` - withdraws after cooldown
+- 3.4.2.5 Implement `getStakingAPY()` from protocol
+- 3.4.2.6 Implement `getCooldownPeriod()`
+- 3.4.2.7 Implement `getStakedBalance()`
+- 3.4.2.8 Handle native FLR deposits (payable functions)
+
+**Test 3.4.2-T1: SceptreAdapter Tests**
+```typescript
+// test/unit/adapters/SceptreAdapter.test.ts
+describe("SceptreAdapter", () => {
+  describe("stake", () => {
+    it("should stake FLR and receive sFLR", async () => {
+      const adapter = await deploySceptreAdapter();
+
+      const initialsFLR = await sFLR.balanceOf(user.address);
+
+      // Stake 100 FLR
+      const shares = await adapter.stake(parseEther("100"), user.address, {
+        value: parseEther("100")
+      });
+
+      expect(shares).to.be.gt(0);
+
+      const finalsFLR = await sFLR.balanceOf(user.address);
+      expect(finalsFLR.sub(initialsFLR)).to.equal(shares);
+
+      console.log(`Staked: 100 FLR`);
+      console.log(`Received: ${formatEther(shares)} sFLR`);
+    });
+  });
+
+  describe("requestUnstake", () => {
+    it("should initiate unstake request", async () => {
+      // Stake first
+      // Request unstake
+      // Verify requestId returned
+      // Verify cooldown started
+    });
+  });
+
+  describe("completeUnstake", () => {
+    it("should complete unstake after cooldown", async () => {
+      // Stake
+      // Request unstake
+      // Advance time by cooldown period
+      // Complete unstake
+      // Verify FLR received
+    });
+
+    it("should revert if cooldown not complete", async () => {
+      // Request unstake
+      // Immediately try to complete
+      // Expect revert
+    });
+  });
+
+  describe("getStakingAPY", () => {
+    it("should return reasonable staking APY", async () => {
+      const apy = await adapter.getStakingAPY();
+
+      // Staking APY typically 3-15%
+      expect(apy).to.be.gt(100); // > 1%
+      expect(apy).to.be.lt(2000); // < 20%
+
+      console.log(`sFLR Staking APY: ${apy / 100}%`);
+    });
+  });
+});
+```
+
+---
+
+### 3.5 YieldRouter Implementation
+
+#### 3.5.1 Implement YieldRouter Core
+**Deliverable:** Yield optimizer that routes to best opportunities
+
+**Tasks:**
+- 3.5.1.1 Create `contracts/core/YieldRouter.sol`
+- 3.5.1.2 Implement lending adapter registry
+- 3.5.1.3 Implement staking adapter registry
+- 3.5.1.4 Implement `getOptions(asset, amount)` - returns all yield opportunities
+- 3.5.1.5 Implement `deposit(asset, amount, risk, onBehalfOf)` - deposits to best option
+- 3.5.1.6 Implement `withdraw(asset, shares, to)` - withdraws from protocol
+- 3.5.1.7 Add risk level filtering (Conservative, Moderate, Aggressive)
+- 3.5.1.8 Track user positions across protocols
+
+**Test 3.5.1-T1: YieldRouter Tests**
+```typescript
+// test/unit/core/YieldRouter.test.ts
+describe("YieldRouter", () => {
+  describe("getOptions", () => {
+    it("should return all yield options for USDC", async () => {
+      const options = await yieldRouter.getOptions(usdc.address, parseUnits("1000", 6));
+
+      expect(options.length).to.be.gt(0);
+
+      for (const opt of options) {
+        console.log(`Protocol: ${opt.name}`);
+        console.log(`  APY: ${opt.apy / 100}%`);
+        console.log(`  Risk: ${opt.risk}`);
+        console.log(`  TVL: ${formatUnits(opt.tvl, 6)} USDC`);
+        console.log(`  Requires Lock: ${opt.requiresLock}`);
+      }
+    });
+
+    it("should return options for WFLR including staking", async () => {
+      const options = await yieldRouter.getOptions(wflr.address, parseEther("1000"));
+
+      // Should include Kinetic lending AND Sceptre staking
+      const hasKinetic = options.some(o => o.name === "Kinetic");
+      const hasSceptre = options.some(o => o.name === "Sceptre");
+
+      expect(hasKinetic).to.be.true;
+      expect(hasSceptre).to.be.true;
+    });
+  });
+
+  describe("deposit with risk levels", () => {
+    it("CONSERVATIVE should route to simple lending/staking", async () => {
+      const shares = await yieldRouter.deposit(
+        usdc.address,
+        parseUnits("100", 6),
+        0, // CONSERVATIVE
+        user.address
+      );
+
+      // Verify routed to Kinetic (simple lending)
+    });
+
+    it("MODERATE should allow LP positions with stable pairs", async () => {
+      // Similar test for moderate risk
+    });
+
+    it("AGGRESSIVE should allow volatile LP and leveraged positions", async () => {
+      // Similar test for aggressive risk
+    });
+  });
+});
+```
+
+---
+
+## Phase 4: Perpetuals Integration
+
+### 4.1 Perpetual Adapter Interface
+
+#### 4.1.1 Create IPerpetualAdapter Interface
+**Deliverable:** Standard interface for perpetual trading
+
+**Tasks:**
+- 4.1.1.1 Create `contracts/adapters/IPerpetualAdapter.sol` with:
+  - `openPosition(market, collateral, size, leverage, isLong, onBehalfOf)`
+  - `closePosition(positionId, to)`
+  - `addMargin(positionId, amount)`
+  - `removeMargin(positionId, amount, to)`
+  - `getPosition(positionId)` - returns PerpPosition struct
+  - `getMarketInfo(market)` - returns PerpMarket struct
+  - `getFundingRate(market)` - current funding rate
+  - `getMarkets()` - all supported markets
+  - `getUserPositions(user)` - user's open positions
+
+**Test 4.1.1-T1: Interface Compilation**
+```bash
+npx hardhat compile
+```
+
+---
+
+### 4.2 SparkDEX Eternal Adapter
+
+#### 4.2.1 Research SparkDEX Eternal Interface
+**Deliverable:** Complete interface for perpetual trading
+
+**Tasks:**
+- 4.2.1.1 Find SparkDEX Eternal contract addresses
+- 4.2.1.2 Document position opening/closing functions
+- 4.2.1.3 Document margin management
+- 4.2.1.4 Document liquidation mechanics
+- 4.2.1.5 Create `contracts/interfaces/external/ISparkDEXEternal.sol`
+- 4.2.1.6 Document supported markets (BTC/USD, ETH/USD, etc.)
+- 4.2.1.7 Document max leverage per market
+
+**Test 4.2.1-T1: SparkDEX Eternal Interface Verification**
+```typescript
+describe("SparkDEX Eternal Interface", () => {
+  it("should connect to Eternal contracts", async () => {
+    // Verify contracts exist
+    // Query available markets
+    console.log("Available markets:", markets);
+  });
+
+  it("should query BTC/USD market info", async () => {
+    const info = await eternal.getMarketInfo(btcUsdMarket);
+    console.log(`BTC/USD Max Leverage: ${info.maxLeverage}x`);
+    console.log(`Open Interest: ${formatUnits(info.openInterest, 8)} BTC`);
+    console.log(`Funding Rate: ${info.fundingRate} bps`);
+  });
+});
+```
+
+---
+
+#### 4.2.2 Implement SparkDEXEternalAdapter
+**Deliverable:** Working adapter for perpetual trading
+
+**Tasks:**
+- 4.2.2.1 Create `contracts/adapters/SparkDEXEternalAdapter.sol`
+- 4.2.2.2 Implement `openPosition()` with leverage validation
+- 4.2.2.3 Implement `closePosition()` with P&L calculation
+- 4.2.2.4 Implement `addMargin()`
+- 4.2.2.5 Implement `removeMargin()` with safety checks
+- 4.2.2.6 Implement position queries
+- 4.2.2.7 Implement market info queries
+- 4.2.2.8 Calculate liquidation price
+- 4.2.2.9 Handle collateral token approvals
+
+**Test 4.2.2-T1: SparkDEXEternalAdapter Tests**
+```typescript
+// test/unit/adapters/SparkDEXEternalAdapter.test.ts
+describe("SparkDEXEternalAdapter", () => {
+  describe("openPosition", () => {
+    it("should open 10x long BTC position", async () => {
+      const adapter = await deploySparkDEXEternalAdapter();
+
+      // Deposit 100 USDC as collateral, 10x leverage
+      const positionId = await adapter.openPosition(
+        btcUsdMarket,
+        parseUnits("100", 6), // 100 USDC collateral
+        parseUnits("0.01", 8), // 0.01 BTC size
+        10, // 10x leverage
+        true, // long
+        user.address
+      );
+
+      expect(positionId).to.not.equal(ethers.ZeroHash);
+
+      const position = await adapter.getPosition(positionId);
+      expect(position.side).to.equal(0); // LONG
+      expect(position.leverage).to.equal(10);
+
+      console.log(`Opened position: ${positionId}`);
+      console.log(`Entry price: ${formatUnits(position.entryPrice, 8)} USD`);
+      console.log(`Liquidation price: ${formatUnits(position.liquidationPrice, 8)} USD`);
+    });
+
+    it("should open short position", async () => {
+      // Similar test for short position
+    });
+
+    it("should revert if leverage exceeds max", async () => {
+      // Try 200x leverage
+      // Expect revert
+    });
+  });
+
+  describe("closePosition", () => {
+    it("should close position and realize profit", async () => {
+      // Open long position
+      // Advance price favorably (via oracle manipulation in fork)
+      // Close position
+      // Verify positive P&L
+      // Verify collateral + profit returned
+    });
+
+    it("should close position and realize loss", async () => {
+      // Open long position
+      // Move price against position
+      // Close position
+      // Verify negative P&L
+      // Verify collateral - loss returned
+    });
+  });
+
+  describe("addMargin", () => {
+    it("should add margin and decrease effective leverage", async () => {
+      // Open position
+      const initialPosition = await adapter.getPosition(positionId);
+
+      // Add margin
+      await adapter.addMargin(positionId, parseUnits("50", 6));
+
+      const updatedPosition = await adapter.getPosition(positionId);
+
+      // Verify collateral increased
+      expect(updatedPosition.collateral).to.equal(
+        initialPosition.collateral.add(parseUnits("50", 6))
+      );
+
+      // Verify leverage decreased
+      expect(updatedPosition.leverage).to.be.lt(initialPosition.leverage);
+    });
+  });
+
+  describe("removeMargin", () => {
+    it("should remove margin while maintaining safe leverage", async () => {
+      // Open position with extra margin
+      // Remove some margin
+      // Verify still within safe leverage limits
+    });
+
+    it("should revert if removal would cause liquidation", async () => {
+      // Try to remove too much margin
+      // Expect revert
+    });
+  });
+
+  describe("getFundingRate", () => {
+    it("should return current funding rate", async () => {
+      const fundingRate = await adapter.getFundingRate(btcUsdMarket);
+
+      // Funding rate typically -0.05% to +0.05% per hour
+      expect(fundingRate).to.be.gte(-500);
+      expect(fundingRate).to.be.lte(500);
+
+      console.log(`BTC/USD Funding Rate: ${fundingRate / 100}% per hour`);
+    });
+  });
+
+  describe("getUserPositions", () => {
+    it("should return all user positions", async () => {
+      // Open multiple positions
+      const positions = await adapter.getUserPositions(user.address);
+
+      expect(positions.length).to.be.gte(2);
+
+      for (const pos of positions) {
+        console.log(`Position ${pos.positionId}:`);
+        console.log(`  Market: ${pos.market}`);
+        console.log(`  Side: ${pos.side === 0 ? "LONG" : "SHORT"}`);
+        console.log(`  Size: ${pos.size}`);
+        console.log(`  Unrealized P&L: ${pos.unrealizedPnl}`);
+      }
+    });
+  });
+});
+```
+
+---
+
+## Phase 5: FAssets Support
+
+### 5.1 FAssets Adapter
+
+#### 5.1.1 Research FAssets System
+**Deliverable:** Complete understanding of FAssets on Flare
+
+**Tasks:**
+- 5.1.1.1 Find FAssetManager contract addresses (FXRP, FBTC, FDOGE)
+- 5.1.1.2 Document FAsset minting/redemption process
+- 5.1.1.3 Create `contracts/interfaces/external/IFAssetManager.sol`
+- 5.1.1.4 Document collateral ratios and fees
+- 5.1.1.5 Identify liquidity sources for FAssets on DEXs
+
+**Test 5.1.1-T1: FAssets Discovery**
+```typescript
+describe("FAssets Discovery", () => {
+  it("should find FXRP contract", async () => {
+    // Query FAssetManager for FXRP
+    // Log contract address
+    // Query total supply
+    console.log(`FXRP Address: ${fxrpAddress}`);
+    console.log(`FXRP Total Supply: ${formatEther(totalSupply)}`);
+  });
+
+  it("should find liquidity for FXRP on DEXs", async () => {
+    // Query SparkDEX for FXRP pools
+    // Query Enosys for FXRP pairs
+    // Log available liquidity
+  });
+});
+```
+
+---
+
+#### 5.1.2 Implement FAssetsAdapter
+**Deliverable:** Adapter for FAsset-specific operations
+
+**Tasks:**
+- 5.1.2.1 Create `contracts/adapters/FAssetsAdapter.sol`
+- 5.1.2.2 Implement FAsset detection `isFAsset(address)`
+- 5.1.2.3 Implement FAsset info queries
+- 5.1.2.4 Implement routing for FAsset swaps
+- 5.1.2.5 Implement FAsset-specific yield strategies
+- 5.1.2.6 Handle FDC verification for cross-chain operations
+
+**Test 5.1.2-T1: FAssetsAdapter Tests**
+```typescript
+// test/unit/adapters/FAssetsAdapter.test.ts
+describe("FAssetsAdapter", () => {
+  describe("isFAsset", () => {
+    it("should identify FXRP as FAsset", async () => {
+      expect(await adapter.isFAsset(fxrpAddress)).to.be.true;
+    });
+
+    it("should identify WFLR as non-FAsset", async () => {
+      expect(await adapter.isFAsset(wflrAddress)).to.be.false;
+    });
+  });
+
+  describe("getFAssetInfo", () => {
+    it("should return FXRP info", async () => {
+      const info = await adapter.getFAssetInfo(fxrpAddress);
+
+      expect(info.symbol).to.equal("FXRP");
+      expect(info.underlying).to.equal("XRP");
+
+      console.log(`FXRP Total Minted: ${formatEther(info.totalMinted)}`);
+      console.log(`Collateral Ratio: ${info.collateralRatio}%`);
+    });
+  });
+});
+```
+
+---
+
+### 5.2 FAsset Swap Routing
+
+#### 5.2.1 Integrate FAssets with SwapRouter
+**Deliverable:** Optimal swap routing for FAssets
+
+**Tasks:**
+- 5.2.1.1 Add FAsset awareness to SwapRouter
+- 5.2.1.2 Implement multi-hop routing for FAssets (FXRP -> WFLR -> USDC)
+- 5.2.1.3 Implement price impact calculation for FAsset swaps
+- 5.2.1.4 Add FAsset-specific slippage protection
+
+**Test 5.2.1-T1: FAsset Swap Integration Tests**
+```typescript
+// test/integration/FAssetFlows.test.ts
+describe("FAsset Swap Flows", () => {
+  it("should swap FXRP to USDC via best route", async () => {
+    // Get FXRP (may need to acquire from testnet faucet or bridge)
+    // Execute swap
+    // Verify USDC received
+    // Log the route taken
+  });
+
+  it("should compare direct vs multi-hop routes for FXRP", async () => {
+    const directQuote = await swapRouter.getQuoteVia(sparkdex, fxrp, usdc, amount);
+    const multiHopQuote = await swapRouter.getQuote(fxrp, usdc, amount);
+
+    console.log(`Direct FXRP->USDC: ${formatUnits(directQuote, 6)}`);
+    console.log(`Best Route FXRP->USDC: ${formatUnits(multiHopQuote, 6)}`);
+  });
+});
+```
+
+---
+
+## Phase 6: Strategy Engine
+
+### 6.1 Strategy Engine Core
+
+#### 6.1.1 Implement StrategyEngine
+**Deliverable:** Multi-step strategy execution engine
+
+**Tasks:**
+- 6.1.1.1 Create `contracts/core/StrategyEngine.sol`
+- 6.1.1.2 Implement Action executor that dispatches to adapters
+- 6.1.1.3 Implement output chaining (step N output -> step N+1 input)
+- 6.1.1.4 Implement `execute(actions[], user)` for custom strategies
+- 6.1.1.5 Implement `executePreset(presetId, tokenIn, amountIn, user)` for preset strategies
+- 6.1.1.6 Add atomicity - all steps succeed or all revert
+- 6.1.1.7 Add gas optimization for batched operations
+- 6.1.1.8 Track strategy execution IDs
+
+**Test 6.1.1-T1: StrategyEngine Tests**
+```typescript
+// test/unit/core/StrategyEngine.test.ts
+describe("StrategyEngine", () => {
+  describe("execute", () => {
+    it("should execute swap + supply strategy", async () => {
+      // Strategy: WFLR -> swap to USDC -> supply to Kinetic
+      const actions = [
+        {
+          actionType: ActionType.SWAP,
+          adapter: sparkdexAdapter.address,
+          tokenIn: wflr.address,
+          tokenOut: usdc.address,
+          amountIn: parseEther("100"),
+          minAmountOut: parseUnits("50", 6),
+          extraData: "0x"
+        },
+        {
+          actionType: ActionType.SUPPLY,
+          adapter: kineticAdapter.address,
+          tokenIn: usdc.address,
+          tokenOut: kUsdc.address,
+          amountIn: 0, // Use all from previous step
+          minAmountOut: 0,
+          extraData: "0x"
+        }
+      ];
+
+      // Execute strategy
+      const strategyId = await strategyEngine.execute(actions, user.address);
+
+      // Verify: WFLR decreased
+      // Verify: kUSDC balance increased
+      // Verify: Strategy ID generated
+
+      console.log(`Strategy executed: ${strategyId}`);
+    });
+
+    it("should chain outputs correctly", async () => {
+      // Verify step N output is used as step N+1 input when amountIn = 0
+    });
+
+    it("should revert atomically on any step failure", async () => {
+      // Include a step that will fail
+      // Verify all state changes reverted
+    });
+  });
+});
+```
+
+---
+
+#### 6.1.2 Implement Preset Strategies
+**Deliverable:** Pre-configured yield strategies
+
+**Tasks:**
+- 6.1.2.1 Create `contracts/strategies/IStrategy.sol` interface
+- 6.1.2.2 Create `contracts/strategies/FAssetMaxYield.sol` - FXRP -> swap -> stake
+- 6.1.2.3 Create `contracts/strategies/ConservativeYield.sol` - supply to lending
+- 6.1.2.4 Create `contracts/strategies/AggressiveYield.sol` - LP + leveraged yield
+- 6.1.2.5 Create `contracts/strategies/DeltaNeutral.sol` - supply + hedge with short perp
+- 6.1.2.6 Register presets with StrategyEngine
+
+**Test 6.1.2-T1: Preset Strategy Tests**
+```typescript
+// test/integration/PresetStrategies.test.ts
+describe("Preset Strategies", () => {
+  describe("FXRP_MAX_YIELD", () => {
+    it("should execute FXRP -> swap -> stake flow", async () => {
+      const initialFXRP = await fxrp.balanceOf(user.address);
+
+      const strategyId = await gateway.executePreset(
+        FXRP_MAX_YIELD,
+        fxrp.address,
+        parseEther("1000"), // 1000 FXRP
+        deadline
+      );
+
+      // Verify FXRP spent
+      const finalFXRP = await fxrp.balanceOf(user.address);
+      expect(initialFXRP.sub(finalFXRP)).to.equal(parseEther("1000"));
+
+      // Verify sFLR received (from staking)
+      const sFLRBalance = await sFLR.balanceOf(user.address);
+      expect(sFLRBalance).to.be.gt(0);
+
+      console.log(`Strategy executed: ${strategyId}`);
+      console.log(`FXRP spent: 1000`);
+      console.log(`sFLR received: ${formatEther(sFLRBalance)}`);
+    });
+  });
+
+  describe("DELTA_NEUTRAL", () => {
+    it("should supply to Kinetic and open hedging short on Eternal", async () => {
+      // Supply 1000 USDC to Kinetic
+      // Open short position on BTC to hedge FLR price exposure
+      // Verify both positions created
+    });
+  });
+});
+```
+
+---
+
+## Phase 7: PraxisGateway
+
+### 7.1 Gateway Implementation
+
+#### 7.1.1 Implement PraxisGateway Core
+**Deliverable:** Unified entry point for all PRAXIS operations
+
+**Tasks:**
+- 7.1.1.1 Create `contracts/core/PraxisGateway.sol`
+- 7.1.1.2 Wire up SwapRouter: `swap()`, `getQuote()`, `getAllQuotes()`
+- 7.1.1.3 Wire up YieldRouter: `deposit()`, `getYieldOptions()`
+- 7.1.1.4 Wire up StrategyEngine: `executeStrategy()`, `executePreset()`
+- 7.1.1.5 Add perpetual functions: `openPosition()`, `closePosition()`, `adjustMargin()`
+- 7.1.1.6 Add FAsset registry and detection
+- 7.1.1.7 Add deadline validation for all operations
+- 7.1.1.8 Add ReentrancyGuard to all state-changing functions
+- 7.1.1.9 Add access control for admin functions
+- 7.1.1.10 Add emergency pause functionality
+- 7.1.1.11 Add events for all operations
+
+**Test 7.1.1-T1: PraxisGateway Unit Tests**
+```typescript
+// test/unit/core/PraxisGateway.test.ts
+describe("PraxisGateway", () => {
+  describe("swap", () => {
+    it("should route swaps through SwapRouter", async () => {
+      const tx = await gateway.swap(
+        wflr.address,
+        usdc.address,
+        parseEther("100"),
+        parseUnits("50", 6),
+        user.address,
+        deadline
+      );
+
+      const receipt = await tx.wait();
+
+      // Verify SwapExecuted event
+      const event = receipt.events.find(e => e.event === "SwapExecuted");
+      expect(event.args.user).to.equal(user.address);
+      expect(event.args.amountOut).to.be.gte(parseUnits("50", 6));
+    });
+  });
+
+  describe("deposit", () => {
+    it("should route deposits through YieldRouter", async () => {
+      const shares = await gateway.deposit(
+        usdc.address,
+        parseUnits("100", 6),
+        0 // CONSERVATIVE
+      );
+
+      expect(shares).to.be.gt(0);
+
+      // Verify YieldDeposited event
+    });
+  });
+
+  describe("executeStrategy", () => {
+    it("should execute custom strategy through StrategyEngine", async () => {
+      const strategyId = await gateway.executeStrategy(actions, deadline);
+      expect(strategyId).to.not.equal(ethers.ZeroHash);
+    });
+  });
+
+  describe("perpetuals", () => {
+    it("should open position through PerpetualAdapter", async () => {
+      // Test perpetual operations
+    });
+  });
+
+  describe("FAsset support", () => {
+    it("should correctly identify FAssets", async () => {
+      expect(await gateway.isSupportedFAsset(fxrp.address)).to.be.true;
+      expect(await gateway.isSupportedFAsset(wflr.address)).to.be.false;
+    });
+
+    it("should return all supported FAssets", async () => {
+      const fAssets = await gateway.getSupportedFAssets();
+      expect(fAssets).to.include(fxrp.address);
+    });
+  });
+
+  describe("access control", () => {
+    it("should only allow owner to add FAssets", async () => {
+      await expect(
+        gateway.connect(nonOwner).addFAsset(randomToken.address)
+      ).to.be.revertedWithCustomError(gateway, "Unauthorized");
+    });
+  });
+});
+```
+
+---
+
+#### 7.1.2 Deploy Complete System to Coston2
+**Deliverable:** Full PRAXIS system deployed on testnet
+
+**Tasks:**
+- 7.1.2.1 Create `scripts/deploy/04_Gateway.ts`
+- 7.1.2.2 Deploy PraxisGateway with all router addresses
+- 7.1.2.3 Configure FAssets
+- 7.1.2.4 Verify all contracts
+- 7.1.2.5 Create comprehensive address registry
+
+**Test 7.1.2-T1: End-to-End Integration Tests**
+```typescript
+// test/integration/E2E.test.ts
+describe("End-to-End PRAXIS Tests", () => {
+  it("User journey: FXRP to yield in one transaction", async () => {
+    // Start with FXRP
+    console.log(`Starting FXRP balance: ${formatEther(await fxrp.balanceOf(user.address))}`);
+
+    // Execute strategy
+    const tx = await gateway.executePreset(
+      FXRP_MAX_YIELD,
+      fxrp.address,
+      parseEther("500"),
+      deadline
     );
 
-    // Errors
-    error InvalidAdapter();
-    error InsufficientOutput(uint256 actual, uint256 minimum);
-    error DeadlineExpired();
-    error Unauthorized();
-    error NoRouteFound();
-
-    constructor() {
-        owner = msg.sender;
-    }
-
-    // ============ ADAPTER MANAGEMENT ============
-
-    function addAdapter(address adapter) external {
-        if (msg.sender != owner) revert Unauthorized();
-        if (isAdapter[adapter]) revert InvalidAdapter();
-
-        adapters.push(adapter);
-        isAdapter[adapter] = true;
-
-        emit AdapterAdded(adapter, IAdapter(adapter).name());
-    }
-
-    function removeAdapter(address adapter) external {
-        if (msg.sender != owner) revert Unauthorized();
-        if (!isAdapter[adapter]) revert InvalidAdapter();
-
-        isAdapter[adapter] = false;
-
-        for (uint256 i = 0; i < adapters.length; i++) {
-            if (adapters[i] == adapter) {
-                adapters[i] = adapters[adapters.length - 1];
-                adapters.pop();
-                break;
-            }
-        }
-
-        emit AdapterRemoved(adapter);
-    }
-
-    // ============ QUOTING ============
-
-    /// @notice Get quotes from all adapters for a swap
-    function getAllQuotes(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) external view returns (PraxisStructs.Quote[] memory quotes) {
-        quotes = new PraxisStructs.Quote[](adapters.length);
-
-        for (uint256 i = 0; i < adapters.length; i++) {
-            try IAdapter(adapters[i]).getQuote(tokenIn, tokenOut, amountIn)
-                returns (uint256 amountOut, uint256 gasEstimate)
-            {
-                quotes[i] = PraxisStructs.Quote({
-                    adapter: adapters[i],
-                    name: IAdapter(adapters[i]).name(),
-                    amountOut: amountOut,
-                    gasEstimate: gasEstimate,
-                    priceImpact: 0 // TODO: Calculate price impact
-                });
-            } catch {
-                quotes[i] = PraxisStructs.Quote({
-                    adapter: adapters[i],
-                    name: IAdapter(adapters[i]).name(),
-                    amountOut: 0,
-                    gasEstimate: 0,
-                    priceImpact: 0
-                });
-            }
-        }
-    }
-
-    /// @notice Find the best route (highest output)
-    function findBestRoute(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) public view returns (address bestAdapter, uint256 bestAmountOut) {
-        for (uint256 i = 0; i < adapters.length; i++) {
-            try IAdapter(adapters[i]).getQuote(tokenIn, tokenOut, amountIn)
-                returns (uint256 amountOut, uint256)
-            {
-                if (amountOut > bestAmountOut) {
-                    bestAmountOut = amountOut;
-                    bestAdapter = adapters[i];
-                }
-            } catch {
-                continue;
-            }
-        }
-    }
-
-    // ============ SWAPPING ============
-
-    /// @notice Execute a swap through the best route
-    function swap(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minAmountOut,
-        address recipient,
-        uint256 deadline
-    ) external nonReentrant returns (uint256 amountOut) {
-        if (block.timestamp > deadline) revert DeadlineExpired();
-
-        (address bestAdapter, ) = findBestRoute(tokenIn, tokenOut, amountIn);
-        if (bestAdapter == address(0)) revert NoRouteFound();
-
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(tokenIn).safeIncreaseAllowance(bestAdapter, amountIn);
-
-        amountOut = IAdapter(bestAdapter).swap(
-            tokenIn,
-            tokenOut,
-            amountIn,
-            minAmountOut,
-            recipient,
-            ""
-        );
-
-        if (amountOut < minAmountOut) revert InsufficientOutput(amountOut, minAmountOut);
-
-        emit SwapExecuted(tokenIn, tokenOut, amountIn, amountOut, bestAdapter);
-    }
-
-    /// @notice Execute a swap through a specific adapter
-    function swapVia(
-        address adapter,
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minAmountOut,
-        address recipient,
-        uint256 deadline
-    ) external nonReentrant returns (uint256 amountOut) {
-        if (block.timestamp > deadline) revert DeadlineExpired();
-        if (!isAdapter[adapter]) revert InvalidAdapter();
-
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(tokenIn).safeIncreaseAllowance(adapter, amountIn);
-
-        amountOut = IAdapter(adapter).swap(
-            tokenIn,
-            tokenOut,
-            amountIn,
-            minAmountOut,
-            recipient,
-            ""
-        );
-
-        if (amountOut < minAmountOut) revert InsufficientOutput(amountOut, minAmountOut);
-
-        emit SwapExecuted(tokenIn, tokenOut, amountIn, amountOut, adapter);
-    }
-
-    // ============ VIEW FUNCTIONS ============
-
-    function getAdapters() external view returns (address[] memory) {
-        return adapters;
-    }
-
-    function getAdapterCount() external view returns (uint256) {
-        return adapters.length;
-    }
-}
-```
-
-### 4.9 PraxisGateway (`contracts/core/PraxisGateway.sol`)
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
-
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {PraxisStructs} from "../lib/PraxisStructs.sol";
-
-interface ISwapRouter {
-    function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, address recipient, uint256 deadline) external returns (uint256);
-    function findBestRoute(address tokenIn, address tokenOut, uint256 amountIn) external view returns (address, uint256);
-    function getAllQuotes(address tokenIn, address tokenOut, uint256 amountIn) external view returns (PraxisStructs.Quote[] memory);
-}
-
-interface IYieldRouter {
-    function deposit(address asset, uint256 amount, PraxisStructs.RiskLevel risk, address onBehalfOf) external returns (uint256);
-    function withdraw(address asset, uint256 shares, address to) external returns (uint256);
-    function getOptions(address asset, uint256 amount) external view returns (PraxisStructs.YieldOption[] memory);
-}
-
-interface IStrategyEngine {
-    function execute(PraxisStructs.Action[] calldata actions, address user) external returns (bytes32);
-    function executePreset(bytes32 presetId, address tokenIn, uint256 amountIn, address user) external returns (bytes32);
-}
-
-/// @title PraxisGateway - Unified entry point for Flare DeFi
-/// @notice The gateway to digital asset finance on Flare
-contract PraxisGateway is ReentrancyGuard {
-    using SafeERC20 for IERC20;
-
-    // Core components
-    address public swapRouter;
-    address public yieldRouter;
-    address public strategyEngine;
-    address public oracle;
-
-    // FAsset registry
-    mapping(address => bool) public isFAsset;
-    address[] public supportedFAssets;
-
-    // Owner
-    address public owner;
-
-    // Events
-    event SwapExecuted(address indexed user, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
-    event StrategyExecuted(address indexed user, bytes32 strategyId, uint256 totalValue);
-    event YieldDeposited(address indexed user, address protocol, address asset, uint256 amount);
-    event FAssetAdded(address indexed fAsset);
-
-    // Errors
-    error Unauthorized();
-    error DeadlineExpired();
-    error ZeroAddress();
-
-    constructor(
-        address _swapRouter,
-        address _yieldRouter,
-        address _strategyEngine,
-        address _oracle
-    ) {
-        if (_swapRouter == address(0)) revert ZeroAddress();
-        swapRouter = _swapRouter;
-        yieldRouter = _yieldRouter;
-        strategyEngine = _strategyEngine;
-        oracle = _oracle;
-        owner = msg.sender;
-    }
-
-    // ============ SWAP FUNCTIONS ============
-
-    /// @notice Swap any token for any token with best rate
-    function swap(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minAmountOut,
-        address recipient,
-        uint256 deadline
-    ) external nonReentrant returns (uint256 amountOut) {
-        if (block.timestamp > deadline) revert DeadlineExpired();
-
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(tokenIn).safeIncreaseAllowance(swapRouter, amountIn);
-
-        amountOut = ISwapRouter(swapRouter).swap(
-            tokenIn, tokenOut, amountIn, minAmountOut, recipient, deadline
-        );
-
-        emit SwapExecuted(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
-    }
-
-    /// @notice Get best quote across all DEXs
-    function getQuote(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) external view returns (address bestAdapter, uint256 bestAmountOut) {
-        return ISwapRouter(swapRouter).findBestRoute(tokenIn, tokenOut, amountIn);
-    }
-
-    /// @notice Get all quotes from all DEXs
-    function getAllQuotes(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) external view returns (PraxisStructs.Quote[] memory) {
-        return ISwapRouter(swapRouter).getAllQuotes(tokenIn, tokenOut, amountIn);
-    }
-
-    // ============ YIELD FUNCTIONS ============
-
-    /// @notice Deposit to earn yield (auto-routes to best opportunity)
-    function deposit(
-        address asset,
-        uint256 amount,
-        PraxisStructs.RiskLevel risk
-    ) external nonReentrant returns (uint256 shares) {
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        IERC20(asset).safeIncreaseAllowance(yieldRouter, amount);
-
-        shares = IYieldRouter(yieldRouter).deposit(asset, amount, risk, msg.sender);
-
-        emit YieldDeposited(msg.sender, yieldRouter, asset, amount);
-    }
-
-    /// @notice Get current best yield opportunities
-    function getYieldOptions(
-        address asset,
-        uint256 amount
-    ) external view returns (PraxisStructs.YieldOption[] memory) {
-        return IYieldRouter(yieldRouter).getOptions(asset, amount);
-    }
-
-    // ============ STRATEGY FUNCTIONS ============
-
-    /// @notice Execute a multi-step strategy
-    function executeStrategy(
-        PraxisStructs.Action[] calldata actions,
-        uint256 deadline
-    ) external nonReentrant returns (bytes32 strategyId) {
-        if (block.timestamp > deadline) revert DeadlineExpired();
-
-        strategyId = IStrategyEngine(strategyEngine).execute(actions, msg.sender);
-
-        emit StrategyExecuted(msg.sender, strategyId, 0);
-    }
-
-    /// @notice Execute preset strategy (e.g., "FAsset -> Max Yield")
-    function executePreset(
-        bytes32 presetId,
-        address tokenIn,
-        uint256 amountIn,
-        uint256 deadline
-    ) external nonReentrant returns (bytes32 strategyId) {
-        if (block.timestamp > deadline) revert DeadlineExpired();
-
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(tokenIn).safeIncreaseAllowance(strategyEngine, amountIn);
-
-        strategyId = IStrategyEngine(strategyEngine).executePreset(
-            presetId, tokenIn, amountIn, msg.sender
-        );
-
-        emit StrategyExecuted(msg.sender, strategyId, amountIn);
-    }
-
-    // ============ FASSET FUNCTIONS ============
-
-    /// @notice Add a supported FAsset
-    function addFAsset(address fAsset) external {
-        if (msg.sender != owner) revert Unauthorized();
-        if (!isFAsset[fAsset]) {
-            isFAsset[fAsset] = true;
-            supportedFAssets.push(fAsset);
-            emit FAssetAdded(fAsset);
-        }
-    }
-
-    /// @notice Check if token is a supported FAsset
-    function isSupportedFAsset(address token) external view returns (bool) {
-        return isFAsset[token];
-    }
-
-    /// @notice Get all supported FAssets
-    function getSupportedFAssets() external view returns (address[] memory) {
-        return supportedFAssets;
-    }
-
-    // ============ ADMIN ============
-
-    function transferOwnership(address newOwner) external {
-        if (msg.sender != owner) revert Unauthorized();
-        owner = newOwner;
-    }
-}
+    const receipt = await tx.wait();
+    console.log(`Gas used: ${receipt.gasUsed}`);
+
+    // Verify final state
+    console.log(`Final FXRP balance: ${formatEther(await fxrp.balanceOf(user.address))}`);
+    console.log(`Final sFLR balance: ${formatEther(await sFLR.balanceOf(user.address))}`);
+  });
+
+  it("Compare gas cost: PRAXIS vs manual execution", async () => {
+    // Measure PRAXIS gas
+    const praxisTx = await gateway.executePreset(FXRP_MAX_YIELD, fxrp.address, amount, deadline);
+    const praxisGas = (await praxisTx.wait()).gasUsed;
+
+    // Measure manual execution gas (swap + approve + stake)
+    const swapTx = await sparkdex.swap(...);
+    const approveTx = await wflr.approve(...);
+    const stakeTx = await sceptre.stake(...);
+    const manualGas = (await swapTx.wait()).gasUsed
+      .add((await approveTx.wait()).gasUsed)
+      .add((await stakeTx.wait()).gasUsed);
+
+    console.log(`PRAXIS gas: ${praxisGas}`);
+    console.log(`Manual gas: ${manualGas}`);
+    console.log(`Savings: ${manualGas.sub(praxisGas)} (${((manualGas.sub(praxisGas)).mul(100).div(manualGas))}%)`);
+  });
+});
 ```
 
 ---
 
-## 5. Implementation Phases
+## Phase 8: Security & Audit
 
-### Phase 1: Foundation
+### 8.1 Static Analysis
 
-**Goal:** Project setup + FTSO integration
+#### 8.1.1 Slither Analysis
+**Deliverable:** Clean Slither report
 
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 1.1 | Initialize Hardhat + Foundry hybrid setup | Compiling project |
-| 1.2 | Configure Coston2 + Flare networks | Working RPC connections |
-| 1.3 | Install Flare periphery contracts | FTSO v2 access |
-| 1.4 | Implement FlareOracle.sol | Price feeds working |
-| 1.5 | Write oracle unit tests | 100% coverage |
-| 1.6 | Deploy oracle to Coston2 | Verified contract |
+**Tasks:**
+- 8.1.1.1 Install Slither: `pip install slither-analyzer`
+- 8.1.1.2 Run Slither on all contracts
+- 8.1.1.3 Address all high severity findings
+- 8.1.1.4 Address all medium severity findings
+- 8.1.1.5 Document any accepted low severity findings
 
-**Test Checkpoint 1:**
-```bash
-forge test --match-contract FlareOracleTest -vvv
-# All tests pass
-```
-
----
-
-### Phase 2: DEX Aggregation
-
-**Goal:** Best-rate swapping across all DEXs
-
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 2.1 | Create IAdapter interface | Standard adapter API |
-| 2.2 | Create BaseAdapter abstract | Common functionality |
-| 2.3 | Research SparkDEX V3 interface | ISparkDEXRouter.sol |
-| 2.4 | Implement SparkDEXAdapter | V3 swap support |
-| 2.5 | Research Enosys interface | IEnosysRouter.sol |
-| 2.6 | Implement EnosysAdapter | Enosys swap support |
-| 2.7 | Research BlazeSwap interface | V2-style router |
-| 2.8 | Implement BlazeSwapAdapter | V2 swap support |
-| 2.9 | Implement SwapRouter | Best-rate aggregation |
-| 2.10 | Write adapter unit tests | All adapters tested |
-| 2.11 | Write router integration tests | Aggregation tested |
-| 2.12 | Deploy all to Coston2 | Swaps working |
-
-**Test Checkpoint 2:**
-```bash
-forge test --match-contract SparkDEXAdapterTest -vvv
-forge test --match-contract SwapRouterTest -vvv
-# Verify: WFLR -> USDC routes through best DEX
-```
-
----
-
-### Phase 3: Yield Integration
-
-**Goal:** Lending and staking with one click
-
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 3.1 | Create ILendingAdapter interface | Lending standard |
-| 3.2 | Create IStakingAdapter interface | Staking standard |
-| 3.3 | Research Kinetic (Compound-fork) | IKToken, IComptroller |
-| 3.4 | Implement KineticAdapter | Supply/withdraw/borrow |
-| 3.5 | Research Sceptre (sFLR) | ISceptre interface |
-| 3.6 | Implement SceptreAdapter | Stake/unstake with cooldown |
-| 3.7 | Implement YieldRouter | Best yield selection |
-| 3.8 | Add risk-level filtering | Conservative/Moderate/Aggressive |
-| 3.9 | Write integration tests | Cross-protocol tested |
-| 3.10 | Deploy to Coston2 | Yield working |
-
-**Test Checkpoint 3:**
-```bash
-forge test --match-contract KineticAdapterTest -vvv
-forge test --match-contract SceptreAdapterTest -vvv
-# Verify: Deposit WFLR -> routes to best yield option
-```
-
----
-
-### Phase 4: Perpetuals Integration
-
-**Goal:** Leverage trading via SparkDEX Eternal
-
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 4.1 | Research SparkDEX Eternal interface | ISparkDEXEternal.sol |
-| 4.2 | Create IPerpetualAdapter interface | Perpetuals standard |
-| 4.3 | Implement SparkDEXEternalAdapter | Open/close/adjust positions |
-| 4.4 | Add position management to Gateway | openPosition(), closePosition() |
-| 4.5 | Implement funding rate queries | getFundingRate() |
-| 4.6 | Add liquidation price calculation | getLiquidationPrice() |
-| 4.7 | Write perpetual unit tests | All perp actions tested |
-| 4.8 | Write integration tests | Perp + swap combos tested |
-| 4.9 | Deploy to Coston2 | Perpetuals working |
-
-**Test Checkpoint 4:**
-```bash
-forge test --match-contract SparkDEXEternalAdapterTest -vvv
-forge test --match-contract Perpetuals -vvv
-# Verify: Open 10x long BTC, close position, check P&L
-```
-
----
-
-### Phase 5: FAssets Support
-
-**Goal:** First-class FAsset support
-
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 5.1 | Research FAsset contracts on Flare | IFAssetManager interface |
-| 5.2 | Implement FAssetsAdapter | FAsset-aware handling |
-| 5.3 | Add FXRP swap routing | FXRP -> any token |
-| 5.4 | Add FBTC swap routing | FBTC -> any token |
-| 5.5 | Add FDOGE swap routing | FDOGE -> any token |
-| 5.6 | Create FAsset-optimized strategies | Preset yield strategies |
-| 5.7 | Write FAsset flow tests | Full journey tested |
-| 5.8 | Deploy to Coston2 | FAssets working |
-
-**Test Checkpoint 5:**
-```bash
-forge test --match-contract FAssetsAdapterTest -vvv
-# Verify: FXRP -> swap -> yield in one transaction
-```
-
----
-
-### Phase 6: Strategy Engine
-
-**Goal:** Multi-step strategy execution
-
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 6.1 | Implement StrategyEngine.sol | Multi-action execution |
-| 6.2 | Create Action parser | ActionType -> execution |
-| 6.3 | Implement output chaining | Step N output -> Step N+1 input |
-| 6.4 | Create preset strategies | "FXRP -> Max Yield" etc |
-| 6.5 | Implement Batcher.sol | Gas optimization |
-| 6.6 | Write strategy tests | All presets tested |
-| 6.7 | Deploy to Coston2 | Strategies working |
-
-**Preset Strategies:**
-- `FXRP_MAX_YIELD`: FXRP -> swap to WFLR -> stake on Sceptre
-- `FBTC_CONSERVATIVE`: FBTC -> swap to USDC -> supply to Kinetic
-- `WFLR_LEVERAGE`: WFLR -> supply to Kinetic -> borrow USDC -> swap to WFLR -> repeat
-- `DELTA_NEUTRAL`: Deposit to Kinetic + hedge with short perp on Eternal
-
-**Test Checkpoint 6:**
-```bash
-forge test --match-contract StrategyEngineTest -vvv
-# Verify: Multi-step strategy executes atomically
-```
-
----
-
-### Phase 7: PraxisGateway
-
-**Goal:** Unified entry point
-
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 7.1 | Implement PraxisGateway.sol | Single entry point |
-| 7.2 | Wire up SwapRouter | swap(), getQuote() |
-| 7.3 | Wire up YieldRouter | deposit(), getYieldOptions() |
-| 7.4 | Wire up StrategyEngine | executeStrategy(), executePreset() |
-| 7.5 | Wire up PerpetualAdapter | openPosition(), closePosition() |
-| 7.6 | Add FAsset registry | isFAsset(), getSupportedFAssets() |
-| 7.7 | Security hardening | Reentrancy, access control |
-| 7.8 | Full integration tests | End-to-end tested |
-| 7.9 | Deploy to Coston2 | Gateway live |
-
-**Test Checkpoint 7:**
-```bash
-forge test --match-contract PraxisGatewayTest -vvv
-# Verify: All actions work through single gateway
-```
-
----
-
-### Phase 8: Security & Audit
-
-**Goal:** Production-ready security
-
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 8.1 | Slither static analysis | No high/medium issues |
-| 8.2 | Mythril symbolic analysis | No vulnerabilities |
-| 8.3 | Fork testing against mainnet | Real liquidity tests |
-| 8.4 | Flash loan attack testing | Economic security |
-| 8.5 | Reentrancy testing | All paths safe |
-| 8.6 | Access control audit | Ownership secure |
-| 8.7 | Perpetual liquidation testing | Margin calls safe |
-| 8.8 | External audit (optional) | Third-party review |
-| 8.9 | Fix all findings | Issues resolved |
-
-**Test Checkpoint 8:**
+**Test 8.1.1-T1: Slither Analysis**
 ```bash
 slither contracts/ --print human-summary
-# No high or medium severity issues
 ```
+**Expected:** No high or medium severity issues
 
 ---
 
-### Phase 9: Mainnet Launch
+#### 8.1.2 Mythril Analysis
+**Deliverable:** Clean Mythril report
 
-**Goal:** Production deployment
+**Tasks:**
+- 8.1.2.1 Install Mythril
+- 8.1.2.2 Run symbolic execution on core contracts
+- 8.1.2.3 Address any vulnerabilities found
 
-| Task | Description | Deliverable |
-|------|-------------|-------------|
-| 9.1 | Pre-deployment checklist | All tests pass |
-| 9.2 | Deploy FlareOracle | Mainnet oracle |
-| 9.3 | Deploy all adapters | 6 adapters live (including Eternal) |
-| 9.4 | Deploy SwapRouter | Aggregation live |
-| 9.5 | Deploy YieldRouter | Yield live |
-| 9.6 | Deploy StrategyEngine | Strategies live |
-| 9.7 | Deploy PraxisGateway | Gateway live |
-| 9.8 | Transfer to multisig | Secure ownership |
-| 9.9 | Verify all contracts | Explorer verified |
-| 9.10 | Small-scale testing | Real transactions |
-| 9.11 | Monitoring setup | Alerts configured |
-| 9.12 | Launch announcement | Public launch |
-
-**Test Checkpoint 9:**
+**Test 8.1.2-T1: Mythril Analysis**
 ```bash
-npx hardhat run scripts/validate/mainnetCheck.ts --network flare
-# All contracts responding correctly
+myth analyze contracts/core/PraxisGateway.sol --max-depth 50
 ```
 
 ---
 
-## 6. Testing Strategy
+### 8.2 Security Testing
 
-### 6.1 Test Levels
+#### 8.2.1 Reentrancy Testing
+**Deliverable:** Verified reentrancy protection
 
+**Tasks:**
+- 8.2.1.1 Create reentrancy attack contract
+- 8.2.1.2 Test all external-calling functions
+- 8.2.1.3 Verify ReentrancyGuard prevents attacks
+
+**Test 8.2.1-T1: Reentrancy Tests**
+```typescript
+// test/security/Reentrancy.test.ts
+describe("Reentrancy Protection", () => {
+  it("should prevent reentrancy on swap", async () => {
+    const attacker = await deployReentrancyAttacker();
+
+    await expect(
+      attacker.attackSwap(gateway.address, ...)
+    ).to.be.reverted; // ReentrancyGuard blocks
+  });
+
+  it("should prevent reentrancy on deposit", async () => {
+    // Similar test
+  });
+});
 ```
-                    +-------------+
-                    |    E2E      |  Manual mainnet testing
-                   -+-------------+-
-                +---------------------+
-                |    Fork Tests       |  Real liquidity, forked state
-               -+---------------------+-
-            +---------------------------+
-            |   Integration Tests       |  Contract interactions
-           -+---------------------------+-
-        +---------------------------------+
-        |        Unit Tests               |  Individual functions
-       -+---------------------------------+-
+
+---
+
+#### 8.2.2 Flash Loan Attack Testing
+**Deliverable:** Verified flash loan resistance
+
+**Tasks:**
+- 8.2.2.1 Simulate flash loan attack scenarios
+- 8.2.2.2 Test price manipulation resistance (FTSO prices cannot be manipulated)
+- 8.2.2.3 Test slippage protection effectiveness
+
+**Test 8.2.2-T1: Flash Loan Tests**
+```typescript
+// test/security/FlashLoan.test.ts
+describe("Flash Loan Resistance", () => {
+  it("should use FTSO prices resistant to flash loan manipulation", async () => {
+    // Simulate flash loan
+    // Attempt to manipulate swap price
+    // Verify FTSO-based price remains stable
+  });
+});
 ```
 
-### 6.2 Test Coverage Requirements
+---
 
-| Contract | Min Coverage |
-|----------|-------------|
-| FlareOracle | 95% |
-| All Adapters | 90% |
-| SparkDEXEternalAdapter | 95% |
-| SwapRouter | 95% |
-| YieldRouter | 90% |
-| StrategyEngine | 90% |
-| PraxisGateway | 95% |
+#### 8.2.3 Access Control Audit
+**Deliverable:** Verified ownership security
 
-### 6.3 Test Commands
+**Tasks:**
+- 8.2.3.1 Map all admin functions across contracts
+- 8.2.3.2 Verify all have proper access control
+- 8.2.3.3 Test ownership transfer mechanism
+
+**Test 8.2.3-T1: Access Control Tests**
+```typescript
+// test/security/AccessControl.test.ts
+describe("Access Control", () => {
+  it("should prevent non-owner from adding adapters", async () => {
+    await expect(
+      swapRouter.connect(attacker).addAdapter(maliciousAdapter.address)
+    ).to.be.revertedWithCustomError(swapRouter, "Unauthorized");
+  });
+
+  it("should prevent non-owner from adding FAssets", async () => {
+    // Similar test for gateway
+  });
+
+  it("should allow ownership transfer", async () => {
+    await gateway.transferOwnership(newOwner.address);
+    expect(await gateway.owner()).to.equal(newOwner.address);
+  });
+});
+```
+
+---
+
+#### 8.2.4 Perpetual Liquidation Testing
+**Deliverable:** Verified safe margin call handling
+
+**Tasks:**
+- 8.2.4.1 Test liquidation price calculation accuracy
+- 8.2.4.2 Test margin addition prevents liquidation
+- 8.2.4.3 Test position closes before liquidation when requested
+
+**Test 8.2.4-T1: Liquidation Tests**
+```typescript
+// test/security/Liquidation.test.ts
+describe("Perpetual Liquidation Safety", () => {
+  it("should calculate accurate liquidation price", async () => {
+    // Open 10x long at $50,000
+    // Verify liquidation price is ~$45,000 (10% drop)
+  });
+
+  it("should prevent position opening if immediately liquidatable", async () => {
+    // Try to open position with too little margin
+    // Expect revert
+  });
+
+  it("should allow user to close before liquidation", async () => {
+    // Open position
+    // Move price toward liquidation
+    // Close before liquidated
+    // Verify funds returned (minus loss)
+  });
+});
+```
+
+---
+
+## Phase 9: Mainnet Deployment
+
+### 9.1 Pre-Deployment
+
+#### 9.1.1 Pre-Deployment Checklist
+**Deliverable:** Verified readiness for mainnet
+
+**Tasks:**
+- 9.1.1.1 All Coston2 tests passing
+- 9.1.1.2 48 hours stable operation on testnet
+- 9.1.1.3 Slither clean (no high/medium)
+- 9.1.1.4 Fork tests against Flare mainnet pass
+- 9.1.1.5 Multisig wallet configured
+- 9.1.1.6 Emergency pause tested
+- 9.1.1.7 Monitoring configured
+
+**Test 9.1.1-T1: Mainnet Fork Test**
+```typescript
+// test/fork/MainnetFork.test.ts
+describe("Mainnet Fork Tests", () => {
+  // Fork Flare mainnet
+  // Deploy all contracts to fork
+  // Run all integration tests against real mainnet state
+});
+```
+
+---
+
+#### 9.1.2 Mainnet Deployment
+**Deliverable:** Production contracts on Flare mainnet
+
+**Tasks:**
+- 9.1.2.1 Deploy FlareOracle
+- 9.1.2.2 Deploy all adapters (SparkDEX, Enosys, BlazeSwap, Kinetic, Sceptre, SparkDEX Eternal)
+- 9.1.2.3 Deploy SwapRouter and register adapters
+- 9.1.2.4 Deploy YieldRouter and register adapters
+- 9.1.2.5 Deploy StrategyEngine
+- 9.1.2.6 Deploy PraxisGateway
+- 9.1.2.7 Transfer ownership to multisig
+- 9.1.2.8 Verify all contracts on explorer
+
+**Test 9.1.2-T1: Post-Deployment Verification**
+```typescript
+// scripts/validate/mainnetCheck.ts
+async function main() {
+  // Load all deployed addresses
+  // Verify each contract responds correctly
+  // Test a small swap (1 FLR)
+  // Test a small deposit
+  // Verify all events emitted correctly
+  console.log("All mainnet contracts verified successfully!");
+}
+```
+
+---
+
+## Appendix: Dynamic Address Discovery
+
+### Protocol Addresses Discovery Script
+```typescript
+// scripts/helpers/discoverAddresses.ts
+import { ContractRegistry } from "@flarenetwork/flare-periphery-contracts";
+
+async function discoverFlareAddresses() {
+  // FTSO
+  const ftsoV2 = await ContractRegistry.getFtsoV2();
+  console.log(`FtsoV2: ${ftsoV2}`);
+
+  // FDC
+  const fdcHub = await ContractRegistry.getFdcHub();
+  console.log(`FdcHub: ${fdcHub}`);
+
+  const fdcVerification = await ContractRegistry.getFdcVerification();
+  console.log(`FdcVerification: ${fdcVerification}`);
+
+  // Save to addresses.ts
+}
+
+// External protocols - query from their registries or docs
+async function discoverProtocolAddresses() {
+  // SparkDEX - query their factory
+  // Enosys - query their router
+  // BlazeSwap - query their router
+  // Kinetic - comptroller.allMarkets()
+  // Sceptre - sFLR contract
+}
+```
+
+### Feed ID Reference
+```typescript
+// scripts/helpers/feedIds.ts
+export const FTSO_FEEDS = {
+  FLR_USD: "0x01464c522f55534400000000000000000000000000",
+  ETH_USD: "0x014554482f55534400000000000000000000000000",
+  BTC_USD: "0x014254432f55534400000000000000000000000000",
+  XRP_USD: "0x015852502f55534400000000000000000000000000",
+  DOGE_USD: "0x01444f47452f555344000000000000000000000000",
+};
+```
+
+---
+
+## Test Coverage Summary
+
+| Phase | Contract | Target Coverage |
+|-------|----------|-----------------|
+| 1 | FlareOracle | 95% |
+| 1 | FDCVerifier | 90% |
+| 2 | SparkDEXAdapter | 90% |
+| 2 | EnosysAdapter | 90% |
+| 2 | BlazeSwapAdapter | 90% |
+| 2 | SwapRouter | 95% |
+| 3 | KineticAdapter | 90% |
+| 3 | SceptreAdapter | 90% |
+| 3 | YieldRouter | 90% |
+| 4 | SparkDEXEternalAdapter | 95% |
+| 5 | FAssetsAdapter | 90% |
+| 6 | StrategyEngine | 95% |
+| 7 | PraxisGateway | 95% |
+
+---
+
+## Test Commands Reference
 
 ```bash
-# Run all unit tests
-forge test --match-path test/unit/
+# Unit tests
+npx hardhat test test/unit/**/*.test.ts
 
-# Run integration tests
-forge test --match-path test/integration/
+# Integration tests (requires Coston2 connection)
+npx hardhat test test/integration/**/*.test.ts --network coston2
 
-# Run fork tests (Coston2)
-forge test --fork-url https://coston2-api.flare.network/ext/C/rpc
+# Fork tests
+npx hardhat test test/fork/**/*.test.ts --network hardhatMainnet
 
-# Run with coverage
-forge coverage
+# Security tests
+npx hardhat test test/security/**/*.test.ts
 
-# Run with gas report
-forge test --gas-report
+# Coverage report
+npx hardhat coverage
+
+# Gas report
+REPORT_GAS=true npx hardhat test
+
+# Slither analysis
+slither contracts/ --print human-summary
+
+# All tests verbose
+npx hardhat test --verbose
 ```
-
----
-
-## 7. Deployment Strategy
-
-### 7.1 Network Progression
-
-```
-+------------------+     +------------------+     +------------------+
-|   Local Tests    | --> |     Coston2      | --> |  Flare Mainnet   |
-|   (Foundry)      |     |   (Testnet)      |     |   (Production)   |
-+------------------+     +------------------+     +------------------+
-        |                        |                        |
-        v                        v                        v
-   Unit tests              Integration             Audited +
-   Fork tests              Real protocols          Battle-tested
-   Gas analysis            48h monitoring          Multisig owned
-```
-
-### 7.2 Deployment Order
-
-1. FlareOracle (no dependencies)
-2. DEX Adapters (SparkDEX, Enosys, BlazeSwap)
-3. Yield Adapters (Kinetic, Sceptre)
-4. Perpetual Adapter (SparkDEX Eternal)
-5. SwapRouter (depends on DEX adapters)
-6. YieldRouter (depends on yield adapters)
-7. StrategyEngine (depends on routers + perp adapter)
-8. PraxisGateway (depends on all)
-
-### 7.3 Pre-Mainnet Checklist
-
-- [ ] All Coston2 tests passing
-- [ ] 48 hours stable on testnet
-- [ ] Slither clean (no high/medium)
-- [ ] Fork tests against mainnet pass
-- [ ] Multisig wallet configured
-- [ ] Emergency pause tested
-- [ ] Monitoring configured
-
----
-
-## 8. Contract Addresses
-
-### 8.1 Flare Mainnet (TBD after deployment)
-
-| Contract | Address | Verified |
-|----------|---------|----------|
-| FlareOracle | TBD | [ ] |
-| SparkDEXAdapter | TBD | [ ] |
-| SparkDEXEternalAdapter | TBD | [ ] |
-| EnosysAdapter | TBD | [ ] |
-| BlazeSwapAdapter | TBD | [ ] |
-| KineticAdapter | TBD | [ ] |
-| SceptreAdapter | TBD | [ ] |
-| SwapRouter | TBD | [ ] |
-| YieldRouter | TBD | [ ] |
-| StrategyEngine | TBD | [ ] |
-| PraxisGateway | TBD | [ ] |
-
-### 8.2 Coston2 Testnet (TBD after deployment)
-
-| Contract | Address | Verified |
-|----------|---------|----------|
-| FlareOracle | TBD | [ ] |
-| SwapRouter | TBD | [ ] |
-| PraxisGateway | TBD | [ ] |
-
-### 8.3 External Protocol Addresses (Flare Mainnet)
-
-| Protocol | Contract | Address |
-|----------|----------|---------|
-| SparkDEX | Router | `0x4a1E5A90e9943467FAd1acea1E7F0e5e88472a1e` |
-| SparkDEX Eternal | Perpetuals | TBD (research required) |
-| Kinetic | Comptroller | `0x15F69897E6aEBE0463401345543C26d1Fd994abB` |
-| Sceptre | sFLR | `0x12e605bc104e93b45e1ad99f9e555f659051c2bb` |
-| - | WFLR | `0x1d80c49bbbcd1c0911346656b529df9e5c2f783d` |
-| - | USDC | `0xFbDa5F676cB37624f28265A144A48B0d6e87d3b6` |
-| FAssets | FXRP | TBD |
-| FAssets | FBTC | TBD |
-| FAssets | FDOGE | TBD |
-
----
-
-## Revenue Model
-
-| Source | How It Works | Target |
-|--------|--------------|--------|
-| Swap Fee | 0.05% on aggregated swaps | Competitive with 1inch |
-| Strategy Fee | 0.1% on strategy execution | Value-add for complexity |
-| Yield Fee | 5% of earned yield | Performance-based |
-| Perp Fee | 0.02% on position open/close | Competitive with GMX |
-
-**Note:** All fees optional. Users can always go direct to protocols.
-
----
-
-## Success Metrics
-
-| Metric | Target (6 months) |
-|--------|-------------------|
-| Total Value Routed | $10M+ |
-| Unique Users | 1,000+ |
-| FAsset Volume | $1M+ |
-| DEX Market Share | 20%+ of Flare DEX volume |
-| Perp Volume | $5M+ |
-| Open Interest | $500K+ |
-
----
-
-## The Pitch
-
-**For Retail Users:**
-> "Your gateway to Flare DeFi. Swap, earn, stake - all in one place. Best rates guaranteed. No complexity."
-
-**For Flare Ecosystem:**
-> "PRAXIS brings users to Flare. More volume for DEXs. More TVL for lending/staking. More FAsset adoption. Rising tide lifts all boats."
-
-**For Investors:**
-> "PRAXIS is the interface layer for Flare's vision of seamless digital asset finance. Hundreds of trillions TAM, starting with XRP's $25B+ community."
-
----
-
-## Verification Plan
-
-### Unit Tests
-- Each adapter tested in isolation
-- Each router tested in isolation
-- Gateway tested with mocked routers
-
-### Integration Tests
-- Swap aggregation finds correct best route
-- Yield routing selects optimal protocol
-- Strategy execution chains correctly
-
-### Fork Tests
-- Against Coston2 testnet
-- Against Flare mainnet (forked)
-- Real liquidity, real protocol responses
-
-### Manual Test Scenarios
-1. User with FXRP swaps to WFLR (verify best rate used)
-2. User deposits USDC to earn yield (verify optimal protocol selected)
-3. User executes "FXRP -> Max Yield" strategy (verify all steps execute)
-4. User withdraws from yield position (verify correct amounts)
-5. User opens 10x long BTC perp (verify position created correctly)
-6. User adds margin to existing position (verify leverage decreases)
-7. User closes perp position (verify P&L calculated correctly)
-8. User executes delta-neutral strategy (verify hedge + yield in one tx)
