@@ -173,7 +173,7 @@ Foundation     (DEX, Lend,    Execution      & Gateway      Launch
 
 ### Milestone 3: Vault & Execution Rights System
 
-**Deliverable:** Core innovation - capital custody and permission tokens
+**Deliverable:** Core innovation - capital custody, permission tokens, and safety mechanisms
 
 | Contract | Purpose |
 |----------|---------|
@@ -181,14 +181,22 @@ Foundation     (DEX, Lend,    Execution      & Gateway      Launch
 | `ExecutionRightsNFT.sol` | ERC-721 encoding executor permissions & constraints |
 | `ExecutionController.sol` | Validates every action against ERT constraints |
 | `PositionManager.sol` | Tracks open positions per ERT for PnL calculation |
+| `ReputationManager.sol` | Tracks executor tiers, enforces stake requirements, upgrades/downgrades |
+| `UtilizationController.sol` | Enforces 70% max allocation cap - 30% always in reserve |
+| `CircuitBreaker.sol` | Triggers at 5% daily loss - pauses system, force settles |
+| `ExposureManager.sol` | Limits 30% max exposure per asset - forces diversification |
+| `InsuranceFund.sol` | Collects 2% of profits - covers losses before LPs absorb |
 
 **What gets enforced:**
-- Capital limits (e.g., max $10,000)
+- Reputation tier limits (new users start small, earn access to larger capital)
+- Stake requirements (50% for Tier 0 down to 5% for Tier 4)
+- Capital limits per tier (e.g., Tier 0 = $100, Tier 3 = $100k)
 - Time bounds (e.g., 7 days)
 - Leverage limits (e.g., max 3x)
-- Drawdown limits (e.g., max 10% loss)
+- Drawdown limits (e.g., max 10% loss, always < stake %)
 - Adapter whitelist (e.g., only SparkDEX + Kinetic)
 - Asset whitelist (e.g., only USDC, WFLR, FXRP)
+- Strategy risk level (Conservative/Moderate/Aggressive by tier)
 
 **Why it matters:** This is what makes PRAXIS unique. Money stays in vault, executor only gets permission to direct it.
 
@@ -249,7 +257,7 @@ Foundation     (DEX, Lend,    Execution      & Gateway      Launch
 |---|-----------|--------|-----------|
 | 1 | Oracle Foundation | ✅ Complete | Trustless prices via FTSO, cross-chain via FDC |
 | 2 | Execution Infrastructure | ⬜ Not Started | Vault can talk to SparkDEX, Kinetic, Sceptre, Eternal |
-| 3 | Vault & Rights System | ⬜ Not Started | Money stays locked, permissions are NFTs |
+| 3 | Vault & Rights System | ⬜ Not Started | Money stays locked, permissions are NFTs, reputation tiers + stake protect LPs |
 | 4 | Settlement & Gateway | ⬜ Not Started | Fair profit split, single entry point |
 | 5 | Testnet & Security | ⬜ Not Started | Audited, public testnet, mainnet ready |
 
@@ -1086,6 +1094,897 @@ contract PositionManager {
     function getPositions(uint256 ertId) external view returns (TrackedPosition[] memory);
     function calculateUnrealizedPnl(uint256 ertId) external view returns (int256);
 }
+```
+
+### 6.6 Vault Safety System
+
+**Purpose:** Prevent catastrophic losses from correlated executor failures
+
+#### The Risk We're Protecting Against
+
+```
+Nightmare Scenario:
+  - All executors go long FLR
+  - FLR crashes 40%
+  - All executors hit max drawdown simultaneously
+  - Vault bleeds 10%+ in one day
+  - LPs lose trust, bank run, PRAXIS dies
+```
+
+**Without protections, this WILL eventually happen. Markets crash.**
+
+#### 6.6.1 Safety Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    VAULT SAFETY SYSTEM                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Layer 1: UTILIZATION CAP                                       │
+│     └─ Max 70% of vault can be allocated to ERTs                │
+│     └─ 30% always in reserve, untouchable                       │
+│                                                                  │
+│  Layer 2: CIRCUIT BREAKER                                       │
+│     └─ If daily vault loss > 5%, pause all new ERTs             │
+│     └─ Force settle existing ERTs                               │
+│     └─ Prevents cascading losses                                │
+│                                                                  │
+│  Layer 3: EXPOSURE LIMITS                                       │
+│     └─ Max 30% of vault in any single asset                     │
+│     └─ Forces diversification                                   │
+│     └─ Not everyone can bet same direction                      │
+│                                                                  │
+│  Layer 4: INSURANCE RESERVE                                     │
+│     └─ 2% of all profits go to insurance fund                   │
+│     └─ Covers losses during black swan events                   │
+│     └─ LPs protected up to fund size                            │
+│                                                                  │
+│  Layer 5: STAGGERED EXPIRY                                      │
+│     └─ ERTs must have varied expiry dates                       │
+│     └─ No more than 20% of capital in ERTs expiring same day    │
+│     └─ Reduces settlement concentration risk                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 6.6.2 UtilizationController Contract
+
+```solidity
+contract UtilizationController {
+    uint256 public constant MAX_UTILIZATION_BPS = 7000; // 70%
+
+    ExecutionVault public vault;
+
+    function canAllocate(uint256 amount) external view returns (bool) {
+        uint256 totalAssets = vault.totalAssets();
+        uint256 currentAllocated = vault.totalAllocated();
+        uint256 newUtilization = (currentAllocated + amount) * 10000 / totalAssets;
+
+        return newUtilization <= MAX_UTILIZATION_BPS;
+    }
+
+    function availableForAllocation() external view returns (uint256) {
+        uint256 totalAssets = vault.totalAssets();
+        uint256 maxAllocatable = totalAssets * MAX_UTILIZATION_BPS / 10000;
+        uint256 currentAllocated = vault.totalAllocated();
+
+        if (currentAllocated >= maxAllocatable) return 0;
+        return maxAllocatable - currentAllocated;
+    }
+}
+```
+
+**Tasks:**
+- 6.6.2.1 Create `contracts/core/UtilizationController.sol`
+- 6.6.2.2 Integrate with ExecutionVault for allocation checks
+- 6.6.2.3 Add admin functions to adjust utilization cap in emergencies
+
+#### 6.6.3 CircuitBreaker Contract
+
+```solidity
+contract CircuitBreaker {
+    uint256 public constant MAX_DAILY_LOSS_BPS = 500; // 5%
+
+    uint256 public dailyLossAccumulated;
+    uint256 public lastResetTimestamp;
+    bool public isPaused;
+
+    ExecutionVault public vault;
+    uint256 public snapshotTotalAssets; // Snapshot at day start
+
+    function recordLoss(uint256 lossAmount) external onlySettlement {
+        _resetIfNewDay();
+        dailyLossAccumulated += lossAmount;
+        _checkAndTrigger();
+    }
+
+    function _checkAndTrigger() internal {
+        uint256 lossBps = dailyLossAccumulated * 10000 / snapshotTotalAssets;
+
+        if (lossBps >= MAX_DAILY_LOSS_BPS) {
+            isPaused = true;
+            emit CircuitBreakerTriggered(dailyLossAccumulated, lossBps);
+            // Force settle all active ERTs
+            _forceSettleAll();
+        }
+    }
+
+    function _resetIfNewDay() internal {
+        if (block.timestamp >= lastResetTimestamp + 1 days) {
+            dailyLossAccumulated = 0;
+            lastResetTimestamp = block.timestamp;
+            snapshotTotalAssets = vault.totalAssets();
+            isPaused = false; // Auto-unpause on new day
+        }
+    }
+
+    function _forceSettleAll() internal {
+        // Iterate through active ERTs and force settlement
+    }
+
+    modifier whenNotPaused() {
+        require(!isPaused, "Circuit breaker active");
+        _;
+    }
+}
+```
+
+**Tasks:**
+- 6.6.3.1 Create `contracts/core/CircuitBreaker.sol`
+- 6.6.3.2 Track daily PnL across all settlements
+- 6.6.3.3 Implement force-settle mechanism
+- 6.6.3.4 Add manual unpause for admin (with timelock)
+
+**Test 6.6.3-T1:** Circuit Breaker Tests
+```typescript
+describe("CircuitBreaker", () => {
+  it("should trigger when daily loss exceeds 5%", async () => {
+    // Vault has $100,000
+    // Settle ERTs with total loss of $6,000 (6%)
+    // Circuit breaker should trigger
+    // New ERT minting should revert
+  });
+
+  it("should auto-reset on new day", async () => {
+    // Trigger circuit breaker
+    // Advance time by 1 day
+    // Circuit breaker should be inactive
+    // New ERTs should be allowed
+  });
+
+  it("should force settle all active ERTs on trigger", async () => {
+    // Create 5 active ERTs
+    // Trigger circuit breaker
+    // All 5 should be settled
+  });
+});
+```
+
+#### 6.6.4 ExposureManager Contract
+
+```solidity
+contract ExposureManager {
+    uint256 public constant MAX_SINGLE_ASSET_BPS = 3000; // 30%
+
+    mapping(address => uint256) public assetExposure; // asset => total USD exposure
+    ExecutionVault public vault;
+    FlareOracle public oracle;
+
+    function canAddExposure(address asset, uint256 usdAmount) external view returns (bool) {
+        uint256 totalAssets = vault.totalAssets();
+        uint256 maxExposure = totalAssets * MAX_SINGLE_ASSET_BPS / 10000;
+        uint256 newExposure = assetExposure[asset] + usdAmount;
+
+        return newExposure <= maxExposure;
+    }
+
+    function recordExposure(address asset, uint256 usdAmount) external onlyController {
+        assetExposure[asset] += usdAmount;
+        emit ExposureAdded(asset, usdAmount, assetExposure[asset]);
+    }
+
+    function removeExposure(address asset, uint256 usdAmount) external onlyController {
+        if (assetExposure[asset] >= usdAmount) {
+            assetExposure[asset] -= usdAmount;
+        } else {
+            assetExposure[asset] = 0;
+        }
+        emit ExposureRemoved(asset, usdAmount, assetExposure[asset]);
+    }
+
+    function getExposure(address asset) external view returns (uint256 exposure, uint256 maxAllowed, uint256 utilizationBps) {
+        uint256 totalAssets = vault.totalAssets();
+        maxAllowed = totalAssets * MAX_SINGLE_ASSET_BPS / 10000;
+        exposure = assetExposure[asset];
+        utilizationBps = exposure * 10000 / maxAllowed;
+    }
+}
+```
+
+**Tasks:**
+- 6.6.4.1 Create `contracts/core/ExposureManager.sol`
+- 6.6.4.2 Track exposure per asset in USD terms (via FlareOracle)
+- 6.6.4.3 Reject ERT actions that would exceed asset exposure limits
+- 6.6.4.4 Update exposure on position open/close
+
+**Test 6.6.4-T1:** Exposure Limit Tests
+```typescript
+describe("ExposureManager", () => {
+  it("should reject action exceeding asset exposure limit", async () => {
+    // Vault has $100,000
+    // Max FLR exposure: $30,000
+    // ERT #1 has $25,000 in FLR
+    // ERT #2 tries to add $10,000 in FLR
+    // Should revert: would exceed 30% limit
+  });
+
+  it("should allow action within exposure limit", async () => {
+    // Same setup but ERT #2 tries $4,000 in FLR
+    // Should succeed: total $29,000 < $30,000
+  });
+});
+```
+
+#### 6.6.5 InsuranceFund Contract
+
+```solidity
+contract InsuranceFund {
+    uint256 public constant INSURANCE_FEE_BPS = 200; // 2% of profits
+
+    uint256 public fundBalance;
+    ExecutionVault public vault;
+
+    function collectFromProfit(uint256 profit) external onlySettlement returns (uint256 collected) {
+        collected = profit * INSURANCE_FEE_BPS / 10000;
+        fundBalance += collected;
+        emit InsuranceCollected(collected, fundBalance);
+    }
+
+    function coverLoss(uint256 lossAmount) external onlySettlement returns (uint256 covered) {
+        covered = lossAmount > fundBalance ? fundBalance : lossAmount;
+        fundBalance -= covered;
+
+        // Transfer covered amount back to vault
+        IERC20(vault.asset()).transfer(address(vault), covered);
+
+        emit LossCovered(lossAmount, covered, fundBalance);
+    }
+
+    function fundStatus() external view returns (uint256 balance, uint256 coverageRatio) {
+        balance = fundBalance;
+        coverageRatio = fundBalance * 10000 / vault.totalAssets(); // bps
+    }
+}
+```
+
+**Tasks:**
+- 6.6.5.1 Create `contracts/core/InsuranceFund.sol`
+- 6.6.5.2 Deduct 2% from profitable settlements
+- 6.6.5.3 Use fund to cover losses before LP absorbs
+- 6.6.5.4 Add emergency withdrawal (with timelock + multisig)
+
+**Fee Flow Update:**
+```
+Before Insurance:
+  Profit $600 → LP gets $120 (20%) → Executor gets $480 (80%)
+
+After Insurance:
+  Profit $600 → Insurance gets $12 (2%) → LP gets $118 (19.6%) → Executor gets $470 (78.4%)
+
+On Loss:
+  Loss $500 → Insurance covers first $500 (if available) → LP absorbs remainder
+```
+
+#### 6.6.6 Staggered Expiry Enforcement
+
+```solidity
+// In ExecutionRightsNFT.sol
+
+mapping(uint256 => uint256) public dailyExpiryAmount; // day timestamp => total capital expiring
+
+uint256 public constant MAX_DAILY_EXPIRY_BPS = 2000; // 20%
+
+function mint(...) external returns (uint256 tokenId) {
+    // ... existing validation ...
+
+    // Check expiry concentration
+    uint256 expiryDay = (block.timestamp + duration) / 1 days * 1 days;
+    uint256 totalAssets = vault.totalAssets();
+    uint256 maxDailyExpiry = totalAssets * MAX_DAILY_EXPIRY_BPS / 10000;
+
+    require(
+        dailyExpiryAmount[expiryDay] + capitalLimit <= maxDailyExpiry,
+        "Too much capital expiring on this day"
+    );
+
+    dailyExpiryAmount[expiryDay] += capitalLimit;
+
+    // ... rest of mint logic ...
+}
+```
+
+**Tasks:**
+- 6.6.6.1 Add expiry concentration tracking to ExecutionRightsNFT
+- 6.6.6.2 Reject ERTs that would concentrate too much on one expiry day
+- 6.6.6.3 Suggest alternative expiry dates to executors
+
+#### 6.6.7 Safety System Summary
+
+| Protection | Trigger | Action | Effect |
+|------------|---------|--------|--------|
+| Reputation Tiers | New executor | Start at Tier 0 ($100 max) | Griefing economically irrational |
+| Stake Requirement | ERT mint | Collect stake > max drawdown | LP loss covered by stake |
+| Utilization Cap | Allocation > 70% | Block new ERTs | 30% always safe |
+| Circuit Breaker | Daily loss > 5% | Pause + force settle | Stop bleeding |
+| Exposure Limits | Asset > 30% | Block action | Force diversification |
+| Insurance Fund | Any loss | Cover from fund | LP protected |
+| Staggered Expiry | Day expiry > 20% | Block ERT | Spread risk |
+
+**Test 6.6.7-T1:** Full Safety System Integration Test
+```typescript
+describe("Safety System Integration", () => {
+  it("should survive simulated market crash", async () => {
+    // Setup: Vault with $100,000, 70% allocated across 10 ERTs
+    // Simulate: FLR drops 40%
+    // Expected:
+    //   - Circuit breaker triggers at 5% loss
+    //   - Remaining ERTs force settled
+    //   - Insurance fund covers some losses
+    //   - Vault loses ~5-7%, not 10%+
+    //   - System recovers next day
+  });
+});
+```
+
+### 6.7 Reputation-Based Tier System
+
+**Purpose:** Solve the "free option" problem — executors must have skin in the game, earned through track record
+
+#### The Problem We're Solving
+
+```
+Without reputation system:
+  - Anyone can request $100k with minimal stake
+  - Lose intentionally, walk away
+  - Create new wallet, repeat
+
+With reputation system:
+  - New users start small, must prove themselves
+  - Lower collateral is EARNED, not requested
+  - Griefing becomes economically irrational
+```
+
+#### 6.7.1 Tier Structure
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    EXECUTOR REPUTATION TIERS                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  TIER 0 - Unverified (brand new wallet)                                     │
+│    Max capital: $100                                                        │
+│    Stake required: 50%                                                      │
+│    Max drawdown: 20%                                                        │
+│    Allowed strategies: Conservative only (staking, lending)                 │
+│    Requirement: None                                                        │
+│                                                                              │
+│  TIER 1 - Novice (some history)                                             │
+│    Max capital: $1,000                                                      │
+│    Stake required: 25%                                                      │
+│    Max drawdown: 15%                                                        │
+│    Allowed strategies: Conservative + Moderate                              │
+│    Requirement: 3+ profitable settlements at Tier 0                         │
+│                                                                              │
+│  TIER 2 - Verified (proven track record)                                    │
+│    Max capital: $10,000                                                     │
+│    Stake required: 15%                                                      │
+│    Max drawdown: 10%                                                        │
+│    Allowed strategies: All except high-leverage perps                       │
+│    Requirement: 10+ settlements, >60% profitable, at Tier 1                 │
+│                                                                              │
+│  TIER 3 - Established (consistent performer)                                │
+│    Max capital: $100,000                                                    │
+│    Stake required: 10%                                                      │
+│    Max drawdown: 10%                                                        │
+│    Allowed strategies: All strategies                                       │
+│    Requirement: 25+ settlements, >65% profitable, >$50k volume              │
+│                                                                              │
+│  TIER 4 - Elite (top performers / whitelisted)                              │
+│    Max capital: $500,000+                                                   │
+│    Stake required: 5%                                                       │
+│    Max drawdown: 15%                                                        │
+│    Allowed strategies: All + custom limits                                  │
+│    Requirement: 50+ settlements, >70% profitable, DAO approval OR           │
+│                 KYC'd institutional entity                                  │
+│                                                                              │
+│  GOLDEN RULE: Stake % always > Max Drawdown % → LP never loses             │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 6.7.2 Reputation Data Structures
+
+```solidity
+// Add to PraxisStructs.sol
+
+/// @notice Executor reputation tier
+enum ExecutorTier {
+    UNVERIFIED,  // Tier 0 - New wallet
+    NOVICE,      // Tier 1 - Some history
+    VERIFIED,    // Tier 2 - Proven track record
+    ESTABLISHED, // Tier 3 - Consistent performer
+    ELITE        // Tier 4 - Top performer / whitelisted
+}
+
+/// @notice Tier configuration
+struct TierConfig {
+    uint256 maxCapital;          // Max capital in USD (6 decimals)
+    uint16 stakeRequiredBps;     // Stake as % of capital (2500 = 25%)
+    uint16 maxDrawdownBps;       // Max loss allowed (1500 = 15%)
+    uint8 allowedRiskLevel;      // 0=Conservative, 1=Moderate, 2=Aggressive
+    uint256 settlementsRequired; // Settlements needed to reach this tier
+    uint256 profitRateBps;       // Required profitable % (6500 = 65%)
+    uint256 volumeRequired;      // Total volume in USD required
+}
+
+/// @notice Executor's reputation record
+struct ExecutorReputation {
+    ExecutorTier tier;
+    uint256 totalSettlements;    // Total ERTs settled
+    uint256 profitableSettlements; // ERTs that made profit
+    uint256 totalVolumeUsd;      // Cumulative capital used
+    int256 totalPnlUsd;          // Lifetime PnL
+    uint256 largestLossBps;      // Worst single loss (for risk assessment)
+    uint256 consecutiveProfits;  // Current streak
+    uint256 consecutiveLosses;   // Current loss streak
+    uint256 lastSettlementTime;  // For activity tracking
+    bool isWhitelisted;          // DAO/admin approved
+    bool isBanned;               // Banned for malicious behavior
+}
+```
+
+#### 6.7.3 ReputationManager Contract
+
+```solidity
+contract ReputationManager {
+    // Tier configurations
+    mapping(ExecutorTier => TierConfig) public tierConfigs;
+
+    // Executor reputations
+    mapping(address => ExecutorReputation) public reputations;
+
+    // Events
+    event TierUpgrade(address indexed executor, ExecutorTier oldTier, ExecutorTier newTier);
+    event TierDowngrade(address indexed executor, ExecutorTier oldTier, ExecutorTier newTier);
+    event ReputationUpdated(address indexed executor, uint256 settlements, int256 totalPnl);
+    event ExecutorBanned(address indexed executor, string reason);
+    event ExecutorWhitelisted(address indexed executor);
+
+    constructor() {
+        // Initialize tier configs
+        tierConfigs[ExecutorTier.UNVERIFIED] = TierConfig({
+            maxCapital: 100e6,        // $100
+            stakeRequiredBps: 5000,   // 50%
+            maxDrawdownBps: 2000,     // 20%
+            allowedRiskLevel: 0,      // Conservative only
+            settlementsRequired: 0,
+            profitRateBps: 0,
+            volumeRequired: 0
+        });
+
+        tierConfigs[ExecutorTier.NOVICE] = TierConfig({
+            maxCapital: 1000e6,       // $1,000
+            stakeRequiredBps: 2500,   // 25%
+            maxDrawdownBps: 1500,     // 15%
+            allowedRiskLevel: 1,      // Conservative + Moderate
+            settlementsRequired: 3,
+            profitRateBps: 5000,      // 50% profitable
+            volumeRequired: 0
+        });
+
+        tierConfigs[ExecutorTier.VERIFIED] = TierConfig({
+            maxCapital: 10000e6,      // $10,000
+            stakeRequiredBps: 1500,   // 15%
+            maxDrawdownBps: 1000,     // 10%
+            allowedRiskLevel: 1,      // Up to Moderate
+            settlementsRequired: 10,
+            profitRateBps: 6000,      // 60% profitable
+            volumeRequired: 5000e6   // $5k volume
+        });
+
+        tierConfigs[ExecutorTier.ESTABLISHED] = TierConfig({
+            maxCapital: 100000e6,     // $100,000
+            stakeRequiredBps: 1000,   // 10%
+            maxDrawdownBps: 1000,     // 10%
+            allowedRiskLevel: 2,      // All strategies
+            settlementsRequired: 25,
+            profitRateBps: 6500,      // 65% profitable
+            volumeRequired: 50000e6  // $50k volume
+        });
+
+        tierConfigs[ExecutorTier.ELITE] = TierConfig({
+            maxCapital: 500000e6,     // $500,000
+            stakeRequiredBps: 500,    // 5%
+            maxDrawdownBps: 1500,     // 15%
+            allowedRiskLevel: 2,      // All strategies
+            settlementsRequired: 50,
+            profitRateBps: 7000,      // 70% profitable
+            volumeRequired: 500000e6 // $500k volume
+        });
+    }
+
+    /// @notice Get executor's current tier config
+    function getExecutorTierConfig(address executor) external view returns (TierConfig memory) {
+        return tierConfigs[reputations[executor].tier];
+    }
+
+    /// @notice Check if executor can request given capital amount
+    function canRequestCapital(address executor, uint256 capitalUsd) external view returns (bool) {
+        ExecutorReputation memory rep = reputations[executor];
+        if (rep.isBanned) return false;
+
+        TierConfig memory config = tierConfigs[rep.tier];
+        return capitalUsd <= config.maxCapital;
+    }
+
+    /// @notice Get required stake for executor and capital amount
+    function getRequiredStake(address executor, uint256 capitalUsd) external view returns (uint256) {
+        TierConfig memory config = tierConfigs[reputations[executor].tier];
+        return capitalUsd * config.stakeRequiredBps / 10000;
+    }
+
+    /// @notice Record settlement and update reputation (called by SettlementEngine)
+    function recordSettlement(
+        address executor,
+        uint256 capitalUsed,
+        int256 pnl,
+        uint256 maxDrawdownHit // Actual max drawdown during ERT lifetime
+    ) external onlySettlement {
+        ExecutorReputation storage rep = reputations[executor];
+
+        rep.totalSettlements++;
+        rep.totalVolumeUsd += capitalUsed;
+        rep.totalPnlUsd += pnl;
+        rep.lastSettlementTime = block.timestamp;
+
+        if (pnl > 0) {
+            rep.profitableSettlements++;
+            rep.consecutiveProfits++;
+            rep.consecutiveLosses = 0;
+        } else {
+            rep.consecutiveLosses++;
+            rep.consecutiveProfits = 0;
+
+            // Track worst loss
+            uint256 lossBps = uint256(-pnl) * 10000 / capitalUsed;
+            if (lossBps > rep.largestLossBps) {
+                rep.largestLossBps = lossBps;
+            }
+        }
+
+        // Check for tier upgrade
+        _checkTierUpgrade(executor);
+
+        // Check for tier downgrade (consecutive losses)
+        _checkTierDowngrade(executor);
+
+        emit ReputationUpdated(executor, rep.totalSettlements, rep.totalPnlUsd);
+    }
+
+    /// @notice Check if executor qualifies for tier upgrade
+    function _checkTierUpgrade(address executor) internal {
+        ExecutorReputation storage rep = reputations[executor];
+
+        // Can't upgrade if banned or already elite
+        if (rep.isBanned || rep.tier == ExecutorTier.ELITE) return;
+
+        // Check next tier requirements
+        ExecutorTier nextTier = ExecutorTier(uint8(rep.tier) + 1);
+        TierConfig memory nextConfig = tierConfigs[nextTier];
+
+        uint256 profitRate = rep.totalSettlements > 0
+            ? rep.profitableSettlements * 10000 / rep.totalSettlements
+            : 0;
+
+        bool meetsSettlements = rep.totalSettlements >= nextConfig.settlementsRequired;
+        bool meetsProfitRate = profitRate >= nextConfig.profitRateBps;
+        bool meetsVolume = rep.totalVolumeUsd >= nextConfig.volumeRequired;
+
+        // Elite tier requires whitelist OR meeting all requirements
+        if (nextTier == ExecutorTier.ELITE) {
+            if (rep.isWhitelisted || (meetsSettlements && meetsProfitRate && meetsVolume)) {
+                emit TierUpgrade(executor, rep.tier, nextTier);
+                rep.tier = nextTier;
+            }
+        } else if (meetsSettlements && meetsProfitRate && meetsVolume) {
+            emit TierUpgrade(executor, rep.tier, nextTier);
+            rep.tier = nextTier;
+        }
+    }
+
+    /// @notice Downgrade tier on consecutive losses
+    function _checkTierDowngrade(address executor) internal {
+        ExecutorReputation storage rep = reputations[executor];
+
+        // 5 consecutive losses = drop one tier
+        if (rep.consecutiveLosses >= 5 && rep.tier != ExecutorTier.UNVERIFIED) {
+            ExecutorTier oldTier = rep.tier;
+            rep.tier = ExecutorTier(uint8(rep.tier) - 1);
+            rep.consecutiveLosses = 0; // Reset after downgrade
+            emit TierDowngrade(executor, oldTier, rep.tier);
+        }
+    }
+
+    /// @notice Admin: Whitelist executor for Elite tier
+    function whitelistExecutor(address executor) external onlyOwner {
+        reputations[executor].isWhitelisted = true;
+        emit ExecutorWhitelisted(executor);
+        _checkTierUpgrade(executor);
+    }
+
+    /// @notice Admin: Ban malicious executor
+    function banExecutor(address executor, string calldata reason) external onlyOwner {
+        reputations[executor].isBanned = true;
+        emit ExecutorBanned(executor, reason);
+    }
+
+    /// @notice Admin: Update tier config
+    function setTierConfig(ExecutorTier tier, TierConfig calldata config) external onlyOwner {
+        // Validate: stake must be > max drawdown
+        require(config.stakeRequiredBps > config.maxDrawdownBps, "Stake must exceed max drawdown");
+        tierConfigs[tier] = config;
+    }
+}
+```
+
+**Tasks:**
+- 6.7.3.1 Create `contracts/core/ReputationManager.sol`
+- 6.7.3.2 Initialize tier configurations
+- 6.7.3.3 Implement reputation tracking on settlement
+- 6.7.3.4 Implement tier upgrade logic
+- 6.7.3.5 Implement tier downgrade on consecutive losses
+- 6.7.3.6 Add admin functions for whitelist/ban
+
+#### 6.7.4 Integration with ExecutionRightsNFT
+
+```solidity
+// In ExecutionRightsNFT.sol
+
+ReputationManager public reputationManager;
+
+function mint(
+    address executor,
+    address vault,
+    uint256 capitalLimit,
+    uint256 duration,
+    RiskConstraints calldata constraints,
+    FeeStructure calldata fees
+) external payable returns (uint256 tokenId) {
+    // Get executor's tier config
+    TierConfig memory tierConfig = reputationManager.getExecutorTierConfig(executor);
+    ExecutorReputation memory rep = reputationManager.reputations(executor);
+
+    // Validate against tier limits
+    require(!rep.isBanned, "Executor is banned");
+    require(capitalLimit <= tierConfig.maxCapital, "Capital exceeds tier limit");
+    require(
+        constraints.maxDrawdownBps <= tierConfig.maxDrawdownBps,
+        "Drawdown exceeds tier limit"
+    );
+    require(
+        _getRiskLevel(constraints) <= tierConfig.allowedRiskLevel,
+        "Strategy risk exceeds tier allowance"
+    );
+
+    // Calculate and collect required stake
+    uint256 requiredStake = capitalLimit * tierConfig.stakeRequiredBps / 10000;
+    require(msg.value >= requiredStake, "Insufficient stake");
+
+    // Store stake with ERT
+    fees.performanceFeeEscrowed = msg.value;
+
+    // ... rest of mint logic
+}
+
+function _getRiskLevel(RiskConstraints calldata constraints) internal pure returns (uint8) {
+    // Conservative: No leverage, only staking/lending adapters
+    // Moderate: Up to 2x leverage, includes DEX swaps
+    // Aggressive: Any leverage, includes perps
+
+    if (constraints.maxLeverage > 2) return 2; // Aggressive
+
+    // Check if perp adapter is in whitelist
+    for (uint i = 0; i < constraints.allowedAdapters.length; i++) {
+        if (_isPerpAdapter(constraints.allowedAdapters[i])) return 2;
+    }
+
+    if (constraints.maxLeverage > 1) return 1; // Moderate
+    return 0; // Conservative
+}
+```
+
+#### 6.7.5 Stake Handling in Settlement
+
+```solidity
+// In SettlementEngine.sol
+
+function _distributeFees(uint256 ertId, int256 pnl) internal returns (SettlementResult memory result) {
+    ExecutionRights memory rights = ertNFT.getRights(ertId);
+    uint256 stake = rights.fees.performanceFeeEscrowed;
+
+    if (pnl >= 0) {
+        // PROFITABLE: Return stake + distribute profits
+        uint256 profit = uint256(pnl);
+
+        // Insurance takes 2% of profit
+        uint256 insuranceCut = profit * 200 / 10000;
+        insuranceFund.collectFromProfit(insuranceCut);
+        profit -= insuranceCut;
+
+        // LP gets base fee + 20% of remaining profit
+        result.lpBaseFee = _calculateBaseFee(rights);
+        result.lpProfitShare = profit * rights.fees.profitShareBps / 10000;
+
+        // Executor gets 80% of profit + full stake back
+        result.executorProfit = profit - result.lpProfitShare;
+
+        // Return stake to executor
+        payable(rights.executor).transfer(stake);
+
+    } else {
+        // LOSS: Deduct from stake first
+        uint256 loss = uint256(-pnl);
+
+        if (loss <= stake) {
+            // Stake covers entire loss
+            uint256 stakeReturned = stake - loss;
+            payable(rights.executor).transfer(stakeReturned);
+            // LP loses nothing
+            result.lpProfitShare = 0;
+        } else {
+            // Loss exceeds stake
+            uint256 lpLoss = loss - stake;
+
+            // Try to cover from insurance fund
+            uint256 covered = insuranceFund.coverLoss(lpLoss);
+            uint256 remainingLoss = lpLoss - covered;
+
+            // LP absorbs only what insurance couldn't cover
+            // This should be rare if stake > max drawdown
+            result.lpProfitShare = 0; // Actually negative, tracked separately
+
+            // Executor loses entire stake
+            // Stake stays in contract (goes to vault to offset loss)
+        }
+    }
+
+    // Update reputation
+    reputationManager.recordSettlement(
+        rights.executor,
+        rights.capitalLimit,
+        pnl,
+        rights.status.maxDrawdownHit
+    );
+
+    return result;
+}
+```
+
+#### 6.7.6 Griefing Analysis
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    GRIEFING COST ANALYSIS                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  SCENARIO: Attacker wants to grief $100k from vault                         │
+│                                                                              │
+│  WITHOUT Reputation System:                                                 │
+│    - Request $100k with minimal stake                                       │
+│    - Intentionally lose 10% = $10k                                          │
+│    - Walk away, create new wallet                                           │
+│    - Cost to attacker: ~$0                                                  │
+│    - LP loss: $10k                                                          │
+│                                                                              │
+│  WITH Reputation System:                                                    │
+│    Path to $100k access (Tier 3):                                          │
+│                                                                              │
+│    Tier 0 ($100, 50% stake = $50):                                         │
+│      - 3 profitable settlements needed                                      │
+│      - Each: stake $50, profit or lose small amount                        │
+│      - Min cost: $150 in stakes (returned if profitable)                   │
+│      - Time: ~1-2 weeks                                                     │
+│                                                                              │
+│    Tier 1 ($1k, 25% stake = $250):                                         │
+│      - 7 more settlements needed (10 total)                                │
+│      - Each: stake $250                                                     │
+│      - Min cost: $1,750 in stakes                                          │
+│      - Time: ~2-3 weeks                                                     │
+│                                                                              │
+│    Tier 2 ($10k, 15% stake = $1.5k):                                       │
+│      - 15 more settlements needed (25 total)                               │
+│      - Each: stake $1,500                                                   │
+│      - Min cost: $22,500 in stakes                                         │
+│      - Time: ~1-2 months                                                    │
+│                                                                              │
+│    Tier 3 ($100k, 10% stake = $10k):                                       │
+│      - Finally can request $100k                                           │
+│      - Must stake $10k                                                      │
+│      - Max loss (10%): $10k                                                │
+│      - Attacker's stake: COVERS THE LOSS                                   │
+│                                                                              │
+│    TOTAL COST TO GRIEF:                                                     │
+│      - Time: 2-3 months of active trading                                  │
+│      - Capital at risk: $24k+ in stakes along the way                      │
+│      - Final attack: Lose $10k stake                                       │
+│      - LP loss: $0 (stake covered it)                                      │
+│                                                                              │
+│    VERDICT: Economically irrational to grief                               │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 6.7.7 Reputation System Summary
+
+| Tier | Max Capital | Stake | Max Drawdown | LP Protected? |
+|------|-------------|-------|--------------|---------------|
+| 0 - Unverified | $100 | 50% | 20% | ✅ Yes (50% > 20%) |
+| 1 - Novice | $1,000 | 25% | 15% | ✅ Yes (25% > 15%) |
+| 2 - Verified | $10,000 | 15% | 10% | ✅ Yes (15% > 10%) |
+| 3 - Established | $100,000 | 10% | 10% | ✅ Yes (10% = 10%, insurance backup) |
+| 4 - Elite | $500,000 | 5% | 15% | ⚠️ Partial (requires insurance + reputation) |
+
+**Key Invariant:** `Stake % ≥ Max Drawdown %` at every tier (except Elite, which requires reputation)
+
+**Test 6.7.7-T1:** Reputation System Tests
+```typescript
+describe("ReputationManager", () => {
+  it("new executor starts at Tier 0", async () => {
+    const rep = await reputationManager.reputations(newExecutor.address);
+    expect(rep.tier).to.equal(0); // UNVERIFIED
+  });
+
+  it("executor upgrades to Tier 1 after 3 profitable settlements", async () => {
+    // Simulate 3 profitable settlements
+    for (let i = 0; i < 3; i++) {
+      await settlement.settle(ertIds[i]); // All profitable
+    }
+
+    const rep = await reputationManager.reputations(executor.address);
+    expect(rep.tier).to.equal(1); // NOVICE
+  });
+
+  it("executor downgrades after 5 consecutive losses", async () => {
+    // Get to Tier 2 first
+    // Then simulate 5 losses
+    for (let i = 0; i < 5; i++) {
+      await settlement.settle(losingErtIds[i]);
+    }
+
+    const rep = await reputationManager.reputations(executor.address);
+    expect(rep.tier).to.equal(1); // Dropped from VERIFIED to NOVICE
+  });
+
+  it("cannot request capital above tier limit", async () => {
+    // Tier 0 executor tries to request $1000
+    await expect(
+      gateway.requestExecutionRights(parseUnits("1000", 6), ...)
+    ).to.be.revertedWith("Capital exceeds tier limit");
+  });
+
+  it("stake covers max drawdown loss completely", async () => {
+    // Tier 1: $1000 capital, 25% stake = $250, 15% max drawdown = $150
+    // Executor loses full 15% = $150
+    // Stake returned: $250 - $150 = $100
+    // LP loss: $0
+
+    const lpBalanceBefore = await vault.totalAssets();
+    await settlement.settle(losingErt);
+    const lpBalanceAfter = await vault.totalAssets();
+
+    expect(lpBalanceAfter).to.equal(lpBalanceBefore); // LP didn't lose
+  });
+});
 ```
 
 ---
