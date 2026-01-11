@@ -102,6 +102,7 @@ One interface for all DeFi actions across all Flare protocols.
 | **Borrow** | Kinetic | Collateralize -> borrow |
 | **Stake** | Sceptre (sFLR) | FLR -> sFLR + rewards |
 | **LP** | SparkDEX, Enosys | Provide liquidity |
+| **Perpetuals** | SparkDEX Eternal | Long/short with up to 100x leverage |
 | **Yield** | All | Optimized yield strategies |
 
 ### 2.3 FTSO + FDC: The Data Advantage
@@ -158,6 +159,9 @@ Flare's native infrastructure gives PRAXIS unfair advantages:
 |  | SparkDEX |  Enosys  | BlazeSwap| Kinetic  | Sceptre  |  FAssets     |    |
 |  | Adapter  | Adapter  | Adapter  | Adapter  | Adapter  |  Handler     |    |
 |  +----------+----------+----------+----------+----------+--------------+    |
+|  |                    SparkDEX Eternal Adapter                          |    |
+|  |                    (Perpetuals: Long/Short/Margin)                   |    |
+|  +---------------------------------------------------------------------+    |
 |                                    |                                         |
 |                                    v                                         |
 |  +---------------------------------------------------------------------+    |
@@ -174,6 +178,8 @@ Flare's native infrastructure gives PRAXIS unfair advantages:
 | SparkDEX |  Enosys  | BlazeSwap| Kinetic  | Sceptre  |   FAsset Contracts  |
 |  (DEX)   |  (DEX)   |  (DEX)   | (Lending)| (Stake)  |   (FXRP,FBTC,FDOGE) |
 +----------+----------+----------+----------+----------+---------------------+
+|                     SparkDEX Eternal (Perpetuals)                           |
++-----------------------------------------------------------------------------+
 ```
 
 ### 3.2 Directory Structure
@@ -192,8 +198,10 @@ praxis/web3/
 │   │   ├── IAdapter.sol            # Common interface
 │   │   ├── ILendingAdapter.sol     # Lending interface
 │   │   ├── IStakingAdapter.sol     # Staking interface
+│   │   ├── IPerpetualAdapter.sol   # Perpetuals interface
 │   │   ├── BaseAdapter.sol         # Abstract base
 │   │   ├── SparkDEXAdapter.sol     # SparkDEX V3
+│   │   ├── SparkDEXEternalAdapter.sol # SparkDEX Eternal (perps)
 │   │   ├── EnosysAdapter.sol       # Enosys
 │   │   ├── BlazeSwapAdapter.sol    # BlazeSwap
 │   │   ├── KineticAdapter.sol      # Kinetic lending
@@ -213,6 +221,7 @@ praxis/web3/
 │   ├── interfaces/
 │   │   └── external/
 │   │       ├── ISparkDEXRouter.sol
+│   │       ├── ISparkDEXEternal.sol    # Perpetuals interface
 │   │       ├── IEnosysRouter.sol
 │   │       ├── IBlazeSwapRouter.sol
 │   │       ├── IKToken.sol
@@ -229,6 +238,7 @@ praxis/web3/
 │   ├── unit/
 │   │   ├── FlareOracle.t.sol
 │   │   ├── SparkDEXAdapter.t.sol
+│   │   ├── SparkDEXEternalAdapter.t.sol  # Perpetuals tests
 │   │   ├── EnosysAdapter.t.sol
 │   │   ├── BlazeSwapAdapter.t.sol
 │   │   ├── KineticAdapter.t.sol
@@ -238,6 +248,7 @@ praxis/web3/
 │   ├── integration/
 │   │   ├── Aggregation.t.sol       # Best route selection
 │   │   ├── CrossProtocol.t.sol     # Swap + Lend + Stake
+│   │   ├── Perpetuals.t.sol        # Perp position workflows
 │   │   ├── FAssetFlows.t.sol       # FAsset workflows
 │   │   └── GasOptimization.t.sol   # Batching tests
 │   │
@@ -288,7 +299,17 @@ library PraxisStructs {
         STAKE,
         UNSTAKE,
         ADD_LIQUIDITY,
-        REMOVE_LIQUIDITY
+        REMOVE_LIQUIDITY,
+        OPEN_LONG,
+        OPEN_SHORT,
+        CLOSE_POSITION,
+        ADJUST_MARGIN
+    }
+
+    // Perpetual position side
+    enum PositionSide {
+        LONG,
+        SHORT
     }
 
     /// @dev Single action in a strategy
@@ -339,6 +360,30 @@ library PraxisStructs {
         address underlying;     // e.g., XRP for FXRP
         uint256 totalMinted;
         uint256 collateralRatio;
+    }
+
+    /// @dev Perpetual position
+    struct PerpPosition {
+        bytes32 positionId;
+        address market;         // e.g., BTC/USD, ETH/USD
+        PositionSide side;      // LONG or SHORT
+        uint256 size;           // Position size
+        uint256 collateral;     // Margin deposited
+        uint256 entryPrice;     // Average entry price
+        uint256 leverage;       // Current leverage (e.g., 10 = 10x)
+        int256 unrealizedPnl;   // Current unrealized P&L
+        uint256 liquidationPrice;
+    }
+
+    /// @dev Perpetual market info
+    struct PerpMarket {
+        address market;
+        string symbol;          // e.g., "BTC/USD"
+        uint256 maxLeverage;    // e.g., 100 for 100x
+        uint256 fundingRate;    // Current funding rate (basis points)
+        uint256 openInterest;
+        uint256 indexPrice;     // From FTSO
+        uint256 markPrice;
     }
 
     /// @dev Swap parameters
@@ -478,7 +523,83 @@ interface IStakingAdapter {
 }
 ```
 
-### 4.5 FlareOracle (`contracts/oracles/FlareOracle.sol`)
+### 4.5 Perpetual Adapter Interface (`contracts/adapters/IPerpetualAdapter.sol`)
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {PraxisStructs} from "../lib/PraxisStructs.sol";
+
+interface IPerpetualAdapter {
+    /// @notice Get adapter name
+    function name() external view returns (string memory);
+
+    /// @notice Open a perpetual position
+    /// @param market The market address (e.g., BTC/USD)
+    /// @param collateral Amount of collateral to deposit
+    /// @param size Position size
+    /// @param leverage Leverage multiplier (e.g., 10 for 10x)
+    /// @param isLong True for long, false for short
+    /// @param onBehalfOf Position owner
+    /// @return positionId Unique position identifier
+    function openPosition(
+        address market,
+        uint256 collateral,
+        uint256 size,
+        uint256 leverage,
+        bool isLong,
+        address onBehalfOf
+    ) external returns (bytes32 positionId);
+
+    /// @notice Close a perpetual position
+    /// @param positionId The position to close
+    /// @param to Address to receive proceeds
+    /// @return pnl Realized profit/loss
+    function closePosition(bytes32 positionId, address to)
+        external returns (int256 pnl);
+
+    /// @notice Add margin to an existing position
+    /// @param positionId The position to modify
+    /// @param amount Additional collateral to add
+    function addMargin(bytes32 positionId, uint256 amount) external;
+
+    /// @notice Remove margin from an existing position
+    /// @param positionId The position to modify
+    /// @param amount Collateral to remove
+    /// @param to Address to receive removed collateral
+    function removeMargin(bytes32 positionId, uint256 amount, address to) external;
+
+    /// @notice Get position details
+    /// @param positionId The position to query
+    /// @return position The position details
+    function getPosition(bytes32 positionId)
+        external view returns (PraxisStructs.PerpPosition memory position);
+
+    /// @notice Get market info
+    /// @param market The market address
+    /// @return info Market details including funding rate, open interest
+    function getMarketInfo(address market)
+        external view returns (PraxisStructs.PerpMarket memory info);
+
+    /// @notice Get current funding rate for a market
+    /// @param market The market address
+    /// @return fundingRate Current funding rate in basis points (positive = longs pay shorts)
+    function getFundingRate(address market) external view returns (int256 fundingRate);
+
+    /// @notice Get available markets
+    /// @return markets Array of supported market addresses
+    function getMarkets() external view returns (address[] memory markets);
+
+    /// @notice Get user's all open positions
+    /// @param user The user address
+    /// @return positions Array of user's open positions
+    function getUserPositions(address user)
+        external view returns (PraxisStructs.PerpPosition[] memory positions);
+}
+```
+
+### 4.7 FlareOracle (`contracts/oracles/FlareOracle.sol`)
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -554,7 +675,7 @@ contract FlareOracle {
 }
 ```
 
-### 4.6 SwapRouter (`contracts/core/SwapRouter.sol`)
+### 4.8 SwapRouter (`contracts/core/SwapRouter.sol`)
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -755,7 +876,7 @@ contract SwapRouter is ReentrancyGuard {
 }
 ```
 
-### 4.7 PraxisGateway (`contracts/core/PraxisGateway.sol`)
+### 4.9 PraxisGateway (`contracts/core/PraxisGateway.sol`)
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -1034,22 +1155,47 @@ forge test --match-contract SceptreAdapterTest -vvv
 
 ---
 
-### Phase 4: FAssets Support
+### Phase 4: Perpetuals Integration
+
+**Goal:** Leverage trading via SparkDEX Eternal
+
+| Task | Description | Deliverable |
+|------|-------------|-------------|
+| 4.1 | Research SparkDEX Eternal interface | ISparkDEXEternal.sol |
+| 4.2 | Create IPerpetualAdapter interface | Perpetuals standard |
+| 4.3 | Implement SparkDEXEternalAdapter | Open/close/adjust positions |
+| 4.4 | Add position management to Gateway | openPosition(), closePosition() |
+| 4.5 | Implement funding rate queries | getFundingRate() |
+| 4.6 | Add liquidation price calculation | getLiquidationPrice() |
+| 4.7 | Write perpetual unit tests | All perp actions tested |
+| 4.8 | Write integration tests | Perp + swap combos tested |
+| 4.9 | Deploy to Coston2 | Perpetuals working |
+
+**Test Checkpoint 4:**
+```bash
+forge test --match-contract SparkDEXEternalAdapterTest -vvv
+forge test --match-contract Perpetuals -vvv
+# Verify: Open 10x long BTC, close position, check P&L
+```
+
+---
+
+### Phase 5: FAssets Support
 
 **Goal:** First-class FAsset support
 
 | Task | Description | Deliverable |
 |------|-------------|-------------|
-| 4.1 | Research FAsset contracts on Flare | IFAssetManager interface |
-| 4.2 | Implement FAssetsAdapter | FAsset-aware handling |
-| 4.3 | Add FXRP swap routing | FXRP -> any token |
-| 4.4 | Add FBTC swap routing | FBTC -> any token |
-| 4.5 | Add FDOGE swap routing | FDOGE -> any token |
-| 4.6 | Create FAsset-optimized strategies | Preset yield strategies |
-| 4.7 | Write FAsset flow tests | Full journey tested |
-| 4.8 | Deploy to Coston2 | FAssets working |
+| 5.1 | Research FAsset contracts on Flare | IFAssetManager interface |
+| 5.2 | Implement FAssetsAdapter | FAsset-aware handling |
+| 5.3 | Add FXRP swap routing | FXRP -> any token |
+| 5.4 | Add FBTC swap routing | FBTC -> any token |
+| 5.5 | Add FDOGE swap routing | FDOGE -> any token |
+| 5.6 | Create FAsset-optimized strategies | Preset yield strategies |
+| 5.7 | Write FAsset flow tests | Full journey tested |
+| 5.8 | Deploy to Coston2 | FAssets working |
 
-**Test Checkpoint 4:**
+**Test Checkpoint 5:**
 ```bash
 forge test --match-contract FAssetsAdapterTest -vvv
 # Verify: FXRP -> swap -> yield in one transaction
@@ -1057,26 +1203,27 @@ forge test --match-contract FAssetsAdapterTest -vvv
 
 ---
 
-### Phase 5: Strategy Engine
+### Phase 6: Strategy Engine
 
 **Goal:** Multi-step strategy execution
 
 | Task | Description | Deliverable |
 |------|-------------|-------------|
-| 5.1 | Implement StrategyEngine.sol | Multi-action execution |
-| 5.2 | Create Action parser | ActionType -> execution |
-| 5.3 | Implement output chaining | Step N output -> Step N+1 input |
-| 5.4 | Create preset strategies | "FXRP -> Max Yield" etc |
-| 5.5 | Implement Batcher.sol | Gas optimization |
-| 5.6 | Write strategy tests | All presets tested |
-| 5.7 | Deploy to Coston2 | Strategies working |
+| 6.1 | Implement StrategyEngine.sol | Multi-action execution |
+| 6.2 | Create Action parser | ActionType -> execution |
+| 6.3 | Implement output chaining | Step N output -> Step N+1 input |
+| 6.4 | Create preset strategies | "FXRP -> Max Yield" etc |
+| 6.5 | Implement Batcher.sol | Gas optimization |
+| 6.6 | Write strategy tests | All presets tested |
+| 6.7 | Deploy to Coston2 | Strategies working |
 
 **Preset Strategies:**
 - `FXRP_MAX_YIELD`: FXRP -> swap to WFLR -> stake on Sceptre
 - `FBTC_CONSERVATIVE`: FBTC -> swap to USDC -> supply to Kinetic
 - `WFLR_LEVERAGE`: WFLR -> supply to Kinetic -> borrow USDC -> swap to WFLR -> repeat
+- `DELTA_NEUTRAL`: Deposit to Kinetic + hedge with short perp on Eternal
 
-**Test Checkpoint 5:**
+**Test Checkpoint 6:**
 ```bash
 forge test --match-contract StrategyEngineTest -vvv
 # Verify: Multi-step strategy executes atomically
@@ -1084,22 +1231,23 @@ forge test --match-contract StrategyEngineTest -vvv
 
 ---
 
-### Phase 6: PraxisGateway
+### Phase 7: PraxisGateway
 
 **Goal:** Unified entry point
 
 | Task | Description | Deliverable |
 |------|-------------|-------------|
-| 6.1 | Implement PraxisGateway.sol | Single entry point |
-| 6.2 | Wire up SwapRouter | swap(), getQuote() |
-| 6.3 | Wire up YieldRouter | deposit(), getYieldOptions() |
-| 6.4 | Wire up StrategyEngine | executeStrategy(), executePreset() |
-| 6.5 | Add FAsset registry | isFAsset(), getSupportedFAssets() |
-| 6.6 | Security hardening | Reentrancy, access control |
-| 6.7 | Full integration tests | End-to-end tested |
-| 6.8 | Deploy to Coston2 | Gateway live |
+| 7.1 | Implement PraxisGateway.sol | Single entry point |
+| 7.2 | Wire up SwapRouter | swap(), getQuote() |
+| 7.3 | Wire up YieldRouter | deposit(), getYieldOptions() |
+| 7.4 | Wire up StrategyEngine | executeStrategy(), executePreset() |
+| 7.5 | Wire up PerpetualAdapter | openPosition(), closePosition() |
+| 7.6 | Add FAsset registry | isFAsset(), getSupportedFAssets() |
+| 7.7 | Security hardening | Reentrancy, access control |
+| 7.8 | Full integration tests | End-to-end tested |
+| 7.9 | Deploy to Coston2 | Gateway live |
 
-**Test Checkpoint 6:**
+**Test Checkpoint 7:**
 ```bash
 forge test --match-contract PraxisGatewayTest -vvv
 # Verify: All actions work through single gateway
@@ -1107,22 +1255,23 @@ forge test --match-contract PraxisGatewayTest -vvv
 
 ---
 
-### Phase 7: Security & Audit
+### Phase 8: Security & Audit
 
 **Goal:** Production-ready security
 
 | Task | Description | Deliverable |
 |------|-------------|-------------|
-| 7.1 | Slither static analysis | No high/medium issues |
-| 7.2 | Mythril symbolic analysis | No vulnerabilities |
-| 7.3 | Fork testing against mainnet | Real liquidity tests |
-| 7.4 | Flash loan attack testing | Economic security |
-| 7.5 | Reentrancy testing | All paths safe |
-| 7.6 | Access control audit | Ownership secure |
-| 7.7 | External audit (optional) | Third-party review |
-| 7.8 | Fix all findings | Issues resolved |
+| 8.1 | Slither static analysis | No high/medium issues |
+| 8.2 | Mythril symbolic analysis | No vulnerabilities |
+| 8.3 | Fork testing against mainnet | Real liquidity tests |
+| 8.4 | Flash loan attack testing | Economic security |
+| 8.5 | Reentrancy testing | All paths safe |
+| 8.6 | Access control audit | Ownership secure |
+| 8.7 | Perpetual liquidation testing | Margin calls safe |
+| 8.8 | External audit (optional) | Third-party review |
+| 8.9 | Fix all findings | Issues resolved |
 
-**Test Checkpoint 7:**
+**Test Checkpoint 8:**
 ```bash
 slither contracts/ --print human-summary
 # No high or medium severity issues
@@ -1130,26 +1279,26 @@ slither contracts/ --print human-summary
 
 ---
 
-### Phase 8: Mainnet Launch
+### Phase 9: Mainnet Launch
 
 **Goal:** Production deployment
 
 | Task | Description | Deliverable |
 |------|-------------|-------------|
-| 8.1 | Pre-deployment checklist | All tests pass |
-| 8.2 | Deploy FlareOracle | Mainnet oracle |
-| 8.3 | Deploy all adapters | 5 adapters live |
-| 8.4 | Deploy SwapRouter | Aggregation live |
-| 8.5 | Deploy YieldRouter | Yield live |
-| 8.6 | Deploy StrategyEngine | Strategies live |
-| 8.7 | Deploy PraxisGateway | Gateway live |
-| 8.8 | Transfer to multisig | Secure ownership |
-| 8.9 | Verify all contracts | Explorer verified |
-| 8.10 | Small-scale testing | Real transactions |
-| 8.11 | Monitoring setup | Alerts configured |
-| 8.12 | Launch announcement | Public launch |
+| 9.1 | Pre-deployment checklist | All tests pass |
+| 9.2 | Deploy FlareOracle | Mainnet oracle |
+| 9.3 | Deploy all adapters | 6 adapters live (including Eternal) |
+| 9.4 | Deploy SwapRouter | Aggregation live |
+| 9.5 | Deploy YieldRouter | Yield live |
+| 9.6 | Deploy StrategyEngine | Strategies live |
+| 9.7 | Deploy PraxisGateway | Gateway live |
+| 9.8 | Transfer to multisig | Secure ownership |
+| 9.9 | Verify all contracts | Explorer verified |
+| 9.10 | Small-scale testing | Real transactions |
+| 9.11 | Monitoring setup | Alerts configured |
+| 9.12 | Launch announcement | Public launch |
 
-**Test Checkpoint 8:**
+**Test Checkpoint 9:**
 ```bash
 npx hardhat run scripts/validate/mainnetCheck.ts --network flare
 # All contracts responding correctly
@@ -1182,6 +1331,7 @@ npx hardhat run scripts/validate/mainnetCheck.ts --network flare
 |----------|-------------|
 | FlareOracle | 95% |
 | All Adapters | 90% |
+| SparkDEXEternalAdapter | 95% |
 | SwapRouter | 95% |
 | YieldRouter | 90% |
 | StrategyEngine | 90% |
@@ -1227,11 +1377,13 @@ forge test --gas-report
 ### 7.2 Deployment Order
 
 1. FlareOracle (no dependencies)
-2. All Adapters (depend on oracle)
-3. SwapRouter (depends on adapters)
-4. YieldRouter (depends on adapters)
-5. StrategyEngine (depends on routers)
-6. PraxisGateway (depends on all)
+2. DEX Adapters (SparkDEX, Enosys, BlazeSwap)
+3. Yield Adapters (Kinetic, Sceptre)
+4. Perpetual Adapter (SparkDEX Eternal)
+5. SwapRouter (depends on DEX adapters)
+6. YieldRouter (depends on yield adapters)
+7. StrategyEngine (depends on routers + perp adapter)
+8. PraxisGateway (depends on all)
 
 ### 7.3 Pre-Mainnet Checklist
 
@@ -1253,6 +1405,7 @@ forge test --gas-report
 |----------|---------|----------|
 | FlareOracle | TBD | [ ] |
 | SparkDEXAdapter | TBD | [ ] |
+| SparkDEXEternalAdapter | TBD | [ ] |
 | EnosysAdapter | TBD | [ ] |
 | BlazeSwapAdapter | TBD | [ ] |
 | KineticAdapter | TBD | [ ] |
@@ -1275,6 +1428,7 @@ forge test --gas-report
 | Protocol | Contract | Address |
 |----------|----------|---------|
 | SparkDEX | Router | `0x4a1E5A90e9943467FAd1acea1E7F0e5e88472a1e` |
+| SparkDEX Eternal | Perpetuals | TBD (research required) |
 | Kinetic | Comptroller | `0x15F69897E6aEBE0463401345543C26d1Fd994abB` |
 | Sceptre | sFLR | `0x12e605bc104e93b45e1ad99f9e555f659051c2bb` |
 | - | WFLR | `0x1d80c49bbbcd1c0911346656b529df9e5c2f783d` |
@@ -1292,6 +1446,7 @@ forge test --gas-report
 | Swap Fee | 0.05% on aggregated swaps | Competitive with 1inch |
 | Strategy Fee | 0.1% on strategy execution | Value-add for complexity |
 | Yield Fee | 5% of earned yield | Performance-based |
+| Perp Fee | 0.02% on position open/close | Competitive with GMX |
 
 **Note:** All fees optional. Users can always go direct to protocols.
 
@@ -1305,6 +1460,8 @@ forge test --gas-report
 | Unique Users | 1,000+ |
 | FAsset Volume | $1M+ |
 | DEX Market Share | 20%+ of Flare DEX volume |
+| Perp Volume | $5M+ |
+| Open Interest | $500K+ |
 
 ---
 
@@ -1343,3 +1500,7 @@ forge test --gas-report
 2. User deposits USDC to earn yield (verify optimal protocol selected)
 3. User executes "FXRP -> Max Yield" strategy (verify all steps execute)
 4. User withdraws from yield position (verify correct amounts)
+5. User opens 10x long BTC perp (verify position created correctly)
+6. User adds margin to existing position (verify leverage decreases)
+7. User closes perp position (verify P&L calculated correctly)
+8. User executes delta-neutral strategy (verify hedge + yield in one tx)
