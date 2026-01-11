@@ -1,8 +1,300 @@
-# PRAXIS - Detailed Implementation Plan with Micro-Steps
+# PRAXIS - Execution Rights Protocol
 
-**Version:** v4.0
+**Version:** v5.0
 **Target Chain:** Flare (Coston2 Testnet -> Mainnet)
 **Code Locations:** `web3/` for smart contracts, `client/` for frontend
+
+---
+
+## What is PRAXIS?
+
+PRAXIS is an **Execution Rights Protocol** that enables collateral-free access to DeFi capital. Instead of lending assets (where borrowers take custody and can default), PRAXIS **leases execution power** over capital.
+
+### Core Innovation
+
+```
+Traditional DeFi Lending:
+  LP deposits → Borrower takes custody → Risk of default → Requires overcollateralization
+
+PRAXIS Execution Rights:
+  LP deposits → Capital stays in vault → Executor gets time-bound rights → Smart contracts enforce limits
+```
+
+**Key Principle:** You use money. You never own it.
+
+### How It's Different from Existing Flare DeFi
+
+| Protocol | What It Does | PRAXIS Difference |
+|----------|--------------|-------------------|
+| earnXRP | Yield vault with fixed strategies | PRAXIS enables **custom strategies** with third-party capital |
+| Kinetic | Lending with collateral | PRAXIS requires **zero collateral** - risk is bounded by smart contracts |
+| SparkDEX | Trading your own assets | PRAXIS lets you trade with **other people's capital** |
+
+### Why Flare is Perfect for This
+
+1. **FTSO** - Trustless price feeds for PnL calculation (already integrated in Phase 1)
+2. **FDC** - Cross-chain event triggers for execution (already integrated in Phase 1)
+3. **FAssets** - FXRP/FBTC/FDOGE as tradeable assets without bridges
+
+---
+
+## Addressing Flare Team Feedback
+
+> "Check DeFi Tracker and avoid overlapping. Think how to complement something that is already present. Liquidity sourcing might be a blocker. Needs realistic practical implementation."
+
+### 1. Avoiding Overlap - What We DON'T Do
+
+| Existing Protocol | What They Do | PRAXIS Does NOT |
+|-------------------|--------------|-----------------|
+| earnXRP | Yield aggregation with fixed strategies | Compete on yield aggregation |
+| Kinetic | Lending/borrowing | Provide lending services |
+| SparkDEX | DEX trading | Run our own liquidity pools |
+| Sceptre | Liquid staking | Offer staking services |
+
+**PRAXIS is an execution layer ON TOP of these protocols, not a competitor.**
+
+### 2. Complementing the Ecosystem - We DRIVE Volume to Existing Protocols
+
+```
+Every executor using PRAXIS generates:
+  → Swap volume for SparkDEX/Enosys/BlazeSwap
+  → Lending TVL for Kinetic
+  → Staking TVL for Sceptre
+  → FAsset utility for FXRP/FBTC/FDOGE
+
+PRAXIS earns from execution fees, not from stealing liquidity.
+```
+
+### 3. Liquidity Sourcing - Why LPs Would Deposit (Alpha Sharing Model)
+
+**The Problem:** Why deposit in PRAXIS vs earnXRP (5% fixed) or Kinetic (4% lending)?
+
+**The Solution:** PRAXIS offers **alpha exposure** - LPs earn from skilled executors' profits.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    LP YIELD COMPARISON                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  earnXRP:     Fixed 5% APY (vault manager decides strategy)             │
+│  Kinetic:     Fixed 4% APY (lending interest)                           │
+│  Sceptre:     Fixed 6% APY (staking rewards)                            │
+│                                                                          │
+│  PRAXIS:      2% base fee + 20% of executor profits                     │
+│               │                                                          │
+│               ├─ If executor makes 0%:  LP gets 2% (floor)              │
+│               ├─ If executor makes 15%: LP gets 2% + 3% = 5%            │
+│               ├─ If executor makes 30%: LP gets 2% + 6% = 8%            │
+│               └─ If executor makes 50%: LP gets 2% + 10% = 12%          │
+│                                                                          │
+│  KEY INSIGHT: LPs get UPSIDE EXPOSURE to skilled trading without        │
+│               doing the trading themselves. This doesn't exist          │
+│               anywhere else on Flare.                                    │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Risk Protection for LPs:**
+- Capital never leaves vault (no custody risk)
+- Max drawdown enforced by smart contracts (e.g., 10% max loss)
+- Executors can optionally stake collateral to cover losses
+- Diversification across multiple executors reduces single-executor risk
+
+### 4. Realistic Practical Implementation - Phased Rollout
+
+```
+Phase A: Self-Execution (Immediate utility, no trust needed)
+  └─ User deposits AND executes their own strategies
+  └─ Use case: "Auto-DCA into sFLR" or "One-click FAsset yield"
+  └─ Proves: Vault works, constraints work, settlement works
+
+Phase B: Whitelisted Executors (Controlled trust)
+  └─ Vetted traders can access LP capital
+  └─ Requires: Reputation score or staked collateral
+  └─ Proves: Third-party execution works safely
+
+Phase C: Open Marketplace (Full vision)
+  └─ Permissionless execution rights
+  └─ LPs choose risk parameters
+  └─ Market determines fees
+```
+
+---
+
+## System Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                           PRAXIS PROTOCOL                                   │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────┐                          ┌─────────────────┐          │
+│  │  LIQUIDITY      │                          │  EXECUTORS      │          │
+│  │  PROVIDERS      │                          │  (Traders/Bots) │          │
+│  │                 │                          │                 │          │
+│  │  Deposit FLR,   │                          │  Request ERTs,  │          │
+│  │  FXRP, USDC     │                          │  Execute        │          │
+│  │  into Vaults    │                          │  Strategies     │          │
+│  └────────┬────────┘                          └────────┬────────┘          │
+│           │                                            │                    │
+│           ▼                                            ▼                    │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │                    EXECUTION VAULTS                              │       │
+│  │  • Hold LP capital (never transferred to executors)              │       │
+│  │  • Issue vault shares to LPs                                     │       │
+│  │  • Track capital utilization per ERT                            │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │              EXECUTION RIGHTS NFT (ERT)                          │       │
+│  │                                                                   │       │
+│  │  ERC-721 token encoding:                                         │       │
+│  │  • Executor address (who can use these rights)                   │       │
+│  │  • Capital limit (max amount deployable)                         │       │
+│  │  • Time bounds (start time, expiry time)                         │       │
+│  │  • Protocol whitelist (only SparkDEX, Kinetic, etc.)            │       │
+│  │  • Asset whitelist (only FLR, USDC, FXRP, etc.)                 │       │
+│  │  • Risk constraints (max leverage, max drawdown)                 │       │
+│  │  • Fee structure (base fee to LP, performance split)             │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │              EXECUTION CONTROLLER                                │       │
+│  │                                                                   │       │
+│  │  Before every action, validates:                                 │       │
+│  │  • ERT is valid and not expired                                  │       │
+│  │  • Caller is the ERT holder                                      │       │
+│  │  • Action uses allowed protocol/adapter                          │       │
+│  │  • Action uses allowed assets                                    │       │
+│  │  • Position size within capital limit                            │       │
+│  │  • Leverage within max allowed                                   │       │
+│  │  • Current drawdown within limits                                │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │              EXECUTION LAYER (Phases 2-5)                        │       │
+│  │                                                                   │       │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐        │       │
+│  │  │ SparkDEX  │ │  Kinetic  │ │  Sceptre  │ │  Eternal  │        │       │
+│  │  │  Adapter  │ │  Adapter  │ │  Adapter  │ │  Adapter  │        │       │
+│  │  └───────────┘ └───────────┘ └───────────┘ └───────────┘        │       │
+│  │                                                                   │       │
+│  │  Adapters execute actions on external protocols using            │       │
+│  │  capital from vaults (not from executor's wallet)                │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │              SETTLEMENT ENGINE                                   │       │
+│  │                                                                   │       │
+│  │  At ERT expiry or position close:                                │       │
+│  │  1. Query FlareOracle (FTSO) for current prices                  │       │
+│  │  2. Calculate realized + unrealized PnL                          │       │
+│  │  3. Distribute fees:                                             │       │
+│  │     • LP gets: Base fee (e.g., 2% APR) + Profit share (20%)     │       │
+│  │     • Executor gets: Remaining profit (80%)                      │       │
+│  │     • Losses deducted from executor's future earnings/deposit   │       │
+│  │  4. Return capital to vault                                      │       │
+│  │  5. Burn ERT                                                     │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## User Flows
+
+### Flow 1: LP Deposits Capital
+
+```
+1. LP approves USDC to ExecutionVault
+2. LP calls vault.deposit(10000 USDC)
+3. Vault mints proportional shares to LP
+4. Capital sits in vault, earning base yield from executor fees
+5. LP can withdraw anytime (subject to utilization limits)
+```
+
+### Flow 2: Executor Requests Execution Rights
+
+```
+1. Executor specifies desired parameters:
+   - Capital needed: 5000 USDC
+   - Duration: 7 days
+   - Protocols: SparkDEX, Kinetic
+   - Max leverage: 3x
+   - Willing to pay: 2% base + 20% profit share
+
+2. ExecutionRightsNFT.mint() creates ERT with constraints
+3. Executor pays upfront base fee (or stakes collateral for losses)
+4. ERT is now active until expiry
+```
+
+### Flow 3: Executor Runs Strategy
+
+```
+1. Executor calls gateway.executeWithRights(ertId, actions[])
+
+2. For each action, ExecutionController validates:
+   - Is ERT valid and caller is holder? ✓
+   - Is adapter in whitelist? ✓
+   - Are assets in whitelist? ✓
+   - Is position size within limit? ✓
+   - Is leverage within limit? ✓
+   - Is drawdown within limit? ✓
+
+3. If all pass, execute through adapter using vault capital
+4. Track position in PositionManager
+
+Example strategy (3 actions):
+  Action 1: SWAP 5000 USDC → 250,000 FLR via SparkDEX
+  Action 2: STAKE 250,000 FLR → sFLR via Sceptre
+  Action 3: SUPPLY sFLR to Kinetic as collateral
+```
+
+### Flow 4: Settlement at Expiry
+
+```
+1. ERT expires (or executor calls settle early)
+
+2. SettlementEngine:
+   a. Unwinds all positions (withdraw, unstake, swap back)
+   b. Queries FlareOracle for all asset prices
+   c. Calculates final PnL:
+      - Started with: 5000 USDC equivalent
+      - Ended with: 5400 USDC equivalent
+      - Gross profit: 400 USDC
+
+3. Fee distribution:
+   - LP base fee: 5000 × 2% × (7/365) = 1.92 USDC
+   - LP profit share: 400 × 20% = 80 USDC
+   - Total to LP: 81.92 USDC
+   - Executor profit: 400 × 80% = 320 USDC
+
+4. Capital (5000 USDC) returned to vault
+5. ERT burned
+```
+
+### Flow 5: FDC-Triggered Execution (Cross-Chain)
+
+```
+1. User wants to execute strategy when BTC payment confirms on Bitcoin
+
+2. Setup:
+   - User creates ERT with trigger condition
+   - FDCVerifier monitors for Payment attestation
+
+3. When BTC payment confirms:
+   a. Anyone can submit FDC proof to PRAXIS
+   b. FDCVerifier.verifyPayment() confirms the proof
+   c. Triggers automatic strategy execution
+   d. E.g., Mint FBTC equivalent and deploy to yield
+
+4. Use case: "When my BTC arrives, automatically stake it for yield"
+```
 
 ---
 
@@ -14,22 +306,22 @@
 
 | Phase | Name | Status | Progress |
 |-------|------|--------|----------|
-| 1 | Foundation - Project Setup & FTSO Integration | ✅ **COMPLETE** | 100% |
-| 2 | DEX Aggregation | ⬜ Not Started | 0% |
-| 3 | Yield Integration | ⬜ Not Started | 0% |
-| 4 | Perpetuals Integration | ⬜ Not Started | 0% |
-| 5 | FAssets Support | ⬜ Not Started | 0% |
-| 6 | Strategy Engine | ⬜ Not Started | 0% |
-| 7 | PraxisGateway | ⬜ Not Started | 0% |
+| 1 | Foundation - FTSO & FDC Integration | ✅ **COMPLETE** | 100% |
+| 2 | Execution Infrastructure - DEX Adapters | ⬜ Not Started | 0% |
+| 3 | Execution Infrastructure - Yield Adapters | ⬜ Not Started | 0% |
+| 4 | Execution Infrastructure - Perpetual Adapters | ⬜ Not Started | 0% |
+| 5 | Execution Infrastructure - FAssets Support | ⬜ Not Started | 0% |
+| 6 | Execution Vaults & Rights System | ⬜ Not Started | 0% |
+| 7 | Settlement Engine & Gateway | ⬜ Not Started | 0% |
 | 8 | Security & Audit | ⬜ Not Started | 0% |
 | 9 | Mainnet Deployment | ⬜ Not Started | 0% |
 
 ### Deployed Contracts (Coston2 Testnet)
 
-| Contract | Address | Verified |
-|----------|---------|----------|
-| FlareOracle | `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc` | ⬜ |
-| FDCVerifier | `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3` | ⬜ |
+| Contract | Address | Verified | Purpose |
+|----------|---------|----------|---------|
+| FlareOracle | `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc` | ⬜ | FTSO price feeds for settlement |
+| FDCVerifier | `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3` | ⬜ | Cross-chain proof verification |
 
 ### Test Results Summary
 
@@ -38,68 +330,26 @@
 | Unit Tests (Local) | 52 | ✅ All Passing |
 | Integration Tests (Coston2) | 15 | ✅ All Passing |
 
-### Phase 1 Completion Details
-
-#### 1.1 Project Infrastructure Setup ✅
-- [x] 1.1.1 Initialize Hardhat Project Structure
-  - Hardhat 3 configured with Solidity 0.8.28 (EVM: cancun)
-  - All Flare networks configured (Coston2, Flare, Coston, Songbird)
-  - Flare periphery contracts installed (`@flarenetwork/flare-periphery-contracts`)
-- [x] 1.1.2 Create Contracts Directory Structure
-  - `contracts/{core,adapters,oracles,strategies,interfaces/external,lib}`
-  - `test/{unit,integration,fork,security}`
-  - `scripts/{deploy,helpers}`
-- [x] 1.1.3 Create Library Contracts
-  - `PraxisStructs.sol` - All data structures
-  - `PraxisErrors.sol` - Custom error definitions
-  - `PraxisEvents.sol` - Event definitions
-
-#### 1.2 FTSO v2 Oracle Integration ✅
-- [x] 1.2.1 Research FTSO v2 Feed IDs
-  - Created `scripts/helpers/feedIds.ts` with encoding functions
-  - Validated 63 supported feeds on Coston2
-  - Documented feed ID format (0x01 + ASCII name)
-- [x] 1.2.2 Implement FlareOracle Contract
-  - Dynamic ContractRegistry discovery
-  - Price queries: `getPrice()`, `getPriceInWei()`, `getPriceWithCheck()`
-  - Batch queries: `getMultiplePrices()`
-  - Token-to-feed mappings: `setTokenFeed()`, `getTokenPriceUSD()`
-  - Staleness checks (MAX_PRICE_AGE = 300 seconds)
-- [x] 1.2.3 Deploy FlareOracle to Coston2
-  - Deployed to: `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc`
-  - FTSO v2 connection verified (63 feeds discovered)
-
-#### 1.3 FDC Integration ✅
-- [x] 1.3.1 Research FDC Attestation Types
-  - EVMTransaction, Payment, AddressValidity documented
-  - FDC Protocol ID: 200
-- [x] 1.3.2 Implement FDCVerifier Contract
-  - `verifyEVMTransaction()`, `verifyPayment()`, `verifyAddressValidity()`
-  - Proof data extraction helpers
-  - Verified transaction/payment tracking
-  - Deployed to: `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3`
-
-#### Live Price Data Verified (Coston2)
-| Feed | Price | Decimals |
-|------|-------|----------|
-| FLR/USD | $0.0113 | 7 |
-| BTC/USD | $90,728.50 | 2 |
-| ETH/USD | $3,097.38 | 3 |
-| XRP/USD | $2.09 | 6 |
-| DOGE/USD | $0.14 | 6 |
-
 ---
 
 ## Implementation Philosophy
 
+### Core Principles
+
+1. **No Custody Transfer**: Capital NEVER leaves vaults to executor wallets
+2. **Constraint Enforcement**: Every action validated against ERT parameters
+3. **Trustless Settlement**: PnL calculated using FTSO prices (not self-reported)
+4. **Composability**: Works with existing Flare DeFi (SparkDEX, Kinetic, Sceptre)
+
 ### Testing Principles
+
 - **No Mock Data**: All tests run against live Coston2 testnet protocols
-- **No Hardcoded Values**: All addresses, feed IDs, and configurations are dynamically discovered
-- **End-to-End Verification**: Each micro-step includes verbose tests that validate the complete flow
-- **Failure Detection**: Tests are designed to catch even minor discrepancies in returned values, gas usage, and state changes
+- **No Hardcoded Values**: All addresses discovered dynamically via ContractRegistry
+- **End-to-End Verification**: Each step validated with verbose tests
+- **Adversarial Testing**: Attempt to bypass constraints, expect reverts
 
 ### Address Discovery Pattern
-All protocol addresses MUST be discovered dynamically:
+
 ```solidity
 // CORRECT - Dynamic discovery via Flare's ContractRegistry
 IFtsoV2 ftso = ContractRegistry.getFtsoV2();
@@ -110,305 +360,80 @@ IFtsoV2 ftso = IFtsoV2(0x1234...);
 
 ---
 
-## Phase 1: Foundation - Project Setup & FTSO Integration ✅ COMPLETE
+## Phase 1: Foundation - FTSO & FDC Integration ✅ COMPLETE
 
 ### 1.1 Project Infrastructure Setup ✅
 
 #### 1.1.1 Initialize Hardhat Project Structure ✅
 **Status:** COMPLETE
-**Deliverable:** Properly configured Hardhat project with Flare network support
 
-**Tasks:**
-- 1.1.1.1 Verify existing hardhat.config.ts has correct Coston2 and Flare network configurations
-- 1.1.1.2 Install Flare periphery contracts package: `@flarenetwork/flare-periphery-contracts`
-- 1.1.1.3 Create the directory structure as specified in architecture
-- 1.1.1.4 Configure TypeScript paths and compiler settings for Solidity 0.8.28
-
-**Test 1.1.1-T1: Project Configuration Validation**
-```bash
-# Run from web3/
-npx hardhat compile
-```
-**Expected:** Compilation succeeds with no errors
-**Verbose Check:**
-- Verify Solidity version is 0.8.28
-- Verify EVM version is "cancun"
-- Verify all networks (coston2, flare, coston, songbird) are accessible
-
-**Test 1.1.1-T2: Flare Periphery Package Installation**
-```typescript
-// test/unit/setup/FlarePackage.test.ts
-import { ContractRegistry } from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
-// Should compile without errors
-```
-**Expected:** Import resolves correctly
-
----
+- Hardhat 3 configured with Solidity 0.8.28 (EVM: cancun)
+- All Flare networks configured (Coston2, Flare, Coston, Songbird)
+- Flare periphery contracts installed (`@flarenetwork/flare-periphery-contracts`)
 
 #### 1.1.2 Create Contracts Directory Structure ✅
 **Status:** COMPLETE
-**Deliverable:** Complete folder structure for all contract types
 
-**Tasks:**
-- 1.1.2.1 Create `contracts/core/` directory
-- 1.1.2.2 Create `contracts/adapters/` directory
-- 1.1.2.3 Create `contracts/oracles/` directory
-- 1.1.2.4 Create `contracts/strategies/` directory
-- 1.1.2.5 Create `contracts/interfaces/external/` directory
-- 1.1.2.6 Create `contracts/lib/` directory
-- 1.1.2.7 Create test directories: `test/unit/`, `test/integration/`, `test/fork/`
-- 1.1.2.8 Create deployment scripts directory: `scripts/deploy/`
-- 1.1.2.9 Create helper scripts directory: `scripts/helpers/`
-
-**Test 1.1.2-T1: Directory Structure Verification**
-```bash
-# Verify all directories exist
-ls -la contracts/core contracts/adapters contracts/oracles contracts/strategies contracts/interfaces/external contracts/lib
-ls -la test/unit test/integration test/fork
-ls -la scripts/deploy scripts/helpers
-```
-**Expected:** All directories exist and are accessible
-
----
+- `contracts/{core,adapters,oracles,strategies,interfaces/external,lib}`
+- `test/{unit,integration,fork,security}`
+- `scripts/{deploy,helpers}`
 
 #### 1.1.3 Create Library Contracts ✅
 **Status:** COMPLETE
-**Deliverable:** Shared data structures, errors, and events
 
-**Tasks:**
-- 1.1.3.1 Create `contracts/lib/PraxisStructs.sol` with all data structures (RiskLevel, ActionType, PositionSide, Action, Quote, YieldOption, Position, FAssetInfo, PerpPosition, PerpMarket, SwapParams, Hop, Route)
-- 1.1.3.2 Create `contracts/lib/PraxisErrors.sol` with custom error definitions
-- 1.1.3.3 Create `contracts/lib/PraxisEvents.sol` with event definitions
-
-**Test 1.1.3-T1: Library Compilation**
-```bash
-npx hardhat compile
-```
-**Expected:** All library contracts compile without errors
-
-**Test 1.1.3-T2: Struct Size Validation**
-```typescript
-// test/unit/lib/PraxisStructs.test.ts
-describe("PraxisStructs", () => {
-  it("should have correct enum values", async () => {
-    // Deploy a test contract that uses PraxisStructs
-    // Verify RiskLevel.CONSERVATIVE = 0
-    // Verify RiskLevel.MODERATE = 1
-    // Verify RiskLevel.AGGRESSIVE = 2
-    // Verify all ActionType values
-    // Verify PositionSide values
-  });
-});
-```
-
----
+- `PraxisStructs.sol` - All data structures
+- `PraxisErrors.sol` - Custom error definitions
+- `PraxisEvents.sol` - Event definitions
 
 ### 1.2 FTSO v2 Oracle Integration ✅
 
+**Purpose for PRAXIS:** Settlement Engine uses FTSO for trustless PnL calculation
+
 #### 1.2.1 Research FTSO v2 Feed IDs ✅
-**Status:** COMPLETE
-**Deliverable:** Documentation of all available feed IDs and their formats
-
-**Tasks:**
-- 1.2.1.1 Query Coston2 FTSO v2 contract for available feeds
-- 1.2.1.2 Document the feed ID format (0x01 prefix for crypto assets)
-- 1.2.1.3 Document decimal precision for each feed
-- 1.2.1.4 Create a feed ID constants file in `scripts/helpers/feedIds.ts`
-
-**Test 1.2.1-T1: Feed Discovery on Coston2**
-```typescript
-// scripts/helpers/discoverFeeds.ts
-// Connect to Coston2
-// Query ContractRegistry for FtsoV2 address
-// Query for FLR/USD, BTC/USD, XRP/USD, ETH/USD, DOGE/USD
-// Log feed values and timestamps
-```
-**Expected:** All feed IDs return valid price data with timestamps within last 5 minutes
-
----
+- Created `scripts/helpers/feedIds.ts` with encoding functions
+- Validated 63 supported feeds on Coston2
+- Documented feed ID format (0x01 + ASCII name)
 
 #### 1.2.2 Implement FlareOracle Contract ✅
-**Status:** COMPLETE
-**Deliverable:** Working FlareOracle.sol that wraps FTSO v2
-
-**Tasks:**
-- 1.2.2.1 Create `contracts/oracles/FlareOracle.sol` with ContractRegistry import
-- 1.2.2.2 Implement `getPrice(bytes21 feedId)` function using ContractRegistry.getFtsoV2()
-- 1.2.2.3 Implement staleness check with MAX_PRICE_AGE constant (300 seconds)
-- 1.2.2.4 Implement `getPriceWithCheck(bytes21 feedId)` with staleness validation
-- 1.2.2.5 Implement token-to-feed mapping with `setTokenFeed()` admin function
-- 1.2.2.6 Implement `getTokenPriceUSD(address token)` lookup function
-- 1.2.2.7 Add owner-based access control for configuration
-- 1.2.2.8 Add custom errors: `PriceStale`, `FeedNotConfigured`, `Unauthorized`
-- 1.2.2.9 Add events: `FeedConfigured`
-
-**Test 1.2.2-T1: FlareOracle Unit Tests**
-```typescript
-// test/unit/oracles/FlareOracle.test.ts
-describe("FlareOracle", () => {
-  describe("getPrice", () => {
-    it("should return FLR/USD price from FTSO v2", async () => {
-      // Deploy FlareOracle to Coston2 fork
-      // Call getPrice with FLR_USD feed ID
-      // Verify: value > 0
-      // Verify: decimals is valid (typically 7 or 8)
-      // Verify: timestamp is within last 5 minutes
-    });
-
-    it("should return BTC/USD price", async () => {
-      // Similar test for BTC
-    });
-
-    it("should return XRP/USD price", async () => {
-      // Similar test for XRP
-    });
-
-    it("should return DOGE/USD price", async () => {
-      // Similar test for DOGE
-    });
-
-    it("should return ETH/USD price", async () => {
-      // Similar test for ETH
-    });
-  });
-
-  describe("getPriceWithCheck", () => {
-    it("should revert PriceStale if price is older than MAX_PRICE_AGE", async () => {
-      // This requires manipulating block.timestamp or using a stale feed
-      // On testnet, verify the staleness check logic works
-    });
-
-    it("should return price if within MAX_PRICE_AGE", async () => {
-      // Call with fresh feed
-      // Verify price is returned
-    });
-  });
-
-  describe("setTokenFeed", () => {
-    it("should only allow owner to set feeds", async () => {
-      // Call from non-owner, expect Unauthorized revert
-    });
-
-    it("should correctly map token to feed ID", async () => {
-      // Set WFLR token address to FLR_USD feed
-      // Call getTokenPriceUSD with WFLR address
-      // Verify returns correct price
-    });
-
-    it("should emit FeedConfigured event", async () => {
-      // Set feed
-      // Verify event emission with correct parameters
-    });
-  });
-
-  describe("getTokenPriceUSD", () => {
-    it("should revert FeedNotConfigured for unknown token", async () => {
-      // Call with unmapped token address
-      // Expect FeedNotConfigured revert
-    });
-  });
-});
-```
-
----
+- Dynamic ContractRegistry discovery
+- Price queries: `getPrice()`, `getPriceInWei()`, `getPriceWithCheck()`
+- Batch queries: `getMultiplePrices()`
+- Token-to-feed mappings: `setTokenFeed()`, `getTokenPriceUSD()`
+- Staleness checks (MAX_PRICE_AGE = 300 seconds)
 
 #### 1.2.3 Deploy FlareOracle to Coston2 ✅
-**Status:** COMPLETE - Deployed to `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc`
-**Deliverable:** Verified FlareOracle contract on Coston2 testnet
+- Deployed to: `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc`
+- FTSO v2 connection verified (63 feeds discovered)
 
-**Tasks:**
-- 1.2.3.1 Create deployment script `scripts/deploy/01_FlareOracle.ts`
-- 1.2.3.2 Deploy FlareOracle contract
-- 1.2.3.3 Configure token feeds for known tokens (WFLR, USDC, etc.)
-- 1.2.3.4 Verify contract on Coston2 block explorer
-- 1.2.3.5 Save deployed address to `scripts/helpers/addresses.ts`
+### 1.3 FDC Integration ✅
 
-**Test 1.2.3-T1: Deployment Verification**
-```typescript
-// After deployment, run:
-describe("FlareOracle Deployment", () => {
-  it("should be deployed and verified on Coston2", async () => {
-    // Load deployed address from addresses.ts
-    // Connect to deployed contract
-    // Call getPrice(FLR_USD)
-    // Verify returns valid price
-  });
-
-  it("should have correct owner", async () => {
-    // Verify owner is deployer address
-  });
-
-  it("should have feeds configured", async () => {
-    // Check tokenFeeds mapping for WFLR
-    // Verify it's mapped to FLR_USD
-  });
-});
-```
-
----
-
-### 1.3 FDC (Flare Data Connector) Integration ✅
+**Purpose for PRAXIS:** Enables cross-chain triggered execution (e.g., BTC payment → auto-stake)
 
 #### 1.3.1 Research FDC Attestation Types ✅
-**Status:** COMPLETE
-**Deliverable:** Documentation of relevant attestation types for PRAXIS
-
-**Tasks:**
-- 1.3.1.1 Document EVMTransaction attestation type and use cases
-- 1.3.1.2 Document Payment attestation type for BTC/DOGE/XRP
-- 1.3.1.3 Document AddressValidity attestation type
-- 1.3.1.4 Document BalanceDecreasingTransaction attestation type
-- 1.3.1.5 Identify which attestation types are needed for FAsset price verification
-- 1.3.1.6 Document FDC verifier endpoints for testnet and mainnet
-
-**Test 1.3.1-T1: FDC Endpoint Accessibility**
-```typescript
-// scripts/helpers/testFdcEndpoints.ts
-// Test that verifier endpoints respond
-// https://fdc-verifiers-testnet.flare.network/
-// Verify API documentation is accessible
-```
-
----
+- EVMTransaction, Payment, AddressValidity documented
+- FDC Protocol ID: 200
 
 #### 1.3.2 Implement FDCVerifier Contract ✅
-**Status:** COMPLETE - Deployed to `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3`
-**Deliverable:** Contract that can verify FDC proofs on-chain
+- `verifyEVMTransaction()`, `verifyPayment()`, `verifyAddressValidity()`
+- Proof data extraction helpers
+- Verified transaction/payment tracking
+- Deployed to: `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3`
 
-**Tasks:**
-- 1.3.2.1 Create `contracts/oracles/FDCVerifier.sol`
-- 1.3.2.2 Import IFdcVerification from Flare periphery contracts
-- 1.3.2.3 Implement `verifyEVMTransaction(proof)` wrapper
-- 1.3.2.4 Implement `verifyPayment(proof)` wrapper for cross-chain payments
-- 1.3.2.5 Implement `verifyAddressValidity(proof)` wrapper
-- 1.3.2.6 Add helper functions to decode response data
+#### Live Price Data Verified (Coston2)
 
-**Test 1.3.2-T1: FDCVerifier Unit Tests**
-```typescript
-// test/unit/oracles/FDCVerifier.test.ts
-describe("FDCVerifier", () => {
-  describe("verifyEVMTransaction", () => {
-    it("should verify a valid EVMTransaction proof from Sepolia", async () => {
-      // This is a complex integration test
-      // 1. Use an existing transaction on Sepolia
-      // 2. Request attestation via FDC verifier API
-      // 3. Wait for round finalization
-      // 4. Get proof from DA Layer
-      // 5. Submit to FDCVerifier contract
-      // 6. Verify it returns true
-    });
-
-    it("should reject an invalid proof", async () => {
-      // Submit malformed proof
-      // Verify returns false
-    });
-  });
-});
-```
+| Feed | Price | Decimals |
+|------|-------|----------|
+| FLR/USD | $0.0113 | 7 |
+| BTC/USD | $90,728.50 | 2 |
+| ETH/USD | $3,097.38 | 3 |
+| XRP/USD | $2.09 | 6 |
+| DOGE/USD | $0.14 | 6 |
 
 ---
 
-## Phase 2: DEX Aggregation
+## Phase 2: Execution Infrastructure - DEX Adapters
+
+**Purpose:** Build the swap execution layer that ERTs can access
 
 ### 2.1 Adapter Interface Design
 
@@ -416,1306 +441,717 @@ describe("FDCVerifier", () => {
 **Deliverable:** Standard interfaces for all DEX adapters
 
 **Tasks:**
-- 2.1.1.1 Create `contracts/adapters/IAdapter.sol` with:
-  - `name()` - returns adapter name
-  - `getQuote(tokenIn, tokenOut, amountIn)` - view function for quotes
-  - `swap(tokenIn, tokenOut, amountIn, minAmountOut, to, extraData)` - execute swap
-- 2.1.1.2 Create `contracts/adapters/BaseAdapter.sol` abstract contract with:
-  - Common validation logic
-  - Token approval helpers
-  - Emergency withdrawal function
-- 2.1.1.3 Document the extraData format for each adapter type
+- 2.1.1.1 Create `contracts/adapters/IAdapter.sol`:
+  ```solidity
+  interface IAdapter {
+      function name() external view returns (string memory);
+      function getQuote(address tokenIn, address tokenOut, uint256 amountIn)
+          external view returns (uint256 amountOut, uint256 gasEstimate);
+      function swap(
+          address tokenIn,
+          address tokenOut,
+          uint256 amountIn,
+          uint256 minAmountOut,
+          address to,
+          bytes calldata extraData
+      ) external returns (uint256 amountOut);
+  }
+  ```
+- 2.1.1.2 Create `contracts/adapters/BaseAdapter.sol` abstract contract
+- 2.1.1.3 Add `executeFromVault()` function for vault-based execution
 
-**Test 2.1.1-T1: Interface Compilation**
+**Test 2.1.1-T1:** Interface Compilation
 ```bash
 npx hardhat compile
 ```
-**Expected:** IAdapter.sol and BaseAdapter.sol compile without errors
-
----
 
 ### 2.2 SparkDEX V3 Adapter
 
 #### 2.2.1 Research SparkDEX V3 Interface
-**Deliverable:** Complete interface documentation for SparkDEX
+**Deliverable:** Complete interface documentation
 
 **Tasks:**
-- 2.2.1.1 Find SparkDEX Router address on Coston2 (dynamically via their registry or docs)
-- 2.2.1.2 Document the swap function signature
-- 2.2.1.3 Document the quote function signature
-- 2.2.1.4 Document pool fee tiers (100, 500, 3000, 10000 bps)
-- 2.2.1.5 Create `contracts/interfaces/external/ISparkDEXRouter.sol`
-- 2.2.1.6 Create `contracts/interfaces/external/ISparkDEXQuoter.sol`
-- 2.2.1.7 Document path encoding format for multi-hop swaps
-
-**Test 2.2.1-T1: SparkDEX Interface Verification**
-```typescript
-// test/integration/sparkdex/InterfaceTest.ts
-describe("SparkDEX Interface", () => {
-  it("should connect to SparkDEX Router on Coston2", async () => {
-    // Get SparkDEX router address (from their docs or registry)
-    // Verify the contract exists at that address
-    // Call a view function to verify interface compatibility
-  });
-
-  it("should have liquidity for WFLR/USDC pair", async () => {
-    // Query SparkDEX for pool
-    // Verify liquidity exists
-  });
-});
-```
-
----
+- 2.2.1.1 Find SparkDEX Router address on Coston2
+- 2.2.1.2 Document swap/quote function signatures
+- 2.2.1.3 Document pool fee tiers (100, 500, 3000, 10000 bps)
+- 2.2.1.4 Create `contracts/interfaces/external/ISparkDEXRouter.sol`
+- 2.2.1.5 Create `contracts/interfaces/external/ISparkDEXQuoter.sol`
 
 #### 2.2.2 Implement SparkDEXAdapter
 **Deliverable:** Working adapter for SparkDEX V3 swaps
 
 **Tasks:**
-- 2.2.2.1 Create `contracts/adapters/SparkDEXAdapter.sol` extending BaseAdapter
-- 2.2.2.2 Implement constructor to set router address (passed in, not hardcoded)
-- 2.2.2.3 Implement `name()` returning "SparkDEX"
-- 2.2.2.4 Implement `getQuote()` using SparkDEX quoter
-- 2.2.2.5 Implement `swap()` with exact input swap
-- 2.2.2.6 Handle fee tier selection in extraData
-- 2.2.2.7 Implement multi-hop path encoding
-- 2.2.2.8 Add slippage protection
+- 2.2.2.1 Create `contracts/adapters/SparkDEXAdapter.sol`
+- 2.2.2.2 Implement `getQuote()` using SparkDEX quoter
+- 2.2.2.3 Implement `swap()` with exact input swap
+- 2.2.2.4 Implement `swapFromVault()` for ERT-based execution
+- 2.2.2.5 Handle fee tier selection in extraData
 
-**Test 2.2.2-T1: SparkDEXAdapter Quote Tests**
+**Test 2.2.2-T1:** SparkDEXAdapter Quote Tests
 ```typescript
-// test/unit/adapters/SparkDEXAdapter.test.ts
 describe("SparkDEXAdapter", () => {
-  // These tests run on Coston2 fork with real liquidity
-
-  describe("getQuote", () => {
-    it("should return valid quote for WFLR -> USDC", async () => {
-      const adapter = await deploySparkDEXAdapter();
-      const wflrAddress = await getWFLRAddress(); // Dynamic discovery
-      const usdcAddress = await getUSDCAddress(); // Dynamic discovery
-
-      const [amountOut, gasEstimate] = await adapter.getQuote(
-        wflrAddress,
-        usdcAddress,
-        ethers.parseEther("100") // 100 WFLR
-      );
-
-      // Verify amountOut > 0
-      expect(amountOut).to.be.gt(0);
-
-      // Verify gas estimate is reasonable (100k - 300k)
-      expect(gasEstimate).to.be.gt(100000);
-      expect(gasEstimate).to.be.lt(500000);
-
-      // Log for verbose output
-      console.log(`Quote: 100 WFLR -> ${ethers.formatUnits(amountOut, 6)} USDC`);
-      console.log(`Gas estimate: ${gasEstimate}`);
-    });
-
-    it("should return 0 for pairs without liquidity", async () => {
-      // Query a pair that doesn't exist
-      // Verify returns (0, 0)
-    });
-
-    it("should handle different fee tiers", async () => {
-      // Test 0.01%, 0.05%, 0.3%, 1% fee tiers
-      // Verify quotes differ based on fee tier
-    });
-  });
-
-  describe("swap", () => {
-    it("should execute WFLR -> USDC swap successfully", async () => {
-      // Setup: Get test WFLR from faucet or wrap FLR
-      // Approve adapter
-      // Execute swap
-      // Verify: USDC balance increased
-      // Verify: WFLR balance decreased
-      // Verify: Actual output >= minAmountOut
-    });
-
-    it("should revert if slippage exceeds minAmountOut", async () => {
-      // Set minAmountOut very high
-      // Expect revert
-    });
-
-    it("should send output to specified recipient", async () => {
-      // Swap with different recipient
-      // Verify recipient receives tokens
-    });
+  it("should return valid quote for WFLR -> USDC", async () => {
+    const [amountOut, gasEstimate] = await adapter.getQuote(
+      wflrAddress,
+      usdcAddress,
+      ethers.parseEther("100")
+    );
+    expect(amountOut).to.be.gt(0);
+    console.log(`Quote: 100 WFLR -> ${ethers.formatUnits(amountOut, 6)} USDC`);
   });
 });
 ```
-
----
 
 ### 2.3 Enosys Adapter
 
 #### 2.3.1 Research Enosys Interface
-**Deliverable:** Complete interface documentation for Enosys DEX
-
-**Tasks:**
-- 2.3.1.1 Find Enosys Router address on Coston2/Flare
-- 2.3.1.2 Document the router interface (likely UniswapV2-style)
-- 2.3.1.3 Create `contracts/interfaces/external/IEnosysRouter.sol`
-- 2.3.1.4 Document available trading pairs
-
-**Test 2.3.1-T1: Enosys Interface Verification**
-```typescript
-// test/integration/enosys/InterfaceTest.ts
-describe("Enosys Interface", () => {
-  it("should connect to Enosys Router on Coston2", async () => {
-    // Similar to SparkDEX test
-  });
-});
-```
-
----
+- Find Enosys Router address
+- Document V3 interface (concentrated liquidity)
+- Create `contracts/interfaces/external/IEnosysRouter.sol`
 
 #### 2.3.2 Implement EnosysAdapter
-**Deliverable:** Working adapter for Enosys swaps
-
-**Tasks:**
-- 2.3.2.1 Create `contracts/adapters/EnosysAdapter.sol`
-- 2.3.2.2 Implement `getQuote()` using getAmountsOut
-- 2.3.2.3 Implement `swap()` with swapExactTokensForTokens
-- 2.3.2.4 Handle multi-hop paths
-
-**Test 2.3.2-T1: EnosysAdapter Tests**
-```typescript
-// test/unit/adapters/EnosysAdapter.test.ts
-// Similar comprehensive tests as SparkDEXAdapter
-```
-
----
+- Same pattern as SparkDEXAdapter
 
 ### 2.4 BlazeSwap Adapter
 
 #### 2.4.1 Research BlazeSwap Interface
-**Deliverable:** Complete interface documentation for BlazeSwap
-
-**Tasks:**
-- 2.4.1.1 Find BlazeSwap Router address (V2-style router)
-- 2.4.1.2 Create `contracts/interfaces/external/IBlazeSwapRouter.sol`
-- 2.4.1.3 Document available pairs and liquidity
-
-**Test 2.4.1-T1: BlazeSwap Interface Verification**
-```typescript
-// Similar pattern
-```
-
----
+- V2-style router (simpler interface)
+- Create `contracts/interfaces/external/IBlazeSwapRouter.sol`
 
 #### 2.4.2 Implement BlazeSwapAdapter
-**Deliverable:** Working adapter for BlazeSwap
-
-**Tasks:**
-- 2.4.2.1 Create `contracts/adapters/BlazeSwapAdapter.sol`
-- 2.4.2.2 Implement standard V2 router integration
-- 2.4.2.3 Implement quote and swap functions
-
-**Test 2.4.2-T1: BlazeSwapAdapter Tests**
-```typescript
-// Similar comprehensive tests
-```
-
----
+- Implement V2 getAmountsOut / swapExactTokensForTokens
 
 ### 2.5 SwapRouter Implementation
 
 #### 2.5.1 Implement SwapRouter Core
-**Deliverable:** DEX aggregator that finds best rates
+**Deliverable:** DEX aggregator for best-rate finding
 
 **Tasks:**
 - 2.5.1.1 Create `contracts/core/SwapRouter.sol`
-- 2.5.1.2 Implement adapter registry with `addAdapter()` and `removeAdapter()`
-- 2.5.1.3 Implement `getAllQuotes()` - queries all adapters
-- 2.5.1.4 Implement `findBestRoute()` - returns adapter with best output
-- 2.5.1.5 Implement `swap()` - executes through best route
-- 2.5.1.6 Implement `swapVia()` - executes through specific adapter
-- 2.5.1.7 Add ReentrancyGuard protection
-- 2.5.1.8 Add deadline validation
-- 2.5.1.9 Add events for swap execution
-- 2.5.1.10 Add custom errors
+- 2.5.1.2 Adapter registry: `addAdapter()`, `removeAdapter()`
+- 2.5.1.3 `getAllQuotes()` - queries all adapters
+- 2.5.1.4 `findBestRoute()` - returns best adapter
+- 2.5.1.5 `swap()` - executes through best route
+- 2.5.1.6 `swapFromVault()` - executes using vault capital (for ERTs)
+- 2.5.1.7 ReentrancyGuard, deadline validation, events
 
-**Test 2.5.1-T1: SwapRouter Unit Tests**
-```typescript
-// test/unit/core/SwapRouter.test.ts
-describe("SwapRouter", () => {
-  describe("adapter management", () => {
-    it("should allow owner to add adapter", async () => {
-      // Add adapter
-      // Verify isAdapter returns true
-      // Verify adapters array includes it
-    });
-
-    it("should prevent non-owner from adding adapter", async () => {
-      // Call from non-owner
-      // Expect Unauthorized revert
-    });
-
-    it("should allow owner to remove adapter", async () => {
-      // Add then remove adapter
-      // Verify isAdapter returns false
-    });
-
-    it("should emit AdapterAdded event", async () => {
-      // Add adapter
-      // Check event emission
-    });
-  });
-
-  describe("getAllQuotes", () => {
-    it("should return quotes from all registered adapters", async () => {
-      // Register 3 adapters (SparkDEX, Enosys, BlazeSwap)
-      // Call getAllQuotes for WFLR -> USDC
-      // Verify 3 quotes returned
-      // Log all quotes for comparison
-      console.log("SparkDEX quote:", quotes[0].amountOut);
-      console.log("Enosys quote:", quotes[1].amountOut);
-      console.log("BlazeSwap quote:", quotes[2].amountOut);
-    });
-
-    it("should handle adapters that fail gracefully", async () => {
-      // Include a mock adapter that reverts
-      // Verify other quotes still returned
-      // Verify failed adapter returns 0
-    });
-  });
-
-  describe("findBestRoute", () => {
-    it("should return adapter with highest output", async () => {
-      // Register multiple adapters
-      // Get best route
-      // Verify it matches the highest quote from getAllQuotes
-    });
-
-    it("should return zero address if no routes found", async () => {
-      // Query pair with no liquidity
-      // Verify returns (address(0), 0)
-    });
-  });
-
-  describe("swap", () => {
-    it("should execute swap through best route", async () => {
-      // Get initial balances
-      // Execute swap
-      // Verify output matches or exceeds expected
-      // Verify event emitted with correct adapter
-    });
-
-    it("should revert DeadlineExpired if deadline passed", async () => {
-      // Set deadline to past timestamp
-      // Expect revert
-    });
-
-    it("should revert InsufficientOutput if output below minimum", async () => {
-      // Set very high minAmountOut
-      // Expect revert
-    });
-
-    it("should revert NoRouteFound for unknown pairs", async () => {
-      // Query pair with no liquidity
-      // Expect revert
-    });
-  });
-
-  describe("swapVia", () => {
-    it("should execute swap through specified adapter", async () => {
-      // Specify adapter
-      // Execute swap
-      // Verify event shows correct adapter
-    });
-
-    it("should revert InvalidAdapter for unregistered adapter", async () => {
-      // Specify unregistered adapter
-      // Expect revert
-    });
-  });
-});
-```
+#### 2.5.2 Deploy to Coston2
+- Deploy all adapters
+- Deploy SwapRouter
+- Register adapters
+- Verify contracts
 
 ---
 
-#### 2.5.2 Deploy SwapRouter and Adapters to Coston2
-**Deliverable:** All DEX infrastructure deployed and tested on Coston2
+## Phase 3: Execution Infrastructure - Yield Adapters
 
-**Tasks:**
-- 2.5.2.1 Create `scripts/deploy/02_Adapters.ts`
-- 2.5.2.2 Create `scripts/deploy/03_SwapRouter.ts`
-- 2.5.2.3 Deploy all adapters
-- 2.5.2.4 Deploy SwapRouter
-- 2.5.2.5 Register adapters with SwapRouter
-- 2.5.2.6 Verify all contracts
-- 2.5.2.7 Save addresses to addresses.ts
-
-**Test 2.5.2-T1: Deployment Integration Test**
-```typescript
-// test/integration/Aggregation.test.ts
-describe("DEX Aggregation Integration", () => {
-  it("should find and execute best swap across all DEXs", async () => {
-    // Using deployed contracts on Coston2
-    const swapRouter = await getDeployedSwapRouter();
-
-    // Get quotes from all DEXs
-    const quotes = await swapRouter.getAllQuotes(WFLR, USDC, parseEther("1000"));
-
-    // Log all quotes
-    for (const quote of quotes) {
-      console.log(`${quote.name}: ${formatUnits(quote.amountOut, 6)} USDC`);
-      console.log(`  Gas: ${quote.gasEstimate}`);
-      console.log(`  Price impact: ${quote.priceImpact} bps`);
-    }
-
-    // Execute swap
-    const tx = await swapRouter.swap(WFLR, USDC, parseEther("100"), 0, user.address, deadline);
-    const receipt = await tx.wait();
-
-    // Log execution details
-    console.log(`Executed via: ${receipt.logs[0].args.adapter}`);
-    console.log(`Gas used: ${receipt.gasUsed}`);
-  });
-});
-```
-
----
-
-## Phase 3: Yield Integration
+**Purpose:** Build the yield execution layer for lending/staking
 
 ### 3.1 Lending Adapter Interface
 
 #### 3.1.1 Create ILendingAdapter Interface
-**Deliverable:** Standard interface for lending protocols
-
-**Tasks:**
-- 3.1.1.1 Create `contracts/adapters/ILendingAdapter.sol` with:
-  - `supply(asset, amount, onBehalfOf)` - deposit to earn yield
-  - `withdraw(asset, shares, to)` - withdraw assets
-  - `borrow(asset, amount, onBehalfOf)` - borrow against collateral
-  - `repay(asset, amount, onBehalfOf)` - repay borrowed amount
-  - `getSupplyAPY(asset)` - current supply APY in basis points
-  - `getBorrowAPY(asset)` - current borrow APY
-  - `getSupplyBalance(user, asset)` - user's supply position
-
-**Test 3.1.1-T1: Interface Compilation**
-```bash
-npx hardhat compile
+```solidity
+interface ILendingAdapter {
+    function supply(address asset, uint256 amount, address onBehalfOf) external returns (uint256 shares);
+    function withdraw(address asset, uint256 shares, address to) external returns (uint256 amount);
+    function borrow(address asset, uint256 amount, address onBehalfOf) external;
+    function repay(address asset, uint256 amount, address onBehalfOf) external returns (uint256 repaid);
+    function getSupplyAPY(address asset) external view returns (uint256 apyBps);
+    function getBorrowAPY(address asset) external view returns (uint256 apyBps);
+    function getSupplyBalance(address user, address asset) external view returns (uint256);
+}
 ```
-
----
 
 ### 3.2 Kinetic Adapter
 
-#### 3.2.1 Research Kinetic Protocol Interface
-**Deliverable:** Complete interface documentation for Kinetic (Compound-fork)
-
-**Tasks:**
-- 3.2.1.1 Find Kinetic Comptroller address on Flare/Coston2
-- 3.2.1.2 Document kToken interfaces (similar to cTokens)
-- 3.2.1.3 Create `contracts/interfaces/external/IKToken.sol`
-- 3.2.1.4 Create `contracts/interfaces/external/IKineticComptroller.sol`
-- 3.2.1.5 Document supported assets and their kToken addresses
-- 3.2.1.6 Document interest rate models
-
-**Test 3.2.1-T1: Kinetic Interface Verification**
-```typescript
-describe("Kinetic Interface", () => {
-  it("should connect to Kinetic Comptroller", async () => {
-    // Verify comptroller at documented address
-    // Query allMarkets()
-    // Log all supported markets
-  });
-
-  it("should query kToken for USDC", async () => {
-    // Get kUSDC address from comptroller
-    // Query underlying(), exchangeRateCurrent(), supplyRatePerBlock()
-    // Calculate APY
-    console.log(`USDC Supply APY: ${calculatedAPY}%`);
-  });
-});
-```
-
----
+#### 3.2.1 Research Kinetic Protocol
+- Compound-fork (kTokens)
+- Find Comptroller address
+- Document interest rate models
 
 #### 3.2.2 Implement KineticAdapter
-**Deliverable:** Working adapter for Kinetic lending/borrowing
-
-**Tasks:**
-- 3.2.2.1 Create `contracts/adapters/KineticAdapter.sol`
-- 3.2.2.2 Implement `supply()` using kToken.mint()
-- 3.2.2.3 Implement `withdraw()` using kToken.redeem() or redeemUnderlying()
-- 3.2.2.4 Implement `borrow()` using kToken.borrow()
-- 3.2.2.5 Implement `repay()` using kToken.repayBorrow()
-- 3.2.2.6 Implement `getSupplyAPY()` from supply rate
-- 3.2.2.7 Implement `getBorrowAPY()` from borrow rate
-- 3.2.2.8 Implement `getSupplyBalance()` using balanceOfUnderlying()
-- 3.2.2.9 Handle token approvals
-- 3.2.2.10 Handle market entry (enterMarkets) for borrowing
-
-**Test 3.2.2-T1: KineticAdapter Tests**
-```typescript
-// test/unit/adapters/KineticAdapter.test.ts
-describe("KineticAdapter", () => {
-  describe("supply", () => {
-    it("should successfully supply USDC to Kinetic", async () => {
-      const adapter = await deployKineticAdapter();
-      const usdc = await getUSDCContract();
-      const initialBalance = await usdc.balanceOf(user.address);
-
-      // Approve and supply
-      await usdc.approve(adapter.address, parseUnits("100", 6));
-      const shares = await adapter.supply(usdc.address, parseUnits("100", 6), user.address);
-
-      // Verify shares received > 0
-      expect(shares).to.be.gt(0);
-
-      // Verify USDC was transferred
-      const finalBalance = await usdc.balanceOf(user.address);
-      expect(initialBalance.sub(finalBalance)).to.equal(parseUnits("100", 6));
-
-      // Verify supply balance on Kinetic
-      const supplyBalance = await adapter.getSupplyBalance(user.address, usdc.address);
-      expect(supplyBalance).to.be.gte(parseUnits("99.99", 6)); // Allow for rounding
-
-      console.log(`Supplied: 100 USDC`);
-      console.log(`Shares received: ${shares}`);
-      console.log(`Supply balance: ${formatUnits(supplyBalance, 6)} USDC`);
-    });
-
-    it("should accrue interest over time", async () => {
-      // Supply USDC
-      // Advance time by 1 day
-      // Check supplyBalance increased
-    });
-  });
-
-  describe("withdraw", () => {
-    it("should successfully withdraw USDC from Kinetic", async () => {
-      // Setup: Supply first
-      // Withdraw half
-      // Verify USDC received
-      // Verify supply balance decreased
-    });
-
-    it("should allow full withdrawal", async () => {
-      // Supply then withdraw all
-      // Verify supply balance is 0
-    });
-  });
-
-  describe("borrow", () => {
-    it("should allow borrowing against collateral", async () => {
-      // Supply collateral (e.g., WFLR)
-      // Enter market
-      // Borrow USDC
-      // Verify USDC received
-    });
-
-    it("should respect collateral factor limits", async () => {
-      // Try to borrow more than allowed
-      // Expect revert
-    });
-  });
-
-  describe("repay", () => {
-    it("should successfully repay borrowed amount", async () => {
-      // Setup: Borrow first
-      // Repay half
-      // Verify borrow balance decreased
-    });
-
-    it("should handle repaying full amount with interest", async () => {
-      // Borrow
-      // Advance time
-      // Repay full (use max uint for full repayment)
-      // Verify borrow balance is 0
-    });
-  });
-
-  describe("getSupplyAPY", () => {
-    it("should return current APY in basis points", async () => {
-      const apy = await adapter.getSupplyAPY(usdc.address);
-
-      // APY should be reasonable (0.1% - 50%)
-      expect(apy).to.be.gt(10); // > 0.1%
-      expect(apy).to.be.lt(5000); // < 50%
-
-      console.log(`USDC Supply APY: ${apy / 100}%`);
-    });
-  });
-});
-```
-
----
+- `supply()` using kToken.mint()
+- `withdraw()` using kToken.redeem()
+- `borrow()` / `repay()` for leveraged strategies
+- `getSupplyAPY()` from supply rate
 
 ### 3.3 Staking Adapter Interface
 
 #### 3.3.1 Create IStakingAdapter Interface
-**Deliverable:** Standard interface for staking protocols
-
-**Tasks:**
-- 3.3.1.1 Create `contracts/adapters/IStakingAdapter.sol` with:
-  - `stake(amount, onBehalfOf)` - stake assets
-  - `requestUnstake(shares, onBehalfOf)` - request unstake (may have cooldown)
-  - `completeUnstake(requestId, to)` - complete unstake after cooldown
-  - `getStakingAPY()` - current staking APY
-  - `getCooldownPeriod()` - cooldown duration in seconds
-  - `getStakedBalance(user)` - user's staked position
-
-**Test 3.3.1-T1: Interface Compilation**
-```bash
-npx hardhat compile
+```solidity
+interface IStakingAdapter {
+    function stake(uint256 amount, address onBehalfOf) external payable returns (uint256 shares);
+    function requestUnstake(uint256 shares, address onBehalfOf) external returns (uint256 requestId);
+    function completeUnstake(uint256 requestId, address to) external returns (uint256 amount);
+    function getStakingAPY() external view returns (uint256 apyBps);
+    function getCooldownPeriod() external view returns (uint256 seconds_);
+}
 ```
-
----
 
 ### 3.4 Sceptre Adapter
 
-#### 3.4.1 Research Sceptre Protocol Interface
-**Deliverable:** Complete interface for Sceptre (sFLR liquid staking)
-
-**Tasks:**
-- 3.4.1.1 Find Sceptre sFLR contract address
-- 3.4.1.2 Document stake/unstake functions
-- 3.4.1.3 Document cooldown mechanism
-- 3.4.1.4 Create `contracts/interfaces/external/ISceptre.sol`
-- 3.4.1.5 Document exchange rate (sFLR:FLR)
-
-**Test 3.4.1-T1: Sceptre Interface Verification**
-```typescript
-describe("Sceptre Interface", () => {
-  it("should connect to sFLR contract", async () => {
-    // Verify sFLR contract exists
-    // Query exchange rate
-    // Query total staked
-    console.log(`sFLR exchange rate: ${exchangeRate}`);
-    console.log(`Total staked: ${formatEther(totalStaked)} FLR`);
-  });
-});
-```
-
----
+#### 3.4.1 Research Sceptre Protocol
+- sFLR liquid staking token
+- Document stake/unstake functions
+- Document cooldown mechanism
 
 #### 3.4.2 Implement SceptreAdapter
-**Deliverable:** Working adapter for Sceptre staking
-
-**Tasks:**
-- 3.4.2.1 Create `contracts/adapters/SceptreAdapter.sol`
-- 3.4.2.2 Implement `stake()` - deposits FLR, receives sFLR
-- 3.4.2.3 Implement `requestUnstake()` - initiates cooldown
-- 3.4.2.4 Implement `completeUnstake()` - withdraws after cooldown
-- 3.4.2.5 Implement `getStakingAPY()` from protocol
-- 3.4.2.6 Implement `getCooldownPeriod()`
-- 3.4.2.7 Implement `getStakedBalance()`
-- 3.4.2.8 Handle native FLR deposits (payable functions)
-
-**Test 3.4.2-T1: SceptreAdapter Tests**
-```typescript
-// test/unit/adapters/SceptreAdapter.test.ts
-describe("SceptreAdapter", () => {
-  describe("stake", () => {
-    it("should stake FLR and receive sFLR", async () => {
-      const adapter = await deploySceptreAdapter();
-
-      const initialsFLR = await sFLR.balanceOf(user.address);
-
-      // Stake 100 FLR
-      const shares = await adapter.stake(parseEther("100"), user.address, {
-        value: parseEther("100")
-      });
-
-      expect(shares).to.be.gt(0);
-
-      const finalsFLR = await sFLR.balanceOf(user.address);
-      expect(finalsFLR.sub(initialsFLR)).to.equal(shares);
-
-      console.log(`Staked: 100 FLR`);
-      console.log(`Received: ${formatEther(shares)} sFLR`);
-    });
-  });
-
-  describe("requestUnstake", () => {
-    it("should initiate unstake request", async () => {
-      // Stake first
-      // Request unstake
-      // Verify requestId returned
-      // Verify cooldown started
-    });
-  });
-
-  describe("completeUnstake", () => {
-    it("should complete unstake after cooldown", async () => {
-      // Stake
-      // Request unstake
-      // Advance time by cooldown period
-      // Complete unstake
-      // Verify FLR received
-    });
-
-    it("should revert if cooldown not complete", async () => {
-      // Request unstake
-      // Immediately try to complete
-      // Expect revert
-    });
-  });
-
-  describe("getStakingAPY", () => {
-    it("should return reasonable staking APY", async () => {
-      const apy = await adapter.getStakingAPY();
-
-      // Staking APY typically 3-15%
-      expect(apy).to.be.gt(100); // > 1%
-      expect(apy).to.be.lt(2000); // < 20%
-
-      console.log(`sFLR Staking APY: ${apy / 100}%`);
-    });
-  });
-});
-```
-
----
+- `stake()` - deposits FLR, receives sFLR
+- `requestUnstake()` / `completeUnstake()` with cooldown
+- Track staking positions
 
 ### 3.5 YieldRouter Implementation
 
-#### 3.5.1 Implement YieldRouter Core
-**Deliverable:** Yield optimizer that routes to best opportunities
-
-**Tasks:**
-- 3.5.1.1 Create `contracts/core/YieldRouter.sol`
-- 3.5.1.2 Implement lending adapter registry
-- 3.5.1.3 Implement staking adapter registry
-- 3.5.1.4 Implement `getOptions(asset, amount)` - returns all yield opportunities
-- 3.5.1.5 Implement `deposit(asset, amount, risk, onBehalfOf)` - deposits to best option
-- 3.5.1.6 Implement `withdraw(asset, shares, to)` - withdraws from protocol
-- 3.5.1.7 Add risk level filtering (Conservative, Moderate, Aggressive)
-- 3.5.1.8 Track user positions across protocols
-
-**Test 3.5.1-T1: YieldRouter Tests**
-```typescript
-// test/unit/core/YieldRouter.test.ts
-describe("YieldRouter", () => {
-  describe("getOptions", () => {
-    it("should return all yield options for USDC", async () => {
-      const options = await yieldRouter.getOptions(usdc.address, parseUnits("1000", 6));
-
-      expect(options.length).to.be.gt(0);
-
-      for (const opt of options) {
-        console.log(`Protocol: ${opt.name}`);
-        console.log(`  APY: ${opt.apy / 100}%`);
-        console.log(`  Risk: ${opt.risk}`);
-        console.log(`  TVL: ${formatUnits(opt.tvl, 6)} USDC`);
-        console.log(`  Requires Lock: ${opt.requiresLock}`);
-      }
-    });
-
-    it("should return options for WFLR including staking", async () => {
-      const options = await yieldRouter.getOptions(wflr.address, parseEther("1000"));
-
-      // Should include Kinetic lending AND Sceptre staking
-      const hasKinetic = options.some(o => o.name === "Kinetic");
-      const hasSceptre = options.some(o => o.name === "Sceptre");
-
-      expect(hasKinetic).to.be.true;
-      expect(hasSceptre).to.be.true;
-    });
-  });
-
-  describe("deposit with risk levels", () => {
-    it("CONSERVATIVE should route to simple lending/staking", async () => {
-      const shares = await yieldRouter.deposit(
-        usdc.address,
-        parseUnits("100", 6),
-        0, // CONSERVATIVE
-        user.address
-      );
-
-      // Verify routed to Kinetic (simple lending)
-    });
-
-    it("MODERATE should allow LP positions with stable pairs", async () => {
-      // Similar test for moderate risk
-    });
-
-    it("AGGRESSIVE should allow volatile LP and leveraged positions", async () => {
-      // Similar test for aggressive risk
-    });
-  });
-});
-```
+- Registry of lending + staking adapters
+- `getYieldOptions()` - returns all yield opportunities with APYs
+- `deposit()` / `withdraw()` through adapters
+- Risk level filtering (Conservative/Moderate/Aggressive)
 
 ---
 
-## Phase 4: Perpetuals Integration
+## Phase 4: Execution Infrastructure - Perpetual Adapters
+
+**Purpose:** Enable leveraged trading through ERTs
 
 ### 4.1 Perpetual Adapter Interface
 
 #### 4.1.1 Create IPerpetualAdapter Interface
-**Deliverable:** Standard interface for perpetual trading
+```solidity
+interface IPerpetualAdapter {
+    function openPosition(
+        bytes32 market,
+        uint256 collateral,
+        uint256 size,
+        uint8 leverage,
+        bool isLong,
+        address onBehalfOf
+    ) external returns (bytes32 positionId);
 
-**Tasks:**
-- 4.1.1.1 Create `contracts/adapters/IPerpetualAdapter.sol` with:
-  - `openPosition(market, collateral, size, leverage, isLong, onBehalfOf)`
-  - `closePosition(positionId, to)`
-  - `addMargin(positionId, amount)`
-  - `removeMargin(positionId, amount, to)`
-  - `getPosition(positionId)` - returns PerpPosition struct
-  - `getMarketInfo(market)` - returns PerpMarket struct
-  - `getFundingRate(market)` - current funding rate
-  - `getMarkets()` - all supported markets
-  - `getUserPositions(user)` - user's open positions
-
-**Test 4.1.1-T1: Interface Compilation**
-```bash
-npx hardhat compile
+    function closePosition(bytes32 positionId, address to) external returns (int256 pnl);
+    function addMargin(bytes32 positionId, uint256 amount) external;
+    function removeMargin(bytes32 positionId, uint256 amount, address to) external;
+    function getPosition(bytes32 positionId) external view returns (PerpPosition memory);
+    function getMarketInfo(bytes32 market) external view returns (PerpMarket memory);
+    function getFundingRate(bytes32 market) external view returns (int256);
+}
 ```
-
----
 
 ### 4.2 SparkDEX Eternal Adapter
 
-#### 4.2.1 Research SparkDEX Eternal Interface
-**Deliverable:** Complete interface for perpetual trading
-
-**Tasks:**
-- 4.2.1.1 Find SparkDEX Eternal contract addresses
-- 4.2.1.2 Document position opening/closing functions
-- 4.2.1.3 Document margin management
-- 4.2.1.4 Document liquidation mechanics
-- 4.2.1.5 Create `contracts/interfaces/external/ISparkDEXEternal.sol`
-- 4.2.1.6 Document supported markets (BTC/USD, ETH/USD, etc.)
-- 4.2.1.7 Document max leverage per market
-
-**Test 4.2.1-T1: SparkDEX Eternal Interface Verification**
-```typescript
-describe("SparkDEX Eternal Interface", () => {
-  it("should connect to Eternal contracts", async () => {
-    // Verify contracts exist
-    // Query available markets
-    console.log("Available markets:", markets);
-  });
-
-  it("should query BTC/USD market info", async () => {
-    const info = await eternal.getMarketInfo(btcUsdMarket);
-    console.log(`BTC/USD Max Leverage: ${info.maxLeverage}x`);
-    console.log(`Open Interest: ${formatUnits(info.openInterest, 8)} BTC`);
-    console.log(`Funding Rate: ${info.fundingRate} bps`);
-  });
-});
-```
-
----
+#### 4.2.1 Research SparkDEX Eternal
+- Perpetuals up to 100x leverage
+- Document position management
+- Document liquidation mechanics
 
 #### 4.2.2 Implement SparkDEXEternalAdapter
-**Deliverable:** Working adapter for perpetual trading
+- Position opening with leverage validation
+- Position closing with PnL calculation
+- Margin management
+- Liquidation price calculation
 
-**Tasks:**
-- 4.2.2.1 Create `contracts/adapters/SparkDEXEternalAdapter.sol`
-- 4.2.2.2 Implement `openPosition()` with leverage validation
-- 4.2.2.3 Implement `closePosition()` with P&L calculation
-- 4.2.2.4 Implement `addMargin()`
-- 4.2.2.5 Implement `removeMargin()` with safety checks
-- 4.2.2.6 Implement position queries
-- 4.2.2.7 Implement market info queries
-- 4.2.2.8 Calculate liquidation price
-- 4.2.2.9 Handle collateral token approvals
-
-**Test 4.2.2-T1: SparkDEXEternalAdapter Tests**
-```typescript
-// test/unit/adapters/SparkDEXEternalAdapter.test.ts
-describe("SparkDEXEternalAdapter", () => {
-  describe("openPosition", () => {
-    it("should open 10x long BTC position", async () => {
-      const adapter = await deploySparkDEXEternalAdapter();
-
-      // Deposit 100 USDC as collateral, 10x leverage
-      const positionId = await adapter.openPosition(
-        btcUsdMarket,
-        parseUnits("100", 6), // 100 USDC collateral
-        parseUnits("0.01", 8), // 0.01 BTC size
-        10, // 10x leverage
-        true, // long
-        user.address
-      );
-
-      expect(positionId).to.not.equal(ethers.ZeroHash);
-
-      const position = await adapter.getPosition(positionId);
-      expect(position.side).to.equal(0); // LONG
-      expect(position.leverage).to.equal(10);
-
-      console.log(`Opened position: ${positionId}`);
-      console.log(`Entry price: ${formatUnits(position.entryPrice, 8)} USD`);
-      console.log(`Liquidation price: ${formatUnits(position.liquidationPrice, 8)} USD`);
-    });
-
-    it("should open short position", async () => {
-      // Similar test for short position
-    });
-
-    it("should revert if leverage exceeds max", async () => {
-      // Try 200x leverage
-      // Expect revert
-    });
-  });
-
-  describe("closePosition", () => {
-    it("should close position and realize profit", async () => {
-      // Open long position
-      // Advance price favorably (via oracle manipulation in fork)
-      // Close position
-      // Verify positive P&L
-      // Verify collateral + profit returned
-    });
-
-    it("should close position and realize loss", async () => {
-      // Open long position
-      // Move price against position
-      // Close position
-      // Verify negative P&L
-      // Verify collateral - loss returned
-    });
-  });
-
-  describe("addMargin", () => {
-    it("should add margin and decrease effective leverage", async () => {
-      // Open position
-      const initialPosition = await adapter.getPosition(positionId);
-
-      // Add margin
-      await adapter.addMargin(positionId, parseUnits("50", 6));
-
-      const updatedPosition = await adapter.getPosition(positionId);
-
-      // Verify collateral increased
-      expect(updatedPosition.collateral).to.equal(
-        initialPosition.collateral.add(parseUnits("50", 6))
-      );
-
-      // Verify leverage decreased
-      expect(updatedPosition.leverage).to.be.lt(initialPosition.leverage);
-    });
-  });
-
-  describe("removeMargin", () => {
-    it("should remove margin while maintaining safe leverage", async () => {
-      // Open position with extra margin
-      // Remove some margin
-      // Verify still within safe leverage limits
-    });
-
-    it("should revert if removal would cause liquidation", async () => {
-      // Try to remove too much margin
-      // Expect revert
-    });
-  });
-
-  describe("getFundingRate", () => {
-    it("should return current funding rate", async () => {
-      const fundingRate = await adapter.getFundingRate(btcUsdMarket);
-
-      // Funding rate typically -0.05% to +0.05% per hour
-      expect(fundingRate).to.be.gte(-500);
-      expect(fundingRate).to.be.lte(500);
-
-      console.log(`BTC/USD Funding Rate: ${fundingRate / 100}% per hour`);
-    });
-  });
-
-  describe("getUserPositions", () => {
-    it("should return all user positions", async () => {
-      // Open multiple positions
-      const positions = await adapter.getUserPositions(user.address);
-
-      expect(positions.length).to.be.gte(2);
-
-      for (const pos of positions) {
-        console.log(`Position ${pos.positionId}:`);
-        console.log(`  Market: ${pos.market}`);
-        console.log(`  Side: ${pos.side === 0 ? "LONG" : "SHORT"}`);
-        console.log(`  Size: ${pos.size}`);
-        console.log(`  Unrealized P&L: ${pos.unrealizedPnl}`);
-      }
-    });
-  });
-});
-```
+**Critical for ERTs:** Leverage must be validated against ERT's maxLeverage constraint
 
 ---
 
-## Phase 5: FAssets Support
+## Phase 5: Execution Infrastructure - FAssets Support
+
+**Purpose:** Enable FXRP, FBTC, FDOGE as tradeable assets
 
 ### 5.1 FAssets Adapter
 
 #### 5.1.1 Research FAssets System
-**Deliverable:** Complete understanding of FAssets on Flare
-
-**Tasks:**
-- 5.1.1.1 Find FAssetManager contract addresses (FXRP, FBTC, FDOGE)
-- 5.1.1.2 Document FAsset minting/redemption process
-- 5.1.1.3 Create `contracts/interfaces/external/IFAssetManager.sol`
-- 5.1.1.4 Document collateral ratios and fees
-- 5.1.1.5 Identify liquidity sources for FAssets on DEXs
-
-**Test 5.1.1-T1: FAssets Discovery**
-```typescript
-describe("FAssets Discovery", () => {
-  it("should find FXRP contract", async () => {
-    // Query FAssetManager for FXRP
-    // Log contract address
-    // Query total supply
-    console.log(`FXRP Address: ${fxrpAddress}`);
-    console.log(`FXRP Total Supply: ${formatEther(totalSupply)}`);
-  });
-
-  it("should find liquidity for FXRP on DEXs", async () => {
-    // Query SparkDEX for FXRP pools
-    // Query Enosys for FXRP pairs
-    // Log available liquidity
-  });
-});
-```
-
----
+- FAssetManager contracts
+- Minting/redemption process
+- Available DEX liquidity
 
 #### 5.1.2 Implement FAssetsAdapter
-**Deliverable:** Adapter for FAsset-specific operations
+- `isFAsset()` detection
+- `getFAssetInfo()` queries
+- Integration with SwapRouter for FAsset pairs
+
+### 5.2 FAsset-Specific Strategies
+
+- FXRP → swap to FLR → stake for sFLR
+- Carry trades (borrow against FXRP)
+- Cross-chain triggered execution via FDC
+
+---
+
+## Phase 6: Execution Vaults & Rights System
+
+**Purpose:** Core innovation - capital custody and execution rights
+
+### 6.1 New Data Structures
+
+#### 6.1.1 Add Execution Structs to PraxisStructs.sol
+
+```solidity
+/// @notice Execution Rights parameters embedded in ERT NFT
+struct ExecutionRights {
+    uint256 tokenId;              // ERT NFT ID
+    address executor;             // Who holds the rights
+    address vault;                // Source vault
+    uint256 capitalLimit;         // Max capital to deploy
+    uint256 startTime;            // When rights become active
+    uint256 expiryTime;           // When rights expire
+    RiskConstraints constraints;  // Risk limits
+    FeeStructure fees;            // Fee parameters
+    ExecutionStatus status;       // Current state
+}
+
+/// @notice Risk constraints enforced by ExecutionController
+struct RiskConstraints {
+    uint8 maxLeverage;            // Max leverage (e.g., 5 = 5x)
+    uint16 maxDrawdownBps;        // Max drawdown in bps (1000 = 10%)
+    uint16 maxPositionSizeBps;    // Max single position as % of capital
+    address[] allowedAdapters;    // Whitelist of protocol adapters
+    address[] allowedAssets;      // Whitelist of tradeable assets
+}
+
+/// @notice Fee structure for LP/Executor split
+struct FeeStructure {
+    uint16 baseFeeAprBps;         // Annual base fee to LP (200 = 2%)
+    uint16 profitShareBps;        // LP's share of profits (2000 = 20%)
+    uint256 performanceFeeEscrowed; // Executor's escrowed stake for losses
+}
+
+/// @notice Current execution status
+struct ExecutionStatus {
+    uint256 capitalDeployed;      // Currently deployed capital
+    int256 realizedPnl;           // Closed position PnL
+    int256 unrealizedPnl;         // Open position PnL (mark-to-market)
+    uint256 highWaterMark;        // For performance fee calculation
+    bool isActive;                // Whether ERT is currently active
+}
+
+/// @notice Vault share information
+struct VaultShare {
+    uint256 shares;               // LP's share tokens
+    uint256 depositedAmount;      // Original deposit
+    uint256 depositTime;          // For time-weighted calculations
+}
+```
+
+### 6.2 ExecutionVault Contract
+
+#### 6.2.1 Implement ExecutionVault
+**Deliverable:** Vault that holds LP capital
+
+```solidity
+contract ExecutionVault is ERC4626, ReentrancyGuard, Ownable {
+    // State
+    mapping(uint256 => uint256) public ertCapitalAllocated; // ERT ID -> allocated capital
+    uint256 public totalAllocated;
+
+    // LP Functions
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
+    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
+
+    // ERT Functions (only callable by ExecutionController)
+    function allocateCapital(uint256 ertId, uint256 amount) external onlyController;
+    function executeAction(uint256 ertId, Action calldata action) external onlyController returns (bytes memory result);
+    function returnCapital(uint256 ertId, uint256 amount, int256 pnl) external onlyController;
+
+    // View Functions
+    function availableCapital() external view returns (uint256);
+    function utilizationRate() external view returns (uint256 bps);
+}
+```
 
 **Tasks:**
-- 5.1.2.1 Create `contracts/adapters/FAssetsAdapter.sol`
-- 5.1.2.2 Implement FAsset detection `isFAsset(address)`
-- 5.1.2.3 Implement FAsset info queries
-- 5.1.2.4 Implement routing for FAsset swaps
-- 5.1.2.5 Implement FAsset-specific yield strategies
-- 5.1.2.6 Handle FDC verification for cross-chain operations
+- 6.2.1.1 Create `contracts/core/ExecutionVault.sol`
+- 6.2.1.2 Implement ERC4626 vault standard for LP shares
+- 6.2.1.3 Implement capital allocation tracking per ERT
+- 6.2.1.4 Implement `executeAction()` that calls adapters with vault funds
+- 6.2.1.5 Implement withdrawal limits based on utilization
+- 6.2.1.6 Add events: `CapitalAllocated`, `CapitalReturned`, `ActionExecuted`
 
-**Test 5.1.2-T1: FAssetsAdapter Tests**
+**Test 6.2.1-T1:** Vault LP Tests
 ```typescript
-// test/unit/adapters/FAssetsAdapter.test.ts
-describe("FAssetsAdapter", () => {
-  describe("isFAsset", () => {
-    it("should identify FXRP as FAsset", async () => {
-      expect(await adapter.isFAsset(fxrpAddress)).to.be.true;
-    });
-
-    it("should identify WFLR as non-FAsset", async () => {
-      expect(await adapter.isFAsset(wflrAddress)).to.be.false;
-    });
+describe("ExecutionVault", () => {
+  it("LP can deposit and receive shares", async () => {
+    await usdc.approve(vault.address, parseUnits("10000", 6));
+    const shares = await vault.deposit(parseUnits("10000", 6), lp.address);
+    expect(shares).to.be.gt(0);
   });
 
-  describe("getFAssetInfo", () => {
-    it("should return FXRP info", async () => {
-      const info = await adapter.getFAssetInfo(fxrpAddress);
-
-      expect(info.symbol).to.equal("FXRP");
-      expect(info.underlying).to.equal("XRP");
-
-      console.log(`FXRP Total Minted: ${formatEther(info.totalMinted)}`);
-      console.log(`Collateral Ratio: ${info.collateralRatio}%`);
-    });
+  it("LP cannot withdraw more than available (respects utilization)", async () => {
+    // Allocate 80% to an ERT
+    // Try to withdraw 50%
+    // Should revert with InsufficientAvailable
   });
 });
 ```
 
----
+### 6.3 ExecutionRightsNFT Contract
 
-### 5.2 FAsset Swap Routing
+#### 6.3.1 Implement ERT NFT
+**Deliverable:** ERC-721 that encodes execution permissions
 
-#### 5.2.1 Integrate FAssets with SwapRouter
-**Deliverable:** Optimal swap routing for FAssets
+```solidity
+contract ExecutionRightsNFT is ERC721, ReentrancyGuard {
+    mapping(uint256 => ExecutionRights) public rights;
+    uint256 public nextTokenId;
 
-**Tasks:**
-- 5.2.1.1 Add FAsset awareness to SwapRouter
-- 5.2.1.2 Implement multi-hop routing for FAssets (FXRP -> WFLR -> USDC)
-- 5.2.1.3 Implement price impact calculation for FAsset swaps
-- 5.2.1.4 Add FAsset-specific slippage protection
+    function mint(
+        address executor,
+        address vault,
+        uint256 capitalLimit,
+        uint256 duration,
+        RiskConstraints calldata constraints,
+        FeeStructure calldata fees
+    ) external returns (uint256 tokenId);
 
-**Test 5.2.1-T1: FAsset Swap Integration Tests**
-```typescript
-// test/integration/FAssetFlows.test.ts
-describe("FAsset Swap Flows", () => {
-  it("should swap FXRP to USDC via best route", async () => {
-    // Get FXRP (may need to acquire from testnet faucet or bridge)
-    // Execute swap
-    // Verify USDC received
-    // Log the route taken
-  });
+    function getRights(uint256 tokenId) external view returns (ExecutionRights memory);
+    function isValid(uint256 tokenId) external view returns (bool);
+    function isExpired(uint256 tokenId) external view returns (bool);
 
-  it("should compare direct vs multi-hop routes for FXRP", async () => {
-    const directQuote = await swapRouter.getQuoteVia(sparkdex, fxrp, usdc, amount);
-    const multiHopQuote = await swapRouter.getQuote(fxrp, usdc, amount);
-
-    console.log(`Direct FXRP->USDC: ${formatUnits(directQuote, 6)}`);
-    console.log(`Best Route FXRP->USDC: ${formatUnits(multiHopQuote, 6)}`);
-  });
-});
+    // Called by SettlementEngine
+    function settle(uint256 tokenId) external onlySettlement;
+}
 ```
 
----
-
-## Phase 6: Strategy Engine
-
-### 6.1 Strategy Engine Core
-
-#### 6.1.1 Implement StrategyEngine
-**Deliverable:** Multi-step strategy execution engine
-
 **Tasks:**
-- 6.1.1.1 Create `contracts/core/StrategyEngine.sol`
-- 6.1.1.2 Implement Action executor that dispatches to adapters
-- 6.1.1.3 Implement output chaining (step N output -> step N+1 input)
-- 6.1.1.4 Implement `execute(actions[], user)` for custom strategies
-- 6.1.1.5 Implement `executePreset(presetId, tokenIn, amountIn, user)` for preset strategies
-- 6.1.1.6 Add atomicity - all steps succeed or all revert
-- 6.1.1.7 Add gas optimization for batched operations
-- 6.1.1.8 Track strategy execution IDs
+- 6.3.1.1 Create `contracts/core/ExecutionRightsNFT.sol`
+- 6.3.1.2 Implement ERC-721 with embedded ExecutionRights
+- 6.3.1.3 Implement constraint validation on mint
+- 6.3.1.4 Implement expiry checking
+- 6.3.1.5 Implement transfer restrictions (can/cannot transfer ERTs)
+- 6.3.1.6 Add events: `RightsMinted`, `RightsSettled`, `RightsExpired`
 
-**Test 6.1.1-T1: StrategyEngine Tests**
+**Test 6.3.1-T1:** ERT Minting Tests
 ```typescript
-// test/unit/core/StrategyEngine.test.ts
-describe("StrategyEngine", () => {
-  describe("execute", () => {
-    it("should execute swap + supply strategy", async () => {
-      // Strategy: WFLR -> swap to USDC -> supply to Kinetic
-      const actions = [
-        {
-          actionType: ActionType.SWAP,
-          adapter: sparkdexAdapter.address,
-          tokenIn: wflr.address,
-          tokenOut: usdc.address,
-          amountIn: parseEther("100"),
-          minAmountOut: parseUnits("50", 6),
-          extraData: "0x"
-        },
-        {
-          actionType: ActionType.SUPPLY,
-          adapter: kineticAdapter.address,
-          tokenIn: usdc.address,
-          tokenOut: kUsdc.address,
-          amountIn: 0, // Use all from previous step
-          minAmountOut: 0,
-          extraData: "0x"
-        }
-      ];
-
-      // Execute strategy
-      const strategyId = await strategyEngine.execute(actions, user.address);
-
-      // Verify: WFLR decreased
-      // Verify: kUSDC balance increased
-      // Verify: Strategy ID generated
-
-      console.log(`Strategy executed: ${strategyId}`);
-    });
-
-    it("should chain outputs correctly", async () => {
-      // Verify step N output is used as step N+1 input when amountIn = 0
-    });
-
-    it("should revert atomically on any step failure", async () => {
-      // Include a step that will fail
-      // Verify all state changes reverted
-    });
-  });
-});
-```
-
----
-
-#### 6.1.2 Implement Preset Strategies
-**Deliverable:** Pre-configured yield strategies
-
-**Tasks:**
-- 6.1.2.1 Create `contracts/strategies/IStrategy.sol` interface
-- 6.1.2.2 Create `contracts/strategies/FAssetMaxYield.sol` - FXRP -> swap -> stake
-- 6.1.2.3 Create `contracts/strategies/ConservativeYield.sol` - supply to lending
-- 6.1.2.4 Create `contracts/strategies/AggressiveYield.sol` - LP + leveraged yield
-- 6.1.2.5 Create `contracts/strategies/DeltaNeutral.sol` - supply + hedge with short perp
-- 6.1.2.6 Register presets with StrategyEngine
-
-**Test 6.1.2-T1: Preset Strategy Tests**
-```typescript
-// test/integration/PresetStrategies.test.ts
-describe("Preset Strategies", () => {
-  describe("FXRP_MAX_YIELD", () => {
-    it("should execute FXRP -> swap -> stake flow", async () => {
-      const initialFXRP = await fxrp.balanceOf(user.address);
-
-      const strategyId = await gateway.executePreset(
-        FXRP_MAX_YIELD,
-        fxrp.address,
-        parseEther("1000"), // 1000 FXRP
-        deadline
-      );
-
-      // Verify FXRP spent
-      const finalFXRP = await fxrp.balanceOf(user.address);
-      expect(initialFXRP.sub(finalFXRP)).to.equal(parseEther("1000"));
-
-      // Verify sFLR received (from staking)
-      const sFLRBalance = await sFLR.balanceOf(user.address);
-      expect(sFLRBalance).to.be.gt(0);
-
-      console.log(`Strategy executed: ${strategyId}`);
-      console.log(`FXRP spent: 1000`);
-      console.log(`sFLR received: ${formatEther(sFLRBalance)}`);
-    });
-  });
-
-  describe("DELTA_NEUTRAL", () => {
-    it("should supply to Kinetic and open hedging short on Eternal", async () => {
-      // Supply 1000 USDC to Kinetic
-      // Open short position on BTC to hedge FLR price exposure
-      // Verify both positions created
-    });
-  });
-});
-```
-
----
-
-## Phase 7: PraxisGateway
-
-### 7.1 Gateway Implementation
-
-#### 7.1.1 Implement PraxisGateway Core
-**Deliverable:** Unified entry point for all PRAXIS operations
-
-**Tasks:**
-- 7.1.1.1 Create `contracts/core/PraxisGateway.sol`
-- 7.1.1.2 Wire up SwapRouter: `swap()`, `getQuote()`, `getAllQuotes()`
-- 7.1.1.3 Wire up YieldRouter: `deposit()`, `getYieldOptions()`
-- 7.1.1.4 Wire up StrategyEngine: `executeStrategy()`, `executePreset()`
-- 7.1.1.5 Add perpetual functions: `openPosition()`, `closePosition()`, `adjustMargin()`
-- 7.1.1.6 Add FAsset registry and detection
-- 7.1.1.7 Add deadline validation for all operations
-- 7.1.1.8 Add ReentrancyGuard to all state-changing functions
-- 7.1.1.9 Add access control for admin functions
-- 7.1.1.10 Add emergency pause functionality
-- 7.1.1.11 Add events for all operations
-
-**Test 7.1.1-T1: PraxisGateway Unit Tests**
-```typescript
-// test/unit/core/PraxisGateway.test.ts
-describe("PraxisGateway", () => {
-  describe("swap", () => {
-    it("should route swaps through SwapRouter", async () => {
-      const tx = await gateway.swap(
-        wflr.address,
-        usdc.address,
-        parseEther("100"),
-        parseUnits("50", 6),
-        user.address,
-        deadline
-      );
-
-      const receipt = await tx.wait();
-
-      // Verify SwapExecuted event
-      const event = receipt.events.find(e => e.event === "SwapExecuted");
-      expect(event.args.user).to.equal(user.address);
-      expect(event.args.amountOut).to.be.gte(parseUnits("50", 6));
-    });
-  });
-
-  describe("deposit", () => {
-    it("should route deposits through YieldRouter", async () => {
-      const shares = await gateway.deposit(
-        usdc.address,
-        parseUnits("100", 6),
-        0 // CONSERVATIVE
-      );
-
-      expect(shares).to.be.gt(0);
-
-      // Verify YieldDeposited event
-    });
-  });
-
-  describe("executeStrategy", () => {
-    it("should execute custom strategy through StrategyEngine", async () => {
-      const strategyId = await gateway.executeStrategy(actions, deadline);
-      expect(strategyId).to.not.equal(ethers.ZeroHash);
-    });
-  });
-
-  describe("perpetuals", () => {
-    it("should open position through PerpetualAdapter", async () => {
-      // Test perpetual operations
-    });
-  });
-
-  describe("FAsset support", () => {
-    it("should correctly identify FAssets", async () => {
-      expect(await gateway.isSupportedFAsset(fxrp.address)).to.be.true;
-      expect(await gateway.isSupportedFAsset(wflr.address)).to.be.false;
-    });
-
-    it("should return all supported FAssets", async () => {
-      const fAssets = await gateway.getSupportedFAssets();
-      expect(fAssets).to.include(fxrp.address);
-    });
-  });
-
-  describe("access control", () => {
-    it("should only allow owner to add FAssets", async () => {
-      await expect(
-        gateway.connect(nonOwner).addFAsset(randomToken.address)
-      ).to.be.revertedWithCustomError(gateway, "Unauthorized");
-    });
-  });
-});
-```
-
----
-
-#### 7.1.2 Deploy Complete System to Coston2
-**Deliverable:** Full PRAXIS system deployed on testnet
-
-**Tasks:**
-- 7.1.2.1 Create `scripts/deploy/04_Gateway.ts`
-- 7.1.2.2 Deploy PraxisGateway with all router addresses
-- 7.1.2.3 Configure FAssets
-- 7.1.2.4 Verify all contracts
-- 7.1.2.5 Create comprehensive address registry
-
-**Test 7.1.2-T1: End-to-End Integration Tests**
-```typescript
-// test/integration/E2E.test.ts
-describe("End-to-End PRAXIS Tests", () => {
-  it("User journey: FXRP to yield in one transaction", async () => {
-    // Start with FXRP
-    console.log(`Starting FXRP balance: ${formatEther(await fxrp.balanceOf(user.address))}`);
-
-    // Execute strategy
-    const tx = await gateway.executePreset(
-      FXRP_MAX_YIELD,
-      fxrp.address,
-      parseEther("500"),
-      deadline
+describe("ExecutionRightsNFT", () => {
+  it("should mint ERT with correct constraints", async () => {
+    const tokenId = await ertNFT.mint(
+      executor.address,
+      vault.address,
+      parseUnits("5000", 6), // 5000 USDC capital
+      7 * 24 * 3600,         // 7 days
+      {
+        maxLeverage: 3,
+        maxDrawdownBps: 1000, // 10%
+        maxPositionSizeBps: 5000, // 50%
+        allowedAdapters: [sparkdex.address, kinetic.address],
+        allowedAssets: [usdc.address, wflr.address]
+      },
+      {
+        baseFeeAprBps: 200,   // 2% APR
+        profitShareBps: 2000, // 20% to LP
+        performanceFeeEscrowed: 0
+      }
     );
 
-    const receipt = await tx.wait();
-    console.log(`Gas used: ${receipt.gasUsed}`);
+    const rights = await ertNFT.getRights(tokenId);
+    expect(rights.executor).to.equal(executor.address);
+    expect(rights.constraints.maxLeverage).to.equal(3);
+  });
+});
+```
 
-    // Verify final state
-    console.log(`Final FXRP balance: ${formatEther(await fxrp.balanceOf(user.address))}`);
-    console.log(`Final sFLR balance: ${formatEther(await sFLR.balanceOf(user.address))}`);
+### 6.4 ExecutionController Contract
+
+#### 6.4.1 Implement Constraint Enforcement
+**Deliverable:** Validates every action against ERT constraints
+
+```solidity
+contract ExecutionController is ReentrancyGuard {
+    ExecutionRightsNFT public ertNFT;
+    mapping(address => bool) public registeredVaults;
+    mapping(address => bool) public registeredAdapters;
+
+    function validateAndExecute(
+        uint256 ertId,
+        Action[] calldata actions
+    ) external returns (bytes[] memory results);
+
+    // Internal validation
+    function _validateERT(uint256 ertId, address caller) internal view;
+    function _validateAction(ExecutionRights memory rights, Action calldata action) internal view;
+    function _checkDrawdown(uint256 ertId) internal view;
+    function _checkPositionSize(uint256 ertId, uint256 actionSize) internal view;
+    function _checkLeverage(uint256 ertId, uint8 leverage) internal view;
+}
+```
+
+**Validation Checks:**
+1. ERT is valid and not expired
+2. Caller is the ERT holder (or authorized delegate)
+3. Adapter is in ERT's whitelist
+4. Assets are in ERT's whitelist
+5. Total deployed capital within limit
+6. Leverage within maxLeverage
+7. Current drawdown within maxDrawdownBps
+8. Position size within maxPositionSizeBps
+
+**Tasks:**
+- 6.4.1.1 Create `contracts/core/ExecutionController.sol`
+- 6.4.1.2 Implement ERT validation
+- 6.4.1.3 Implement adapter whitelist checking
+- 6.4.1.4 Implement asset whitelist checking
+- 6.4.1.5 Implement leverage checking
+- 6.4.1.6 Implement drawdown checking (requires position tracking)
+- 6.4.1.7 Implement position size checking
+- 6.4.1.8 Add events: `ActionValidated`, `ActionRejected`
+
+**Test 6.4.1-T1:** Constraint Enforcement Tests
+```typescript
+describe("ExecutionController", () => {
+  it("should reject action with non-whitelisted adapter", async () => {
+    const actions = [{
+      actionType: ActionType.SWAP,
+      adapter: nonWhitelistedDex.address, // Not in ERT whitelist
+      // ...
+    }];
+
+    await expect(
+      controller.validateAndExecute(ertId, actions)
+    ).to.be.revertedWithCustomError(controller, "AdapterNotAllowed");
   });
 
-  it("Compare gas cost: PRAXIS vs manual execution", async () => {
-    // Measure PRAXIS gas
-    const praxisTx = await gateway.executePreset(FXRP_MAX_YIELD, fxrp.address, amount, deadline);
-    const praxisGas = (await praxisTx.wait()).gasUsed;
+  it("should reject action exceeding max leverage", async () => {
+    // ERT has maxLeverage = 3
+    const actions = [{
+      actionType: ActionType.OPEN_POSITION,
+      // leverage: 5 encoded in extraData
+    }];
 
-    // Measure manual execution gas (swap + approve + stake)
-    const swapTx = await sparkdex.swap(...);
-    const approveTx = await wflr.approve(...);
-    const stakeTx = await sceptre.stake(...);
-    const manualGas = (await swapTx.wait()).gasUsed
-      .add((await approveTx.wait()).gasUsed)
-      .add((await stakeTx.wait()).gasUsed);
+    await expect(
+      controller.validateAndExecute(ertId, actions)
+    ).to.be.revertedWithCustomError(controller, "ExcessiveLeverage");
+  });
 
-    console.log(`PRAXIS gas: ${praxisGas}`);
-    console.log(`Manual gas: ${manualGas}`);
-    console.log(`Savings: ${manualGas.sub(praxisGas)} (${((manualGas.sub(praxisGas)).mul(100).div(manualGas))}%)`);
+  it("should reject if drawdown exceeds limit", async () => {
+    // Setup: ERT has 10% max drawdown, current PnL is -12%
+    // Any new action should be rejected
+  });
+});
+```
+
+### 6.5 PositionManager Contract
+
+#### 6.5.1 Implement Position Tracking
+**Deliverable:** Tracks all open positions per ERT
+
+```solidity
+contract PositionManager {
+    struct TrackedPosition {
+        uint256 ertId;
+        address adapter;
+        bytes32 positionId;      // From perp adapter or internal ID
+        address asset;
+        uint256 size;
+        uint256 entryValue;      // USD value at entry (via FTSO)
+        uint256 timestamp;
+    }
+
+    mapping(uint256 => TrackedPosition[]) public ertPositions;
+
+    function recordPosition(uint256 ertId, TrackedPosition calldata pos) external onlyController;
+    function closePosition(uint256 ertId, bytes32 positionId) external onlyController;
+    function getPositions(uint256 ertId) external view returns (TrackedPosition[] memory);
+    function calculateUnrealizedPnl(uint256 ertId) external view returns (int256);
+}
+```
+
+---
+
+## Phase 7: Settlement Engine & Gateway
+
+**Purpose:** Trustless PnL calculation and unified entry point
+
+### 7.1 SettlementEngine Contract
+
+#### 7.1.1 Implement FTSO-Based Settlement
+**Deliverable:** Calculates PnL using FlareOracle prices
+
+```solidity
+contract SettlementEngine {
+    FlareOracle public oracle;
+    ExecutionRightsNFT public ertNFT;
+    PositionManager public positionManager;
+
+    struct SettlementResult {
+        uint256 ertId;
+        int256 totalPnl;
+        uint256 lpBaseFee;
+        uint256 lpProfitShare;
+        uint256 executorProfit;
+        uint256 capitalReturned;
+    }
+
+    function settle(uint256 ertId) external returns (SettlementResult memory);
+    function settleEarly(uint256 ertId) external; // Executor can settle before expiry
+    function forceSettle(uint256 ertId) external; // Anyone can settle expired ERTs
+
+    // Internal
+    function _unwindPositions(uint256 ertId) internal returns (uint256 capitalRecovered);
+    function _calculatePnl(uint256 ertId) internal view returns (int256);
+    function _distributeFees(uint256 ertId, int256 pnl) internal returns (SettlementResult memory);
+}
+```
+
+**Settlement Logic:**
+```
+1. Unwind all open positions (close perps, withdraw from lending, etc.)
+2. Query FlareOracle for all asset prices
+3. Calculate total PnL = (final value) - (initial capital)
+4. If profit > 0:
+   - LP base fee = capital × baseFeeApr × duration
+   - LP profit share = profit × profitShareBps / 10000
+   - Executor profit = profit - LP profit share
+5. If loss:
+   - Deduct from executor's escrowed stake (if any)
+   - LP absorbs remaining loss (capped by ERT constraints)
+6. Return capital to vault
+7. Mark ERT as settled
+```
+
+**Tasks:**
+- 7.1.1.1 Create `contracts/core/SettlementEngine.sol`
+- 7.1.1.2 Implement position unwinding via adapters
+- 7.1.1.3 Implement PnL calculation using FlareOracle
+- 7.1.1.4 Implement fee distribution logic
+- 7.1.1.5 Implement early settlement
+- 7.1.1.6 Implement force settlement for expired ERTs
+- 7.1.1.7 Add events: `Settled`, `FeesDistributed`
+
+**Test 7.1.1-T1:** Settlement Tests
+```typescript
+describe("SettlementEngine", () => {
+  it("should correctly calculate profitable settlement", async () => {
+    // Setup: ERT deployed 5000 USDC, now worth 5500 USDC
+    // Base fee: 2% APR for 7 days = ~1.92 USDC
+    // Profit: 500 USDC
+    // LP profit share (20%): 100 USDC
+    // Executor profit (80%): 400 USDC
+
+    const result = await settlement.settle(ertId);
+
+    expect(result.totalPnl).to.equal(parseUnits("500", 6));
+    expect(result.lpProfitShare).to.be.closeTo(parseUnits("100", 6), parseUnits("1", 6));
+    expect(result.executorProfit).to.be.closeTo(parseUnits("400", 6), parseUnits("1", 6));
+  });
+
+  it("should handle losses correctly", async () => {
+    // Setup: ERT deployed 5000 USDC, now worth 4500 USDC
+    // Loss: 500 USDC
+    // Executor escrowed 200 USDC
+    // Executor loses escrow, LP absorbs 300 USDC
+  });
+});
+```
+
+### 7.2 PraxisGateway Contract
+
+#### 7.2.1 Implement Unified Entry Point
+**Deliverable:** Single contract for all PRAXIS interactions
+
+```solidity
+contract PraxisGateway is ReentrancyGuard, Pausable, Ownable {
+    ExecutionVault public vault;
+    ExecutionRightsNFT public ertNFT;
+    ExecutionController public controller;
+    SettlementEngine public settlement;
+    SwapRouter public swapRouter;
+    YieldRouter public yieldRouter;
+
+    // ==================== LP Functions ====================
+
+    function deposit(uint256 amount) external returns (uint256 shares);
+    function withdraw(uint256 shares) external returns (uint256 amount);
+    function getVaultInfo() external view returns (VaultInfo memory);
+
+    // ==================== Executor Functions ====================
+
+    function requestExecutionRights(
+        uint256 capitalNeeded,
+        uint256 duration,
+        RiskConstraints calldata constraints
+    ) external payable returns (uint256 ertId);
+
+    function executeWithRights(
+        uint256 ertId,
+        Action[] calldata actions
+    ) external returns (bytes[] memory results);
+
+    function settleRights(uint256 ertId) external returns (SettlementResult memory);
+
+    // ==================== View Functions ====================
+
+    function getExecutionRights(uint256 ertId) external view returns (ExecutionRights memory);
+    function getPositions(uint256 ertId) external view returns (TrackedPosition[] memory);
+    function estimatePnl(uint256 ertId) external view returns (int256);
+
+    // ==================== Convenience Functions ====================
+
+    // For self-execution (user is both LP and executor)
+    function depositAndExecute(
+        uint256 depositAmount,
+        Action[] calldata actions,
+        RiskConstraints calldata constraints
+    ) external returns (uint256 ertId);
+}
+```
+
+**Tasks:**
+- 7.2.1.1 Create `contracts/core/PraxisGateway.sol`
+- 7.2.1.2 Wire up all sub-components
+- 7.2.1.3 Implement LP functions
+- 7.2.1.4 Implement executor functions
+- 7.2.1.5 Implement convenience functions
+- 7.2.1.6 Add pause functionality for emergencies
+- 7.2.1.7 Add events for all operations
+
+### 7.3 Deploy Complete System
+
+#### 7.3.1 Deployment Script
+```typescript
+// scripts/deploy/deployAll.ts
+async function main() {
+  // 1. Deploy Oracle (already done)
+  // 2. Deploy Adapters
+  // 3. Deploy SwapRouter, YieldRouter
+  // 4. Deploy ExecutionVault
+  // 5. Deploy ExecutionRightsNFT
+  // 6. Deploy ExecutionController
+  // 7. Deploy PositionManager
+  // 8. Deploy SettlementEngine
+  // 9. Deploy PraxisGateway
+  // 10. Wire up all permissions
+  // 11. Verify all contracts
+}
+```
+
+**Test 7.3.1-T1:** End-to-End Integration Test
+```typescript
+describe("PRAXIS E2E", () => {
+  it("Complete flow: LP deposit -> Executor request -> Execute -> Settle", async () => {
+    // 1. LP deposits 10,000 USDC
+    await gateway.connect(lp).deposit(parseUnits("10000", 6));
+
+    // 2. Executor requests rights for 5,000 USDC for 7 days
+    const ertId = await gateway.connect(executor).requestExecutionRights(
+      parseUnits("5000", 6),
+      7 * 24 * 3600,
+      { maxLeverage: 3, maxDrawdownBps: 1000, ... }
+    );
+
+    // 3. Executor runs strategy
+    await gateway.connect(executor).executeWithRights(ertId, [
+      { actionType: SWAP, adapter: sparkdex, tokenIn: usdc, tokenOut: wflr, ... },
+      { actionType: STAKE, adapter: sceptre, tokenIn: wflr, ... }
+    ]);
+
+    // 4. Time passes, yield accrues
+    await time.increase(7 * 24 * 3600);
+
+    // 5. Settlement
+    const result = await gateway.settle(ertId);
+
+    console.log(`Total PnL: ${formatUnits(result.totalPnl, 6)} USDC`);
+    console.log(`LP earned: ${formatUnits(result.lpBaseFee + result.lpProfitShare, 6)} USDC`);
+    console.log(`Executor earned: ${formatUnits(result.executorProfit, 6)} USDC`);
   });
 });
 ```
@@ -1725,275 +1161,91 @@ describe("End-to-End PRAXIS Tests", () => {
 ## Phase 8: Security & Audit
 
 ### 8.1 Static Analysis
-
-#### 8.1.1 Slither Analysis
-**Deliverable:** Clean Slither report
-
-**Tasks:**
-- 8.1.1.1 Install Slither: `pip install slither-analyzer`
-- 8.1.1.2 Run Slither on all contracts
-- 8.1.1.3 Address all high severity findings
-- 8.1.1.4 Address all medium severity findings
-- 8.1.1.5 Document any accepted low severity findings
-
-**Test 8.1.1-T1: Slither Analysis**
-```bash
-slither contracts/ --print human-summary
-```
-**Expected:** No high or medium severity issues
-
----
-
-#### 8.1.2 Mythril Analysis
-**Deliverable:** Clean Mythril report
-
-**Tasks:**
-- 8.1.2.1 Install Mythril
-- 8.1.2.2 Run symbolic execution on core contracts
-- 8.1.2.3 Address any vulnerabilities found
-
-**Test 8.1.2-T1: Mythril Analysis**
-```bash
-myth analyze contracts/core/PraxisGateway.sol --max-depth 50
-```
-
----
+- Slither analysis
+- Mythril symbolic execution
+- All high/medium issues resolved
 
 ### 8.2 Security Testing
+- Reentrancy testing on all vault operations
+- Constraint bypass attempts (should all fail)
+- Flash loan resistance (FTSO prices not manipulable)
+- Access control audit
 
-#### 8.2.1 Reentrancy Testing
-**Deliverable:** Verified reentrancy protection
-
-**Tasks:**
-- 8.2.1.1 Create reentrancy attack contract
-- 8.2.1.2 Test all external-calling functions
-- 8.2.1.3 Verify ReentrancyGuard prevents attacks
-
-**Test 8.2.1-T1: Reentrancy Tests**
-```typescript
-// test/security/Reentrancy.test.ts
-describe("Reentrancy Protection", () => {
-  it("should prevent reentrancy on swap", async () => {
-    const attacker = await deployReentrancyAttacker();
-
-    await expect(
-      attacker.attackSwap(gateway.address, ...)
-    ).to.be.reverted; // ReentrancyGuard blocks
-  });
-
-  it("should prevent reentrancy on deposit", async () => {
-    // Similar test
-  });
-});
-```
-
----
-
-#### 8.2.2 Flash Loan Attack Testing
-**Deliverable:** Verified flash loan resistance
-
-**Tasks:**
-- 8.2.2.1 Simulate flash loan attack scenarios
-- 8.2.2.2 Test price manipulation resistance (FTSO prices cannot be manipulated)
-- 8.2.2.3 Test slippage protection effectiveness
-
-**Test 8.2.2-T1: Flash Loan Tests**
-```typescript
-// test/security/FlashLoan.test.ts
-describe("Flash Loan Resistance", () => {
-  it("should use FTSO prices resistant to flash loan manipulation", async () => {
-    // Simulate flash loan
-    // Attempt to manipulate swap price
-    // Verify FTSO-based price remains stable
-  });
-});
-```
-
----
-
-#### 8.2.3 Access Control Audit
-**Deliverable:** Verified ownership security
-
-**Tasks:**
-- 8.2.3.1 Map all admin functions across contracts
-- 8.2.3.2 Verify all have proper access control
-- 8.2.3.3 Test ownership transfer mechanism
-
-**Test 8.2.3-T1: Access Control Tests**
-```typescript
-// test/security/AccessControl.test.ts
-describe("Access Control", () => {
-  it("should prevent non-owner from adding adapters", async () => {
-    await expect(
-      swapRouter.connect(attacker).addAdapter(maliciousAdapter.address)
-    ).to.be.revertedWithCustomError(swapRouter, "Unauthorized");
-  });
-
-  it("should prevent non-owner from adding FAssets", async () => {
-    // Similar test for gateway
-  });
-
-  it("should allow ownership transfer", async () => {
-    await gateway.transferOwnership(newOwner.address);
-    expect(await gateway.owner()).to.equal(newOwner.address);
-  });
-});
-```
-
----
-
-#### 8.2.4 Perpetual Liquidation Testing
-**Deliverable:** Verified safe margin call handling
-
-**Tasks:**
-- 8.2.4.1 Test liquidation price calculation accuracy
-- 8.2.4.2 Test margin addition prevents liquidation
-- 8.2.4.3 Test position closes before liquidation when requested
-
-**Test 8.2.4-T1: Liquidation Tests**
-```typescript
-// test/security/Liquidation.test.ts
-describe("Perpetual Liquidation Safety", () => {
-  it("should calculate accurate liquidation price", async () => {
-    // Open 10x long at $50,000
-    // Verify liquidation price is ~$45,000 (10% drop)
-  });
-
-  it("should prevent position opening if immediately liquidatable", async () => {
-    // Try to open position with too little margin
-    // Expect revert
-  });
-
-  it("should allow user to close before liquidation", async () => {
-    // Open position
-    // Move price toward liquidation
-    // Close before liquidated
-    // Verify funds returned (minus loss)
-  });
-});
-```
+### 8.3 Economic Security
+- Drawdown limit effectiveness
+- Liquidation edge cases
+- Fee calculation accuracy
 
 ---
 
 ## Phase 9: Mainnet Deployment
 
-### 9.1 Pre-Deployment
+### 9.1 Pre-Deployment Checklist
+- All Coston2 tests passing
+- 48 hours stable operation
+- Slither clean
+- Fork tests pass
+- Multisig configured
+- Monitoring set up
 
-#### 9.1.1 Pre-Deployment Checklist
-**Deliverable:** Verified readiness for mainnet
-
-**Tasks:**
-- 9.1.1.1 All Coston2 tests passing
-- 9.1.1.2 48 hours stable operation on testnet
-- 9.1.1.3 Slither clean (no high/medium)
-- 9.1.1.4 Fork tests against Flare mainnet pass
-- 9.1.1.5 Multisig wallet configured
-- 9.1.1.6 Emergency pause tested
-- 9.1.1.7 Monitoring configured
-
-**Test 9.1.1-T1: Mainnet Fork Test**
-```typescript
-// test/fork/MainnetFork.test.ts
-describe("Mainnet Fork Tests", () => {
-  // Fork Flare mainnet
-  // Deploy all contracts to fork
-  // Run all integration tests against real mainnet state
-});
-```
+### 9.2 Deployment Order
+1. FlareOracle (already deployed)
+2. FDCVerifier (already deployed)
+3. All Adapters
+4. SwapRouter, YieldRouter
+5. ExecutionVault
+6. ExecutionRightsNFT
+7. ExecutionController
+8. PositionManager
+9. SettlementEngine
+10. PraxisGateway
+11. Transfer ownership to multisig
 
 ---
 
-#### 9.1.2 Mainnet Deployment
-**Deliverable:** Production contracts on Flare mainnet
+## Contract Dependency Graph
 
-**Tasks:**
-- 9.1.2.1 Deploy FlareOracle
-- 9.1.2.2 Deploy all adapters (SparkDEX, Enosys, BlazeSwap, Kinetic, Sceptre, SparkDEX Eternal)
-- 9.1.2.3 Deploy SwapRouter and register adapters
-- 9.1.2.4 Deploy YieldRouter and register adapters
-- 9.1.2.5 Deploy StrategyEngine
-- 9.1.2.6 Deploy PraxisGateway
-- 9.1.2.7 Transfer ownership to multisig
-- 9.1.2.8 Verify all contracts on explorer
-
-**Test 9.1.2-T1: Post-Deployment Verification**
-```typescript
-// scripts/validate/mainnetCheck.ts
-async function main() {
-  // Load all deployed addresses
-  // Verify each contract responds correctly
-  // Test a small swap (1 FLR)
-  // Test a small deposit
-  // Verify all events emitted correctly
-  console.log("All mainnet contracts verified successfully!");
-}
 ```
-
----
-
-## Appendix: Dynamic Address Discovery
-
-### Protocol Addresses Discovery Script
-```typescript
-// scripts/helpers/discoverAddresses.ts
-import { ContractRegistry } from "@flarenetwork/flare-periphery-contracts";
-
-async function discoverFlareAddresses() {
-  // FTSO
-  const ftsoV2 = await ContractRegistry.getFtsoV2();
-  console.log(`FtsoV2: ${ftsoV2}`);
-
-  // FDC
-  const fdcHub = await ContractRegistry.getFdcHub();
-  console.log(`FdcHub: ${fdcHub}`);
-
-  const fdcVerification = await ContractRegistry.getFdcVerification();
-  console.log(`FdcVerification: ${fdcVerification}`);
-
-  // Save to addresses.ts
-}
-
-// External protocols - query from their registries or docs
-async function discoverProtocolAddresses() {
-  // SparkDEX - query their factory
-  // Enosys - query their router
-  // BlazeSwap - query their router
-  // Kinetic - comptroller.allMarkets()
-  // Sceptre - sFLR contract
-}
+                    PraxisGateway
+                         │
+         ┌───────────────┼───────────────┐
+         │               │               │
+         ▼               ▼               ▼
+   ExecutionVault  ExecutionController  SettlementEngine
+         │               │               │
+         │               ▼               │
+         │      ExecutionRightsNFT       │
+         │               │               │
+         │               ▼               │
+         │       PositionManager ◄───────┘
+         │               │
+         └───────┬───────┘
+                 │
+                 ▼
+    ┌────────────────────────┐
+    │    Execution Layer     │
+    │                        │
+    │  SwapRouter            │
+    │    ├─ SparkDEXAdapter  │
+    │    ├─ EnosysAdapter    │
+    │    └─ BlazeSwapAdapter │
+    │                        │
+    │  YieldRouter           │
+    │    ├─ KineticAdapter   │
+    │    └─ SceptreAdapter   │
+    │                        │
+    │  PerpRouter            │
+    │    └─ EternalAdapter   │
+    └────────────────────────┘
+                 │
+                 ▼
+    ┌────────────────────────┐
+    │    Oracle Layer        │
+    │                        │
+    │  FlareOracle (FTSO)    │
+    │  FDCVerifier           │
+    └────────────────────────┘
 ```
-
-### Feed ID Reference
-```typescript
-// scripts/helpers/feedIds.ts
-export const FTSO_FEEDS = {
-  FLR_USD: "0x01464c522f55534400000000000000000000000000",
-  ETH_USD: "0x014554482f55534400000000000000000000000000",
-  BTC_USD: "0x014254432f55534400000000000000000000000000",
-  XRP_USD: "0x015852502f55534400000000000000000000000000",
-  DOGE_USD: "0x01444f47452f555344000000000000000000000000",
-};
-```
-
----
-
-## Test Coverage Summary
-
-| Phase | Contract | Target Coverage |
-|-------|----------|-----------------|
-| 1 | FlareOracle | 95% |
-| 1 | FDCVerifier | 90% |
-| 2 | SparkDEXAdapter | 90% |
-| 2 | EnosysAdapter | 90% |
-| 2 | BlazeSwapAdapter | 90% |
-| 2 | SwapRouter | 95% |
-| 3 | KineticAdapter | 90% |
-| 3 | SceptreAdapter | 90% |
-| 3 | YieldRouter | 90% |
-| 4 | SparkDEXEternalAdapter | 95% |
-| 5 | FAssetsAdapter | 90% |
-| 6 | StrategyEngine | 95% |
-| 7 | PraxisGateway | 95% |
 
 ---
 
@@ -2006,8 +1258,8 @@ npx hardhat test test/unit/**/*.test.ts
 # Integration tests (requires Coston2 connection)
 npx hardhat test test/integration/**/*.test.ts --network coston2
 
-# Fork tests
-npx hardhat test test/fork/**/*.test.ts --network hardhatMainnet
+# E2E tests
+npx hardhat test test/e2e/**/*.test.ts --network coston2
 
 # Security tests
 npx hardhat test test/security/**/*.test.ts
@@ -2020,7 +1272,109 @@ REPORT_GAS=true npx hardhat test
 
 # Slither analysis
 slither contracts/ --print human-summary
-
-# All tests verbose
-npx hardhat test --verbose
 ```
+
+---
+
+## Appendix: Key Differentiators
+
+### Why PRAXIS vs Existing Flare DeFi
+
+| Feature | earnXRP | Kinetic | PRAXIS |
+|---------|---------|---------|--------|
+| Capital custody | Vault managers | Borrower | **Never leaves vault** |
+| Strategy flexibility | Fixed | N/A | **Custom per executor** |
+| Collateral required | N/A | Overcollateralized | **Zero collateral** |
+| Risk management | Trust vault manager | Liquidation | **Smart contract constraints** |
+| Who profits from alpha | Vault | Borrower | **Executor (80%) + LP (20%)** |
+
+### The Alpha Sharing Economic Model
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PRAXIS ECONOMICS                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  FOR LPs (Capital Providers):                                               │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │  Guaranteed: 2% APR base fee (paid by executors upfront)               │ │
+│  │  Upside:     20% of executor profits (alpha sharing)                   │ │
+│  │  Downside:   Capped by max drawdown constraint (e.g., 10%)            │ │
+│  │                                                                        │ │
+│  │  Example with 10,000 USDC deposited:                                   │ │
+│  │    Base case (executor breaks even):  +200 USDC/year                  │ │
+│  │    Good case (executor makes 20%):    +200 + 400 = +600 USDC/year     │ │
+│  │    Great case (executor makes 50%):   +200 + 1000 = +1200 USDC/year   │ │
+│  │    Bad case (executor loses 10%):     +200 - 1000 = -800 USDC/year    │ │
+│  │                                        (but loss capped at 10%)        │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  FOR EXECUTORS (Traders/Strategists):                                       │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │  Access: Capital without collateral                                    │ │
+│  │  Cost:   2% APR base fee + 20% profit share                           │ │
+│  │  Keep:   80% of profits                                                │ │
+│  │                                                                        │ │
+│  │  Example with 10,000 USDC execution rights for 30 days:               │ │
+│  │    Cost: 10000 × 2% × (30/365) = 16.44 USDC upfront                   │ │
+│  │    If profit 5% (500 USDC):                                           │ │
+│  │      LP share: 100 USDC                                                │ │
+│  │      Executor keeps: 400 USDC                                          │ │
+│  │      Net to executor: 400 - 16.44 = 383.56 USDC profit                │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  FOR FLARE ECOSYSTEM:                                                       │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │  • Increased volume on SparkDEX, Enosys, BlazeSwap                    │ │
+│  │  • Increased TVL on Kinetic, Sceptre                                  │ │
+│  │  • Increased FAsset (FXRP) utility and demand                         │ │
+│  │  • Novel primitive that attracts skilled traders to Flare             │ │
+│  │  • Uses FTSO/FDC in production (showcases Flare infrastructure)       │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Addressing Flare Feedback - Summary Checklist
+
+| Concern | Solution | Status |
+|---------|----------|--------|
+| "Avoid overlapping" | Execution layer, not competing protocol | ✅ Addressed |
+| "Complement existing" | Routes volume TO SparkDEX/Kinetic/Sceptre | ✅ Addressed |
+| "Liquidity sourcing blocker" | Alpha sharing model - LPs earn from executor profits | ✅ Addressed |
+| "Realistic implementation" | Phased: Self-execution → Whitelisted → Open | ✅ Addressed |
+
+### Why Alpha Sharing Solves the Liquidity Problem
+
+Traditional problem: "Why would LPs deposit in a new protocol?"
+
+**PRAXIS answer:** Because nowhere else on Flare can LPs get **exposure to skilled trading alpha** without:
+- Doing the trading themselves
+- Trusting a centralized fund manager
+- Risking unlimited downside
+
+PRAXIS offers:
+1. **Upside exposure** - 20% of profits from ANY executor using your capital
+2. **Downside protection** - Smart contract enforced max loss (e.g., 10%)
+3. **Capital safety** - Money never leaves vault, just gets deployed through adapters
+4. **Diversification** - Capital spread across multiple executors automatically
+
+This is essentially **"index fund for DeFi alpha on Flare"** - a product that doesn't exist.
+
+### Realistic MVP Path
+
+1. **Start with self-execution**: Users deposit and execute their own strategies
+   - No third-party trust needed
+   - Proves the constraint system works
+
+2. **Add simple strategies**: DCA, auto-stake, yield optimization
+   - Uses existing DEX/lending liquidity
+   - No bootstrapping needed
+
+3. **Enable third-party execution**: Let skilled traders use LP capital
+   - Require executor staking/reputation
+   - Start with whitelisted executors
+
+4. **Open marketplace**: Permissionless execution rights
+   - Full vision realized
+   - LP chooses risk parameters
