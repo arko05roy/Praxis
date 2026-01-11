@@ -121,6 +121,140 @@ Phase C: Open Marketplace (Full vision)
 
 ---
 
+## Project Milestones
+
+```
+M1 ✅ ━━━━━━━━━━ M2 ━━━━━━━━━━ M3 ━━━━━━━━━━ M4 ━━━━━━━━━━ M5
+Oracle         Adapters       Vault &        Settlement     Testnet
+Foundation     (DEX, Lend,    Execution      & Gateway      Launch
+(Done)         Stake, Perps)  Rights NFT                    & Audit
+```
+
+### Milestone 1: Oracle Foundation ✅ COMPLETE
+
+**Deliverable:** FTSO and FDC integration for trustless price feeds and cross-chain verification
+
+| Component | Status | Address |
+|-----------|--------|---------|
+| FlareOracle (FTSO v2) | ✅ Deployed | `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc` |
+| FDCVerifier | ✅ Deployed | `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3` |
+
+**Completed:**
+- 63 price feeds validated on Coston2
+- Price staleness checks (MAX_PRICE_AGE = 300s)
+- Cross-chain proof verification for EVMTransaction, Payment, AddressValidity
+- 52 unit tests + 15 integration tests passing
+
+**Why it matters:** Settlement requires trustless prices. Executors can't manipulate PnL calculations.
+
+---
+
+### Milestone 2: Execution Infrastructure
+
+**Deliverable:** Adapters that let the vault interact with Flare DeFi protocols
+
+| Adapter | Protocol | Functionality |
+|---------|----------|---------------|
+| SparkDEXAdapter | SparkDEX V3 | Swaps, quotes, multi-hop routing |
+| EnosysAdapter | Enosys | Swaps (V3 concentrated liquidity) |
+| BlazeSwapAdapter | BlazeSwap | Swaps (V2 style) |
+| KineticAdapter | Kinetic | Supply, withdraw, borrow, repay |
+| SceptreAdapter | Sceptre | Stake FLR → sFLR, unstake |
+| SparkDEXEternalAdapter | SparkDEX Eternal | Open/close perp positions, margin management |
+
+**Key Contracts:**
+- `IAdapter.sol` - Standard interface for all adapters
+- `SwapRouter.sol` - Aggregates quotes, finds best rates
+- `YieldRouter.sol` - Routes to best yield opportunities
+
+**Why it matters:** Without adapters, the vault can't do anything. These are the "arms and legs" of the system.
+
+---
+
+### Milestone 3: Vault & Execution Rights System
+
+**Deliverable:** Core innovation - capital custody and permission tokens
+
+| Contract | Purpose |
+|----------|---------|
+| `ExecutionVault.sol` | ERC-4626 vault holding LP capital. Money never leaves. |
+| `ExecutionRightsNFT.sol` | ERC-721 encoding executor permissions & constraints |
+| `ExecutionController.sol` | Validates every action against ERT constraints |
+| `PositionManager.sol` | Tracks open positions per ERT for PnL calculation |
+
+**What gets enforced:**
+- Capital limits (e.g., max $10,000)
+- Time bounds (e.g., 7 days)
+- Leverage limits (e.g., max 3x)
+- Drawdown limits (e.g., max 10% loss)
+- Adapter whitelist (e.g., only SparkDEX + Kinetic)
+- Asset whitelist (e.g., only USDC, WFLR, FXRP)
+
+**Why it matters:** This is what makes PRAXIS unique. Money stays in vault, executor only gets permission to direct it.
+
+---
+
+### Milestone 4: Settlement Engine & Gateway
+
+**Deliverable:** Trustless PnL calculation and unified user entry point
+
+| Contract | Purpose |
+|----------|---------|
+| `SettlementEngine.sol` | Calculates PnL using FlareOracle (FTSO), distributes fees |
+| `PraxisGateway.sol` | Single entry point for all LP and executor interactions |
+
+**Settlement Flow:**
+```
+1. Unwind all positions (convert back to base asset)
+2. Query FlareOracle for current prices
+3. Calculate PnL = final value - initial capital
+4. Distribute: LP gets base fee + 20% profit, Executor gets 80% profit
+5. Return capital to vault, burn ERT
+```
+
+**Gateway Functions:**
+- LP: `deposit()`, `withdraw()`, `getVaultInfo()`
+- Executor: `requestExecutionRights()`, `executeWithRights()`, `settleRights()`
+
+**Why it matters:** Without fair settlement, there's no way to split profits. FTSO makes it trustless.
+
+---
+
+### Milestone 5: Testnet Launch & Security
+
+**Deliverable:** Public testnet with audited contracts, ready for mainnet
+
+| Task | Description |
+|------|-------------|
+| Full Coston2 Deployment | All contracts deployed and wired together |
+| Security Audit | Slither analysis, Mythril symbolic execution, manual review |
+| Public Testnet | Open to users with documentation and guides |
+| Bug Bounty | Incentivized vulnerability discovery |
+| Mainnet Plan | Deployment script, multisig setup, monitoring |
+
+**Security Checklist:**
+- [ ] Reentrancy protection on all vault operations
+- [ ] Constraint bypass testing (all should fail)
+- [ ] Flash loan resistance (FTSO prices not manipulable)
+- [ ] Access control audit
+- [ ] Economic attack simulations
+
+**Why it matters:** Real users, real testing, battle-tested before mainnet.
+
+---
+
+### Milestone Summary
+
+| # | Milestone | Status | One-Liner |
+|---|-----------|--------|-----------|
+| 1 | Oracle Foundation | ✅ Complete | Trustless prices via FTSO, cross-chain via FDC |
+| 2 | Execution Infrastructure | ⬜ Not Started | Vault can talk to SparkDEX, Kinetic, Sceptre, Eternal |
+| 3 | Vault & Rights System | ⬜ Not Started | Money stays locked, permissions are NFTs |
+| 4 | Settlement & Gateway | ⬜ Not Started | Fair profit split, single entry point |
+| 5 | Testnet & Security | ⬜ Not Started | Audited, public testnet, mainnet ready |
+
+---
+
 ## System Architecture
 
 ```
