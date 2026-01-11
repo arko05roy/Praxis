@@ -1,5 +1,10 @@
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
-import { configVariable, defineConfig } from "hardhat/config";
+import { defineConfig } from "hardhat/config";
+
+// Environment variable helpers with defaults
+const PRIVATE_KEY =
+  process.env.PRIVATE_KEY ||
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // Default Hardhat test key
 
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthersPlugin],
@@ -38,10 +43,10 @@ export default defineConfig({
     coston2: {
       type: "http",
       chainType: "l1",
-      url: configVariable("COSTON2_RPC_URL", {
-        defaultValue: "https://coston2-api.flare.network/ext/C/rpc",
-      }),
-      accounts: [configVariable("PRIVATE_KEY")],
+      url:
+        process.env.COSTON2_RPC_URL ||
+        "https://coston2-api.flare.network/ext/C/rpc",
+      accounts: [PRIVATE_KEY],
       chainId: 114,
     },
 
@@ -49,10 +54,10 @@ export default defineConfig({
     flare: {
       type: "http",
       chainType: "l1",
-      url: configVariable("FLARE_RPC_URL", {
-        defaultValue: "https://flare-api.flare.network/ext/C/rpc",
-      }),
-      accounts: [configVariable("PRIVATE_KEY")],
+      url:
+        process.env.FLARE_RPC_URL ||
+        "https://flare-api.flare.network/ext/C/rpc",
+      accounts: [PRIVATE_KEY],
       chainId: 14,
     },
 
@@ -60,10 +65,10 @@ export default defineConfig({
     coston: {
       type: "http",
       chainType: "l1",
-      url: configVariable("COSTON_RPC_URL", {
-        defaultValue: "https://coston-api.flare.network/ext/C/rpc",
-      }),
-      accounts: [configVariable("PRIVATE_KEY")],
+      url:
+        process.env.COSTON_RPC_URL ||
+        "https://coston-api.flare.network/ext/C/rpc",
+      accounts: [PRIVATE_KEY],
       chainId: 16,
     },
 
@@ -71,10 +76,10 @@ export default defineConfig({
     songbird: {
       type: "http",
       chainType: "l1",
-      url: configVariable("SONGBIRD_RPC_URL", {
-        defaultValue: "https://songbird-api.flare.network/ext/C/rpc",
-      }),
-      accounts: [configVariable("PRIVATE_KEY")],
+      url:
+        process.env.SONGBIRD_RPC_URL ||
+        "https://songbird-api.flare.network/ext/C/rpc",
+      accounts: [PRIVATE_KEY],
       chainId: 19,
     },
 
@@ -82,8 +87,8 @@ export default defineConfig({
     sepolia: {
       type: "http",
       chainType: "l1",
-      url: configVariable("SEPOLIA_RPC_URL"),
-      accounts: [configVariable("PRIVATE_KEY")],
+      url: process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
+      accounts: [PRIVATE_KEY],
     },
   },
 });
