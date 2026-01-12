@@ -1,5 +1,9 @@
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import { defineConfig } from "hardhat/config";
+import dotenv from "dotenv";
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Environment variable helpers with defaults
 const PRIVATE_KEY =
@@ -37,6 +41,25 @@ export default defineConfig({
     hardhatOp: {
       type: "edr-simulated",
       chainType: "op",
+    },
+
+    // Flare Mainnet Fork (for testing with real DEX liquidity)
+    flareFork: {
+      type: "edr-simulated",
+      chainType: "l1",
+      forkConfig: {
+        jsonRpcUrl: "https://flare-api.flare.network/ext/C/rpc",
+        blockNumber: 53740000,
+      },
+    },
+
+    // Anvil Fork (run anvil with: anvil --fork-url https://flare-api.flare.network/ext/C/rpc --port 8546)
+    anvilFork: {
+      type: "http",
+      chainType: "l1",
+      url: "http://127.0.0.1:8546",
+      accounts: ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
+      chainId: 14,
     },
 
     // Flare Testnet (Coston2)

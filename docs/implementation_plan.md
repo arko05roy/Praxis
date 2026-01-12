@@ -449,7 +449,7 @@ Example strategy (3 actions):
 | Phase | Name | Status | Progress |
 |-------|------|--------|----------|
 | 1 | Foundation - FTSO & FDC Integration | ✅ **COMPLETE** | 100% |
-| 2 | Execution Infrastructure - DEX Adapters | ⬜ Not Started | 0% |
+| 2 | Execution Infrastructure - DEX Adapters | ✅ **COMPLETE** | 100% |
 | 3 | Execution Infrastructure - Yield Adapters | ⬜ Not Started | 0% |
 | 4 | Execution Infrastructure - Perpetual Adapters | ⬜ Not Started | 0% |
 | 5 | Execution Infrastructure - FAssets Support | ⬜ Not Started | 0% |
@@ -464,12 +464,15 @@ Example strategy (3 actions):
 |----------|---------|----------|---------|
 | FlareOracle | `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc` | ⬜ | FTSO price feeds for settlement |
 | FDCVerifier | `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3` | ⬜ | Cross-chain proof verification |
+| SwapRouter | `0x5886E78c68E1B65f255f27272eaD3B0d20161918` | ⬜ | DEX aggregator for best-rate swaps |
+
+**Note:** SparkDEXAdapter, BlazeSwapAdapter, and EnosysAdapter are implemented but not deployed on Coston2 because these DEXes are only on Flare mainnet.
 
 ### Test Results Summary
 
 | Test Suite | Tests | Status |
 |------------|-------|--------|
-| Unit Tests (Local) | 52 | ✅ All Passing |
+| Unit Tests (Local) | 74 | ✅ All Passing |
 | Integration Tests (Coston2) | 15 | ✅ All Passing |
 
 ---
