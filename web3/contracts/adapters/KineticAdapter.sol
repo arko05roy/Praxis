@@ -25,8 +25,8 @@ contract KineticAdapter is ILendingAdapter, Ownable, ReentrancyGuard {
     /// @notice Name of the adapter
     string private constant ADAPTER_NAME = "Kinetic";
 
-    /// @notice Blocks per year on Flare (1 block per second)
-    uint256 public constant BLOCKS_PER_YEAR = 31536000;
+    /// @notice Seconds per year (Kinetic on Flare uses timestamp-based rates)
+    uint256 public constant SECONDS_PER_YEAR = 31536000;
 
     /// @notice Scale factor for mantissa calculations
     uint256 private constant MANTISSA = 1e18;
@@ -300,10 +300,10 @@ contract KineticAdapter is ILendingAdapter, Ownable, ReentrancyGuard {
         address kToken = underlyingToKToken[asset];
         if (kToken == address(0)) return 0;
 
-        uint256 supplyRatePerBlock = IKToken(kToken).supplyRatePerBlock();
-        // APY = (1 + rate per block) ^ blocks per year - 1
-        // Simplified: APY ≈ rate per block * blocks per year
-        uint256 apyMantissa = supplyRatePerBlock * BLOCKS_PER_YEAR;
+        uint256 supplyRatePerSecond = IKToken(kToken).supplyRatePerTimestamp();
+        // APY = (1 + rate per second) ^ seconds per year - 1
+        // Simplified: APY ≈ rate per second * seconds per year
+        uint256 apyMantissa = supplyRatePerSecond * SECONDS_PER_YEAR;
 
         // Convert from mantissa (1e18) to basis points (1e4)
         return apyMantissa / 1e14;
@@ -318,8 +318,8 @@ contract KineticAdapter is ILendingAdapter, Ownable, ReentrancyGuard {
         address kToken = underlyingToKToken[asset];
         if (kToken == address(0)) return 0;
 
-        uint256 borrowRatePerBlock = IKToken(kToken).borrowRatePerBlock();
-        uint256 apyMantissa = borrowRatePerBlock * BLOCKS_PER_YEAR;
+        uint256 borrowRatePerSecond = IKToken(kToken).borrowRatePerTimestamp();
+        uint256 apyMantissa = borrowRatePerSecond * SECONDS_PER_YEAR;
 
         return apyMantissa / 1e14;
     }

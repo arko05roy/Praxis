@@ -133,16 +133,16 @@ interface IKToken {
     // =============================================================
 
     /**
-     * @notice Get current supply interest rate per block
-     * @return Supply rate per block scaled by 1e18
+     * @notice Get current supply interest rate per timestamp (Flare uses timestamp-based rates)
+     * @return Supply rate per second scaled by 1e18
      */
-    function supplyRatePerBlock() external view returns (uint256);
+    function supplyRatePerTimestamp() external view returns (uint256);
 
     /**
-     * @notice Get current borrow interest rate per block
-     * @return Borrow rate per block scaled by 1e18
+     * @notice Get current borrow interest rate per timestamp (Flare uses timestamp-based rates)
+     * @return Borrow rate per second scaled by 1e18
      */
-    function borrowRatePerBlock() external view returns (uint256);
+    function borrowRatePerTimestamp() external view returns (uint256);
 
     // =============================================================
     //                         MARKET DATA

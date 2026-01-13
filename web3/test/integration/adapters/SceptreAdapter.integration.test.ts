@@ -57,7 +57,13 @@ describe("SceptreAdapter Integration", function () {
     }
 
     // Get sFLR token contract
-    sceptreToken = await ethers.getContractAt("IERC20", SFLR);
+    const ERC20_ABI = [
+      "function balanceOf(address) view returns (uint256)",
+      "function approve(address,uint256) returns (bool)",
+      "function transfer(address,uint256) returns (bool)",
+      "function allowance(address,address) view returns (uint256)",
+    ];
+    sceptreToken = await ethers.getContractAt(ERC20_ABI, SFLR);
   });
 
   beforeEach(async function () {

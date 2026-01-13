@@ -29,11 +29,14 @@ export const SCEPTRE_FLARE = {
 /**
  * Kinetic Protocol Addresses (Flare Mainnet)
  * Compound V2 fork for lending/borrowing
+ *
+ * IMPORTANT: Use `comptroller` (Unitroller proxy) for all interactions.
+ * The Unitroller is the proxy that holds state and delegates to the implementation.
  */
 export const KINETIC_FLARE = {
-  // Core contracts
-  unitroller: "0x8041680Fb73E1Fe5F851e76233DCDfA0f2D2D7c8",
-  comptroller: "0xeC7e541375D70c37262f619162502dB9131d6db5",
+  // Core contracts - Use comptroller (unitroller proxy) for all interactions
+  comptroller: "0x8041680Fb73E1Fe5F851e76233DCDfA0f2D2D7c8", // Unitroller (proxy) - USE THIS
+  comptrollerImpl: "0xeC7e541375D70c37262f619162502dB9131d6db5", // Implementation - do not use directly
 
   // kTokens (interest-bearing receipt tokens)
   kTokens: {
