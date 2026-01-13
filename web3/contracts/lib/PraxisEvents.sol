@@ -64,27 +64,23 @@ library PraxisEvents {
     /// @param asset Asset deposited
     /// @param amount Amount deposited
     /// @param shares Shares received
-    /// @param adapter Adapter used
     event YieldDeposited(
         address indexed user,
         address indexed asset,
         uint256 amount,
-        uint256 shares,
-        address adapter
+        uint256 shares
     );
 
     /// @notice Emitted when assets are withdrawn from yield
     /// @param user User address
     /// @param asset Asset withdrawn
-    /// @param shares Shares burned
     /// @param amount Amount received
-    /// @param adapter Adapter used
+    /// @param shares Shares burned
     event YieldWithdrawn(
         address indexed user,
         address indexed asset,
-        uint256 shares,
         uint256 amount,
-        address adapter
+        uint256 shares
     );
 
     /// @notice Emitted when rewards are claimed
@@ -99,34 +95,38 @@ library PraxisEvents {
 
     /// @notice Emitted when staking is initiated
     /// @param user User address
+    /// @param asset Asset staked (address(0) for native)
     /// @param amount Amount staked
     /// @param shares Shares received
     event Staked(
         address indexed user,
+        address indexed asset,
         uint256 amount,
         uint256 shares
     );
 
     /// @notice Emitted when unstake is requested
     /// @param user User address
+    /// @param stakingToken Staking token being unstaked
     /// @param shares Shares to unstake
     /// @param requestId Unstake request ID
-    /// @param unlockTime Timestamp when unstake can be completed
     event UnstakeRequested(
         address indexed user,
+        address indexed stakingToken,
         uint256 shares,
-        uint256 indexed requestId,
-        uint256 unlockTime
+        uint256 indexed requestId
     );
 
     /// @notice Emitted when unstake is completed
     /// @param user User address
-    /// @param requestId Unstake request ID
+    /// @param asset Asset received (address(0) for native)
     /// @param amount Amount received
+    /// @param requestId Unstake request ID
     event UnstakeCompleted(
         address indexed user,
-        uint256 indexed requestId,
-        uint256 amount
+        address indexed asset,
+        uint256 amount,
+        uint256 indexed requestId
     );
 
     // =============================================================
