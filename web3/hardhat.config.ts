@@ -18,6 +18,10 @@ export default defineConfig({
         version: "0.8.28",
         settings: {
           evmVersion: "cancun",
+          optimizer: {
+            enabled: true,
+            runs: 50, // Low runs for size optimization (SparkDEXEternalAdapter is large)
+          },
         },
       },
       production: {

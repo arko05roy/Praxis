@@ -803,13 +803,17 @@ interface IStakingAdapter {
 
 ---
 
-## Phase 4: Execution Infrastructure - Perpetual Adapters
+## Phase 4: Execution Infrastructure - Perpetual Adapters ✅
 
 **Purpose:** Enable leveraged trading through ERTs
 
-### 4.1 Perpetual Adapter Interface
+**Status:** COMPLETE - All tests passing on Flare mainnet fork
 
-#### 4.1.1 Create IPerpetualAdapter Interface
+### 4.1 Perpetual Adapter Interface ✅
+
+#### 4.1.1 Create IPerpetualAdapter Interface ✅
+**Status:** COMPLETE - Deployed as `contracts/interfaces/IPerpetualAdapter.sol`
+
 ```solidity
 interface IPerpetualAdapter {
     function openPosition(
@@ -830,18 +834,59 @@ interface IPerpetualAdapter {
 }
 ```
 
-### 4.2 SparkDEX Eternal Adapter
+### 4.2 SparkDEX Eternal Adapter ✅
 
-#### 4.2.1 Research SparkDEX Eternal
-- Perpetuals up to 100x leverage
-- Document position management
-- Document liquidation mechanics
+#### 4.2.1 Research SparkDEX Eternal ✅
+**Status:** COMPLETE
+- Perpetuals up to 100x leverage - Verified ✅
+- Position management via OrderBook, Store, PositionManager contracts ✅
+- Market IDs use bytes10 encoding (e.g., "ETH-USD" → 0x4554482d555344000000) ✅
+- WFLR is primary collateral (Store has ~56M WFLR liquidity) ✅
+- 19 supported markets discovered (ETH-USD, BTC-USD, XRP-USD, etc.) ✅
 
-#### 4.2.2 Implement SparkDEXEternalAdapter
-- Position opening with leverage validation
-- Position closing with PnL calculation
-- Margin management
-- Liquidation price calculation
+#### 4.2.2 Implement SparkDEXEternalAdapter ✅
+**Status:** COMPLETE - Deployed as `contracts/adapters/SparkDEXEternalAdapter.sol`
+
+**Implemented features:**
+- `openPosition()` with leverage validation ✅
+- `closePosition()` with PnL calculation ✅
+- `addMargin()` / `removeMargin()` for position management ✅
+- `getPosition()` / `getUserPositions()` queries ✅
+- `getMarketInfo()` with graceful degradation for interface mismatches ✅
+- `getFundingRate()` with try/catch fallback ✅
+- `getAvailableMarkets()` - discovers all 19 SparkDEX markets ✅
+- `isMarketSupported()` - market validation ✅
+- `getIndexPrice()` / `estimateEntryPrice()` ✅
+- `getLiquidationPrice()` / `calculateLiquidationPrice()` ✅
+- `getPositionHealthFactor()` ✅
+- Market ID encoding helpers (bytes10 ↔ bytes32) ✅
+
+### 4.3 PerpetualRouter Implementation ✅
+
+**Status:** COMPLETE - Deployed as `contracts/core/PerpetualRouter.sol`
+
+**Implemented features:**
+- Registry of perpetual adapters (max 10) ✅
+- `addAdapter()` / `removeAdapter()` with owner controls ✅
+- `getAllMarkets()` - aggregates markets from all adapters ✅
+- `findAdapterForMarket()` - routes to correct adapter ✅
+- `getAdapterInfo()` - name, protocol, leverage queries ✅
+
+### 4.4 Helper Utilities ✅
+
+**Status:** COMPLETE - Deployed as `scripts/helpers/perpetualAddresses.ts`
+
+**Implemented features:**
+- SparkDEX Eternal contract addresses (Flare mainnet) ✅
+- Market ID mappings (15 pre-encoded markets) ✅
+- Collateral token addresses (WFLR, sFLR, USDT0) ✅
+- `encodeMarketId()` / `decodeMarketId()` helpers ✅
+- `getAdapterConfig()` for deployment ✅
+
+**Tests:**
+- Integration tests: `test/integration/adapters/SparkDEXEternalAdapter.integration.test.ts` ✅
+- 30 tests passing on Flare mainnet fork ✅
+- Verified: Deployment, Market Discovery, Market Info, Position Queries, PerpetualRouter Integration ✅
 
 **Critical for ERTs:** Leverage must be validated against ERT's maxLeverage constraint
 
