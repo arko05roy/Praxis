@@ -48,12 +48,14 @@ export default defineConfig({
     },
 
     // Flare Mainnet Fork (for testing with real DEX liquidity)
+    // Uses latest block for most up-to-date state including FXRP
     flareFork: {
       type: "edr-simulated",
       chainType: "l1",
+      chainId: 14, // Flare mainnet chainId
       forkConfig: {
         jsonRpcUrl: "https://flare-api.flare.network/ext/C/rpc",
-        blockNumber: 53740000,
+        // No blockNumber specified - forks from latest block
       },
     },
 
