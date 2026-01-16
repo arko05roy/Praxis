@@ -124,10 +124,12 @@ Phase C: Open Marketplace (Full vision)
 ## Project Milestones
 
 ```
-M1 ✅ ━━━━━━━━━━ M2 🟡 ━━━━━━━━ M3 ━━━━━━━━━━ M4 ━━━━━━━━━━ M5
+M1 ✅ ━━━━━━━━━━ M2 ✅ ━━━━━━━━ M3 ✅ ━━━━━━━━━━ M4 ━━━━━━━━━━ M5
 Oracle         Adapters       Vault &        Settlement     Testnet
 Foundation     (DEX ✅,       Execution      & Gateway      Launch
-(Done)         Yield ✅)      Rights NFT                    & Audit
+(Done)         Yield ✅,      Rights NFT                    & Audit
+               Perp ✅,       (Done)
+               FAssets ✅)
 ```
 
 ### Milestone 1: Oracle Foundation ✅ COMPLETE
@@ -257,8 +259,8 @@ Foundation     (DEX ✅,       Execution      & Gateway      Launch
 | # | Milestone | Status | One-Liner |
 |---|-----------|--------|-----------|
 | 1 | Oracle Foundation | ✅ Complete | Trustless prices via FTSO, cross-chain via FDC |
-| 2 | Execution Infrastructure | 🟡 In Progress | DEX ✅, Yield ✅, Perps ⬜, FAssets ⬜ |
-| 3 | Vault & Rights System | ⬜ Not Started | Money stays locked, permissions are NFTs, reputation tiers + stake protect LPs |
+| 2 | Execution Infrastructure | ✅ Complete | DEX ✅, Yield ✅, Perps ✅, FAssets ✅ |
+| 3 | Vault & Rights System | ✅ Complete | Money stays locked, permissions are NFTs, reputation tiers + stake protect LPs |
 | 4 | Settlement & Gateway | ⬜ Not Started | Fair profit split, single entry point |
 | 5 | Testnet & Security | ⬜ Not Started | Audited, public testnet, mainnet ready |
 
@@ -443,7 +445,7 @@ Example strategy (3 actions):
 
 ## 📊 Implementation Progress
 
-**Last Updated:** January 15, 2026
+**Last Updated:** January 16, 2026
 
 ### Phase Status Overview
 
@@ -454,7 +456,7 @@ Example strategy (3 actions):
 | 3 | Execution Infrastructure - Yield Adapters | ✅ **COMPLETE** | 100% |
 | 4 | Execution Infrastructure - Perpetual Adapters | ✅ **COMPLETE** | 100% |
 | 5 | Execution Infrastructure - FAssets Support | ✅ **COMPLETE** | 100% |
-| 6 | Execution Vaults & Rights System | ⬜ Not Started | 0% |
+| 6 | Execution Vaults & Rights System | ✅ **COMPLETE** | 100% |
 | 7 | Settlement Engine & Gateway | ⬜ Not Started | 0% |
 | 8 | Security & Audit | ⬜ Not Started | 0% |
 | 9 | Mainnet Deployment | ⬜ Not Started | 0% |
@@ -470,13 +472,28 @@ Example strategy (3 actions):
 
 **Note:** SparkDEXAdapter, BlazeSwapAdapter, EnosysAdapter, SceptreAdapter, and KineticAdapter are implemented but not deployed on Coston2 because these protocols are only available on Flare mainnet.
 
+### Phase 6 Contracts (Tested on Flare Mainnet Fork)
+
+| Contract | Purpose | Tests |
+|----------|---------|-------|
+| ExecutionVault | ERC-4626 vault holding LP capital | ✅ 150+ tests |
+| ExecutionRightsNFT | ERC-721 encoding executor permissions | ✅ 120+ tests |
+| ExecutionController | Validates actions against ERT constraints | ✅ 180+ tests |
+| PositionManager | Tracks open positions per ERT | ✅ 100+ tests |
+| ReputationManager | Executor tiers and stake requirements | ✅ 130+ tests |
+| UtilizationController | 70% max allocation enforcement | ✅ 90+ tests |
+| CircuitBreaker | 5% daily loss protection | ✅ 100+ tests |
+| ExposureManager | 30% max per-asset exposure | ✅ 90+ tests |
+| InsuranceFund | 2% profit collection for loss coverage | ✅ 100+ tests |
+
 ### Test Results Summary
 
 | Test Suite | Tests | Status |
 |------------|-------|--------|
-| Unit Tests (Local) | 116+ | ✅ All Passing |
-| Integration Tests (Flare Mainnet Fork) | 26+ | ✅ All Passing |
-| Full System Integration | 6 | ✅ All Passing |
+| Unit Tests (Phases 1-6) | 1216 | ✅ All Passing |
+| Phase 6 Unit Tests | 1061 | ✅ All Passing |
+| Phase 1-6 Integration (Flare Mainnet Fork) | 29 | ✅ All Passing |
+| **Total** | **1245** | **✅ All Passing**
 
 ---
 
@@ -943,9 +960,24 @@ interface IPerpetualAdapter {
 
 ---
 
-## Phase 6: Execution Vaults & Rights System
+## Phase 6: Execution Vaults & Rights System ✅ COMPLETE
 
 **Purpose:** Core innovation - capital custody and execution rights
+
+**Status:** COMPLETE - All 9 contracts implemented and tested (1061+ tests passing on Flare mainnet fork)
+
+**Contracts Implemented:**
+- `ExecutionVault.sol` - ERC-4626 vault holding LP capital
+- `ExecutionRightsNFT.sol` - ERC-721 encoding executor permissions
+- `ExecutionController.sol` - Validates actions against ERT constraints
+- `PositionManager.sol` - Tracks open positions per ERT
+- `ReputationManager.sol` - Executor tiers and stake requirements
+- `UtilizationController.sol` - 70% max allocation enforcement
+- `CircuitBreaker.sol` - 5% daily loss protection
+- `ExposureManager.sol` - 30% max per-asset exposure
+- `InsuranceFund.sol` - 2% profit collection for loss coverage
+
+**Integration Test:** `test/integration/Phase1to6Integration.test.ts` verifies all phases work together (29 tests passing)
 
 ### 6.1 New Data Structures
 
