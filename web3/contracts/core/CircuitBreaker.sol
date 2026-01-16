@@ -148,11 +148,15 @@ contract CircuitBreaker is Ownable {
             revert PraxisErrors.Unauthorized();
         }
 
+        // Check if a new day has started BEFORE resetting (since _resetIfNewDay updates lastResetTimestamp)
+        bool isNewDay = block.timestamp >= lastResetTimestamp + ONE_DAY;
+
         _resetIfNewDay();
 
-        // Only update snapshot if it's a new day or manual reset
-        if (block.timestamp >= lastResetTimestamp + ONE_DAY) {
+        // Only update snapshot if it's a new day (checked before reset updated lastResetTimestamp)
+        if (isNewDay) {
             snapshotTotalAssets = newTotalAssets;
+            // Note: DailyReset event already emitted by _resetIfNewDay(), emit again with new snapshot
             emit DailyReset(newTotalAssets);
         }
     }
@@ -170,9 +174,13 @@ contract CircuitBreaker is Ownable {
         uint256 lossBps = (dailyLossAccumulated * BPS) / snapshotTotalAssets;
 
         if (lossBps >= maxDailyLossBps) {
-            isPaused = true;
-            pausedAt = block.timestamp;
-            emit PraxisEvents.CircuitBreakerTriggered(dailyLossAccumulated, lossBps);
+            // Only update pausedAt when transitioning from unpaused to paused
+            // This preserves the original pause time for auto-unpause calculation
+            if (!isPaused) {
+                isPaused = true;
+                pausedAt = block.timestamp;
+                emit PraxisEvents.CircuitBreakerTriggered(dailyLossAccumulated, lossBps);
+            }
         }
     }
 
@@ -304,6 +312,7 @@ contract CircuitBreaker is Ownable {
 
     /**
      * @notice Manual unpause (after cooldown period)
+     * @dev Also resets daily loss to give a fresh start after admin intervention
      */
     function manualUnpause() external onlyOwner {
         if (!isPaused) return;
@@ -312,6 +321,8 @@ contract CircuitBreaker is Ownable {
         }
 
         isPaused = false;
+        // Reset daily loss to prevent immediate re-trigger after admin intervention
+        dailyLossAccumulated = 0;
         emit PraxisEvents.CircuitBreakerReset(msg.sender);
     }
 

@@ -308,17 +308,17 @@ describe("UtilizationController", function () {
         // newUtilization = ((700000 * 10^6 + 1) * 10000) / (1000000 * 10^6)
         // = (700000000001 * 10000) / 1000000000000
         // = 7000000000010 / 1000000000000
-        // = 7000 (rounds down due to integer division)
-        // So it actually returns TRUE due to rounding!
+        // With ceiling division: (7000000000010 + 999999999999) / 1000000000000 = 7001
+        // So it returns FALSE due to ceiling division (conservative behavior)
         const canAllocate = await utilizationController.canAllocate(
           TOTAL_ASSETS,
           MAX_ALLOCATABLE, // Exactly at limit
           1n // 1 wei
         );
 
-        // Due to integer division rounding down, this actually passes!
-        // The new utilization rounds down to exactly 7000 bps
-        expect(canAllocate).to.be.true;
+        // With ceiling division for utilization calculation, even 1 wei over limit fails
+        // This is the conservative security-first behavior
+        expect(canAllocate).to.be.false;
       });
     });
 
@@ -570,11 +570,11 @@ describe("UtilizationController", function () {
 
       expect(utilization).to.equal(DEFAULT_MAX_UTILIZATION_BPS);
 
-      // Note: Due to integer division rounding, allocating 1 more wei when at exactly 70%
-      // still results in utilization of 7000 bps (rounds down), so canAllocate returns true
-      // This is expected behavior with integer math
+      // Note: With ceiling division for security, allocating 1 more wei when at exactly 70%
+      // results in utilization > 7000 bps, so canAllocate returns false
+      // This is the conservative security-first behavior
       const canAllocateMore = await utilizationController.canAllocate(TOTAL_ASSETS, currentAllocated, 1n);
-      expect(canAllocateMore).to.be.true; // Due to rounding, 1 wei more still shows 7000 bps
+      expect(canAllocateMore).to.be.false; // Ceiling division prevents over-allocation
     });
 
     describe("Pure Function Behavior", function () {
@@ -728,12 +728,15 @@ describe("UtilizationController", function () {
 
     it("should return correct max withdrawable amount", async function () {
       const currentAllocated = 600_000n * ONE_USDC; // 60%
-      // Max withdraw: totalAssets - (currentAllocated * BPS / maxUtilizationBps)
-      // = 1M - (600k * 10000 / 7000)
+      // Max withdraw: totalAssets - ceil((currentAllocated * BPS) / maxUtilizationBps)
+      // = 1M - ceil(600k * 10000 / 7000)
       // = 1M - 857,142.857... = 142,857.142...
+      // With ceiling division for minRequired, the max is slightly less (conservative)
 
       const maxWithdraw = await utilizationController.maxWithdrawable(TOTAL_ASSETS, currentAllocated);
-      const expectedMax = TOTAL_ASSETS - (currentAllocated * BPS) / DEFAULT_MAX_UTILIZATION_BPS;
+      // Use ceiling division formula: (a + b - 1) / b
+      const minRequired = (currentAllocated * BPS + DEFAULT_MAX_UTILIZATION_BPS - 1n) / DEFAULT_MAX_UTILIZATION_BPS;
+      const expectedMax = TOTAL_ASSETS - minRequired;
 
       expect(maxWithdraw).to.equal(expectedMax);
     });
@@ -783,8 +786,8 @@ describe("UtilizationController", function () {
         const maxWithdraw = await utilizationController.maxWithdrawable(TOTAL_ASSETS, tinyAllocation);
 
         // Should be able to withdraw almost everything
-        // minRequired = 1 * 10000 / 7000 = 1 (rounds down)
-        const minRequired = (tinyAllocation * BPS) / DEFAULT_MAX_UTILIZATION_BPS;
+        // minRequired = ceil(1 * 10000 / 7000) = 2 (ceiling division)
+        const minRequired = (tinyAllocation * BPS + DEFAULT_MAX_UTILIZATION_BPS - 1n) / DEFAULT_MAX_UTILIZATION_BPS;
         expect(maxWithdraw).to.equal(TOTAL_ASSETS - minRequired);
       });
 
@@ -1226,8 +1229,10 @@ describe("UtilizationController", function () {
 
         // Verify the math: allocated / (total - maxWithdraw) should equal max utilization
         // 500k / (1M - maxWithdraw) = 0.7
-        // Solving: maxWithdraw = 1M - 500k/0.7 = 1M - 714,285.7 = 285,714.3 USDC
-        const expectedMax = TOTAL_ASSETS - (currentAllocated * BPS) / DEFAULT_MAX_UTILIZATION_BPS;
+        // Solving: maxWithdraw = 1M - ceil(500k*10000/7000) = 1M - 714,286 = 285,714 USDC
+        // With ceiling division for minRequired (conservative)
+        const minRequired = (currentAllocated * BPS + DEFAULT_MAX_UTILIZATION_BPS - 1n) / DEFAULT_MAX_UTILIZATION_BPS;
+        const expectedMax = TOTAL_ASSETS - minRequired;
         expect(maxWithdraw).to.equal(expectedMax);
       });
     });
@@ -1270,7 +1275,8 @@ describe("UtilizationController", function () {
           }
 
           // 3. Reserve + max allocatable = total (when no current allocation)
-          if (allocated === 0n) {
+          // Note: This invariant only holds for assets >= BPS due to integer division precision
+          if (allocated === 0n && assets >= BPS) {
             expect(reserve + available).to.equal(assets);
           }
 

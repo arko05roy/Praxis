@@ -69,7 +69,10 @@ contract UtilizationController is Ownable {
     ) external view returns (bool) {
         if (totalAssets == 0) return false;
 
-        uint256 newUtilization = ((currentAllocated + newAllocation) * BPS) / totalAssets;
+        // Use ceiling division for conservative calculation: (a + b - 1) / b
+        // This ensures we reject allocations that are even slightly over the limit
+        uint256 numerator = (currentAllocated + newAllocation) * BPS;
+        uint256 newUtilization = (numerator + totalAssets - 1) / totalAssets;
         return newUtilization <= maxUtilizationBps;
     }
 
@@ -124,6 +127,9 @@ contract UtilizationController is Ownable {
         uint256 currentAllocated,
         uint256 withdrawAmount
     ) external view returns (bool) {
+        // Zero withdrawal is always allowed (no-op)
+        if (withdrawAmount == 0) return true;
+
         if (withdrawAmount > totalAssets) return false;
 
         uint256 assetsAfterWithdraw = totalAssets - withdrawAmount;
@@ -147,7 +153,10 @@ contract UtilizationController is Ownable {
 
         // After withdrawal: currentAllocated / (totalAssets - withdraw) <= maxUtilizationBps / BPS
         // Solving: withdraw <= totalAssets - (currentAllocated * BPS / maxUtilizationBps)
-        uint256 minRequiredAssets = (currentAllocated * BPS) / maxUtilizationBps;
+        // Use ceiling division for minRequiredAssets to be conservative and ensure
+        // canWithdraw(maxWithdrawable) always returns true
+        uint256 numerator = currentAllocated * BPS;
+        uint256 minRequiredAssets = (numerator + maxUtilizationBps - 1) / maxUtilizationBps;
 
         if (minRequiredAssets >= totalAssets) return 0;
         return totalAssets - minRequiredAssets;

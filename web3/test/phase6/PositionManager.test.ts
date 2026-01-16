@@ -99,6 +99,17 @@ describe("PositionManager", function () {
     await mockToken.waitForDeployment();
   });
 
+  // Helper function to extract positionId from transaction event
+  async function getPositionIdFromTx(tx: any): Promise<string> {
+    const receipt = await tx.wait();
+    // PositionRecorded event signature: PositionRecorded(uint256 indexed ertId, bytes32 indexed positionId, address asset, uint256 size, uint256 entryValueUsd)
+    const eventSignature = ethers.id("PositionRecorded(uint256,bytes32,address,uint256,uint256)");
+    const log = receipt.logs.find((log: any) => log.topics[0] === eventSignature);
+    if (!log) throw new Error("PositionRecorded event not found");
+    // positionId is the second indexed parameter (topics[2])
+    return log.topics[2];
+  }
+
   // =============================================================
   //                    DEPLOYMENT TESTS
   // =============================================================
@@ -277,7 +288,7 @@ describe("PositionManager", function () {
       });
 
       it("should update positionExists mapping", async function () {
-        const positionId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -285,21 +296,13 @@ describe("PositionManager", function () {
           entryValueUsd,
           ActionType.SUPPLY
         );
-
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          size,
-          entryValueUsd,
-          ActionType.SUPPLY
-        );
+        const positionId = await getPositionIdFromTx(tx);
 
         expect(await positionManager.positionExists(positionId)).to.be.true;
       });
 
       it("should update positionToErt mapping", async function () {
-        const positionId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -307,21 +310,13 @@ describe("PositionManager", function () {
           entryValueUsd,
           ActionType.SUPPLY
         );
-
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          size,
-          entryValueUsd,
-          ActionType.SUPPLY
-        );
+        const positionId = await getPositionIdFromTx(tx);
 
         expect(await positionManager.positionToErt(positionId)).to.equal(ertId);
       });
 
       it("should update positionIndex mapping", async function () {
-        const positionId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -329,15 +324,7 @@ describe("PositionManager", function () {
           entryValueUsd,
           ActionType.SUPPLY
         );
-
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          size,
-          entryValueUsd,
-          ActionType.SUPPLY
-        );
+        const positionId = await getPositionIdFromTx(tx);
 
         expect(await positionManager.positionIndex(positionId)).to.equal(0n);
       });
@@ -382,7 +369,7 @@ describe("PositionManager", function () {
         const positionIds: string[] = [];
 
         for (let i = 0; i < 3; i++) {
-          const positionId = await positionManager.connect(controller).recordPosition.staticCall(
+          const tx = await positionManager.connect(controller).recordPosition(
             ertId,
             await adapterA.getAddress(),
             await assetA.getAddress(),
@@ -390,16 +377,8 @@ describe("PositionManager", function () {
             entryValueUsd,
             ActionType.SUPPLY
           );
+          const positionId = await getPositionIdFromTx(tx);
           positionIds.push(positionId);
-
-          await positionManager.connect(controller).recordPosition(
-            ertId,
-            await adapterA.getAddress(),
-            await assetA.getAddress(),
-            size,
-            entryValueUsd,
-            ActionType.SUPPLY
-          );
         }
 
         for (let i = 0; i < 3; i++) {
@@ -693,7 +672,7 @@ describe("PositionManager", function () {
     let positionId: string;
 
     beforeEach(async function () {
-      positionId = await positionManager.connect(controller).recordPosition.staticCall(
+      const tx = await positionManager.connect(controller).recordPosition(
         ertId,
         await adapterA.getAddress(),
         await assetA.getAddress(),
@@ -701,15 +680,7 @@ describe("PositionManager", function () {
         initialEntryValue,
         ActionType.SUPPLY
       );
-
-      await positionManager.connect(controller).recordPosition(
-        ertId,
-        await adapterA.getAddress(),
-        await assetA.getAddress(),
-        initialSize,
-        initialEntryValue,
-        ActionType.SUPPLY
-      );
+      positionId = await getPositionIdFromTx(tx);
     });
 
     describe("Access Control", function () {
@@ -857,7 +828,7 @@ describe("PositionManager", function () {
     let positionId: string;
 
     beforeEach(async function () {
-      positionId = await positionManager.connect(controller).recordPosition.staticCall(
+      const tx = await positionManager.connect(controller).recordPosition(
         ertId,
         await adapterA.getAddress(),
         await assetA.getAddress(),
@@ -865,15 +836,7 @@ describe("PositionManager", function () {
         entryValueUsd,
         ActionType.SUPPLY
       );
-
-      await positionManager.connect(controller).recordPosition(
-        ertId,
-        await adapterA.getAddress(),
-        await assetA.getAddress(),
-        size,
-        entryValueUsd,
-        ActionType.SUPPLY
-      );
+      positionId = await getPositionIdFromTx(tx);
     });
 
     describe("Access Control", function () {
@@ -939,7 +902,7 @@ describe("PositionManager", function () {
         await positionManager.connect(controller).closePosition(positionId, 0);
 
         // Create 3 positions
-        positionId1 = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx1 = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -947,16 +910,9 @@ describe("PositionManager", function () {
           entryValueUsd,
           ActionType.SUPPLY
         );
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          size,
-          entryValueUsd,
-          ActionType.SUPPLY
-        );
+        positionId1 = await getPositionIdFromTx(tx1);
 
-        positionId2 = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx2 = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterB.getAddress(),
           await assetB.getAddress(),
@@ -964,16 +920,9 @@ describe("PositionManager", function () {
           entryValueUsd * 2n,
           ActionType.STAKE
         );
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterB.getAddress(),
-          await assetB.getAddress(),
-          size * 2n,
-          entryValueUsd * 2n,
-          ActionType.STAKE
-        );
+        positionId2 = await getPositionIdFromTx(tx2);
 
-        positionId3 = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx3 = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetC.getAddress(),
@@ -981,14 +930,7 @@ describe("PositionManager", function () {
           entryValueUsd * 3n,
           ActionType.OPEN_POSITION
         );
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetC.getAddress(),
-          size * 3n,
-          entryValueUsd * 3n,
-          ActionType.OPEN_POSITION
-        );
+        positionId3 = await getPositionIdFromTx(tx3);
       });
 
       it("should correctly close first position (swap with last)", async function () {
@@ -1125,7 +1067,7 @@ describe("PositionManager", function () {
 
       // Create multiple positions
       for (let i = 0; i < 5; i++) {
-        const positionId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -1133,16 +1075,8 @@ describe("PositionManager", function () {
           entryValueUsd,
           ActionType.SUPPLY
         );
+        const positionId = await getPositionIdFromTx(tx);
         positionIds.push(positionId);
-
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          size,
-          entryValueUsd,
-          ActionType.SUPPLY
-        );
       }
     });
 
@@ -1268,7 +1202,7 @@ describe("PositionManager", function () {
     let positionId: string;
 
     beforeEach(async function () {
-      positionId = await positionManager.connect(controller).recordPosition.staticCall(
+      const tx = await positionManager.connect(controller).recordPosition(
         ertId,
         await adapterA.getAddress(),
         await assetA.getAddress(),
@@ -1276,15 +1210,7 @@ describe("PositionManager", function () {
         entryValueUsd,
         ActionType.SUPPLY
       );
-
-      await positionManager.connect(controller).recordPosition(
-        ertId,
-        await adapterA.getAddress(),
-        await assetA.getAddress(),
-        size,
-        entryValueUsd,
-        ActionType.SUPPLY
-      );
+      positionId = await getPositionIdFromTx(tx);
     });
 
     describe("getPositions()", function () {
@@ -1450,7 +1376,8 @@ describe("PositionManager", function () {
     const ertId = 1n;
     const size = 100n * PRICE_PRECISION; // 100 tokens
     const entryPrice = 500n * PRICE_PRECISION; // $500 per token
-    const entryValueUsd = 50000n * ONE_USD; // $50,000 total
+    // Use PRICE_PRECISION for entryValueUsd to match the units used in currentValue calculation
+    const entryValueUsd = 50000n * PRICE_PRECISION; // $50,000 total in PRICE_PRECISION units
 
     beforeEach(async function () {
       await positionManager.connect(controller).recordPosition(
@@ -1490,9 +1417,9 @@ describe("PositionManager", function () {
           prices
         );
 
-        // Current value = 100 * 600 = 60000
-        // PnL = 60000 - 50000 = 10000
-        const expectedPnl = 10000n * ONE_USD;
+        // Current value = 100 * 600 = 60000 (in PRICE_PRECISION units)
+        // PnL = 60000 - 50000 = 10000 (in PRICE_PRECISION units)
+        const expectedPnl = 10000n * PRICE_PRECISION;
         expect(pnl).to.equal(expectedPnl);
       });
 
@@ -1507,16 +1434,17 @@ describe("PositionManager", function () {
           prices
         );
 
-        // Current value = 100 * 400 = 40000
-        // PnL = 40000 - 50000 = -10000
-        const expectedPnl = -10000n * ONE_USD;
+        // Current value = 100 * 400 = 40000 (in PRICE_PRECISION units)
+        // PnL = 40000 - 50000 = -10000 (in PRICE_PRECISION units)
+        const expectedPnl = -10000n * PRICE_PRECISION;
         expect(pnl).to.equal(expectedPnl);
       });
 
       it("should calculate PnL for multiple positions with different assets", async function () {
         // Add second position
         const size2 = 200n * PRICE_PRECISION;
-        const entryValue2 = 100000n * ONE_USD; // $100,000
+        // Use PRICE_PRECISION for entry value
+        const entryValue2 = 100000n * PRICE_PRECISION; // $100,000 in PRICE_PRECISION units
 
         await positionManager.connect(controller).recordPosition(
           ertId,
@@ -1539,10 +1467,10 @@ describe("PositionManager", function () {
           prices
         );
 
-        // Position 1: 100 * 600 - 50000 = 60000 - 50000 = +10000
-        // Position 2: 200 * 400 - 100000 = 80000 - 100000 = -20000
-        // Total: 10000 - 20000 = -10000
-        const expectedPnl = -10000n * ONE_USD;
+        // Position 1: 100 * 600 - 50000 = 60000 - 50000 = +10000 (in PRICE_PRECISION units)
+        // Position 2: 200 * 400 - 100000 = 80000 - 100000 = -20000 (in PRICE_PRECISION units)
+        // Total: 10000 - 20000 = -10000 (in PRICE_PRECISION units)
+        const expectedPnl = -10000n * PRICE_PRECISION;
         expect(pnl).to.equal(expectedPnl);
       });
 
@@ -1577,9 +1505,9 @@ describe("PositionManager", function () {
           prices
         );
 
-        // Only assetA PnL calculated: 100 * 600 - 50000 = +10000
+        // Only assetA PnL calculated: 100 * 600 - 50000 = +10000 (in PRICE_PRECISION units)
         // assetB position skipped (no price provided)
-        const expectedPnl = 10000n * ONE_USD;
+        const expectedPnl = 10000n * PRICE_PRECISION;
         expect(pnl).to.equal(expectedPnl);
       });
     });
@@ -1664,7 +1592,9 @@ describe("PositionManager", function () {
     const ertId = 1n;
     const size = 100n * PRICE_PRECISION; // 100 tokens
     const entryPrice = 500n * PRICE_PRECISION; // $500 per token
-    const entryValueUsd = 50000n * ONE_USD; // $50,000 total
+    // Use PRICE_PRECISION for entryValueUsd to match the units used in currentValue calculation
+    // currentValue = (size * price) / PRICE_PRECISION = (100 * 10^18 * 500 * 10^18) / 10^18 = 50000 * 10^18
+    const entryValueUsd = 50000n * PRICE_PRECISION; // $50,000 total in PRICE_PRECISION units
 
     beforeEach(async function () {
       // Configure mock oracle with price feeds
@@ -1685,7 +1615,8 @@ describe("PositionManager", function () {
     describe("Oracle Integration", function () {
       it("should return 0 PnL when oracle price matches entry", async function () {
         // Oracle already configured with $500 price
-        const pnl = await positionManager.calculateUnrealizedPnl(ertId, { value: 0 });
+        // Use staticCall to get return value from payable function
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(ertId, { value: 0 });
 
         // Current value = 100 * 500 = 50000
         // PnL = 50000 - 50000 = 0
@@ -1696,22 +1627,22 @@ describe("PositionManager", function () {
         // Update oracle to higher price
         await mockFlareOracle.setTokenPrice(await assetA.getAddress(), 600n * PRICE_PRECISION);
 
-        const pnl = await positionManager.calculateUnrealizedPnl(ertId, { value: 0 });
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(ertId, { value: 0 });
 
-        // Current value = 100 * 600 = 60000
-        // PnL = 60000 - 50000 = 10000
-        expect(pnl).to.equal(10000n * ONE_USD);
+        // Current value = 100 * 600 = 60000 (in PRICE_PRECISION units)
+        // PnL = 60000 - 50000 = 10000 (in PRICE_PRECISION units)
+        expect(pnl).to.equal(10000n * PRICE_PRECISION);
       });
 
       it("should return negative PnL when oracle price decreased", async function () {
         // Update oracle to lower price
         await mockFlareOracle.setTokenPrice(await assetA.getAddress(), 400n * PRICE_PRECISION);
 
-        const pnl = await positionManager.calculateUnrealizedPnl(ertId, { value: 0 });
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(ertId, { value: 0 });
 
-        // Current value = 100 * 400 = 40000
-        // PnL = 40000 - 50000 = -10000
-        expect(pnl).to.equal(-10000n * ONE_USD);
+        // Current value = 100 * 400 = 40000 (in PRICE_PRECISION units)
+        // PnL = 40000 - 50000 = -10000 (in PRICE_PRECISION units)
+        expect(pnl).to.equal(-10000n * PRICE_PRECISION);
       });
 
       it("should skip positions without oracle feed", async function () {
@@ -1729,7 +1660,7 @@ describe("PositionManager", function () {
         );
 
         // Should only calculate PnL for assetA (which has feed)
-        const pnl = await positionManager.calculateUnrealizedPnl(ertId, { value: 0 });
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(ertId, { value: 0 });
 
         // Only assetA: 100 * 500 - 50000 = 0
         expect(pnl).to.equal(0n);
@@ -1737,12 +1668,13 @@ describe("PositionManager", function () {
 
       it("should sum PnL across multiple positions with feeds", async function () {
         // Add second position with assetB
+        // Use PRICE_PRECISION for entryValueUsd to match currentValue calculation units
         await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterB.getAddress(),
           await assetB.getAddress(),
           200n * PRICE_PRECISION, // 200 tokens
-          50000n * ONE_USD, // Entry value $50,000
+          50000n * PRICE_PRECISION, // Entry value $50,000 (in PRICE_PRECISION units)
           ActionType.STAKE
         );
 
@@ -1751,10 +1683,10 @@ describe("PositionManager", function () {
         // Update assetB price to $200 (-20% from $250)
         await mockFlareOracle.setTokenPrice(await assetB.getAddress(), 200n * PRICE_PRECISION);
 
-        const pnl = await positionManager.calculateUnrealizedPnl(ertId, { value: 0 });
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(ertId, { value: 0 });
 
-        // Position 1: 100 * 600 - 50000 = 60000 - 50000 = +10000
-        // Position 2: 200 * 200 - 50000 = 40000 - 50000 = -10000
+        // Position 1: 100 * 600 - 50000 = 60000 - 50000 = +10000 (in PRICE_PRECISION units)
+        // Position 2: 200 * 200 - 50000 = 40000 - 50000 = -10000 (in PRICE_PRECISION units)
         // Total: +10000 - 10000 = 0
         expect(pnl).to.equal(0n);
       });
@@ -1762,14 +1694,14 @@ describe("PositionManager", function () {
 
     describe("Edge Cases", function () {
       it("should return 0 for ERT with no positions", async function () {
-        const pnl = await positionManager.calculateUnrealizedPnl(999n, { value: 0 });
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(999n, { value: 0 });
         expect(pnl).to.equal(0n);
       });
 
       it("should handle zero oracle price", async function () {
         await mockFlareOracle.setTokenPrice(await assetA.getAddress(), 0n);
 
-        const pnl = await positionManager.calculateUnrealizedPnl(ertId, { value: 0 });
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(ertId, { value: 0 });
 
         // Current value = 100 * 0 = 0
         // PnL = 0 - 50000 = -50000
@@ -1780,7 +1712,7 @@ describe("PositionManager", function () {
         const fee = ethers.parseEther("0.01");
 
         // Should not revert with value
-        const pnl = await positionManager.calculateUnrealizedPnl(ertId, { value: fee });
+        const pnl = await positionManager.calculateUnrealizedPnl.staticCall(ertId, { value: fee });
         expect(pnl).to.equal(0n);
       });
     });
@@ -2051,7 +1983,7 @@ describe("PositionManager", function () {
 
       // Add positions
       for (let i = 0; i < 3; i++) {
-        const posId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -2059,16 +1991,8 @@ describe("PositionManager", function () {
           50000n,
           ActionType.SUPPLY
         );
+        const posId = await getPositionIdFromTx(tx);
         positionIds.push(posId);
-
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          1000n,
-          50000n,
-          ActionType.SUPPLY
-        );
       }
 
       // Verify all exist
@@ -2104,7 +2028,7 @@ describe("PositionManager", function () {
 
       // Create 5 positions
       for (let i = 0; i < 5; i++) {
-        const posId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -2112,16 +2036,8 @@ describe("PositionManager", function () {
           50000n,
           ActionType.SUPPLY
         );
+        const posId = await getPositionIdFromTx(tx);
         positionIds.push(posId);
-
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          1000n,
-          50000n,
-          ActionType.SUPPLY
-        );
       }
 
       // Close positions 0 and 2
@@ -2143,7 +2059,7 @@ describe("PositionManager", function () {
       expect(await positionManager.hasOpenPositions(ertId)).to.be.false;
       expect(await positionManager.getPositionCount(ertId)).to.equal(0n);
 
-      const posId = await positionManager.connect(controller).recordPosition.staticCall(
+      const tx = await positionManager.connect(controller).recordPosition(
         ertId,
         await adapterA.getAddress(),
         await assetA.getAddress(),
@@ -2151,15 +2067,7 @@ describe("PositionManager", function () {
         50000n,
         ActionType.SUPPLY
       );
-
-      await positionManager.connect(controller).recordPosition(
-        ertId,
-        await adapterA.getAddress(),
-        await assetA.getAddress(),
-        1000n,
-        50000n,
-        ActionType.SUPPLY
-      );
+      const posId = await getPositionIdFromTx(tx);
 
       expect(await positionManager.hasOpenPositions(ertId)).to.be.true;
       expect(await positionManager.getPositionCount(ertId)).to.be.gt(0n);
@@ -2185,7 +2093,7 @@ describe("PositionManager", function () {
 
       // Create positions for ERT1
       for (let i = 0; i < 3; i++) {
-        const posId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ert1,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -2193,21 +2101,13 @@ describe("PositionManager", function () {
           50000n * BigInt(i + 1),
           ActionType.SUPPLY
         );
+        const posId = await getPositionIdFromTx(tx);
         positionIdsErt1.push(posId);
-
-        await positionManager.connect(controller).recordPosition(
-          ert1,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          1000n * BigInt(i + 1),
-          50000n * BigInt(i + 1),
-          ActionType.SUPPLY
-        );
       }
 
       // Create positions for ERT2
       for (let i = 0; i < 2; i++) {
-        const posId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ert2,
           await adapterB.getAddress(),
           await assetB.getAddress(),
@@ -2215,16 +2115,8 @@ describe("PositionManager", function () {
           100000n * BigInt(i + 1),
           ActionType.STAKE
         );
+        const posId = await getPositionIdFromTx(tx);
         positionIdsErt2.push(posId);
-
-        await positionManager.connect(controller).recordPosition(
-          ert2,
-          await adapterB.getAddress(),
-          await assetB.getAddress(),
-          2000n * BigInt(i + 1),
-          100000n * BigInt(i + 1),
-          ActionType.STAKE
-        );
       }
 
       // Close middle position from ERT1
@@ -2248,7 +2140,7 @@ describe("PositionManager", function () {
       const iterations = 10;
 
       for (let i = 0; i < iterations; i++) {
-        const posId = await positionManager.connect(controller).recordPosition.staticCall(
+        const tx = await positionManager.connect(controller).recordPosition(
           ertId,
           await adapterA.getAddress(),
           await assetA.getAddress(),
@@ -2256,15 +2148,7 @@ describe("PositionManager", function () {
           50000n,
           ActionType.SUPPLY
         );
-
-        await positionManager.connect(controller).recordPosition(
-          ertId,
-          await adapterA.getAddress(),
-          await assetA.getAddress(),
-          1000n,
-          50000n,
-          ActionType.SUPPLY
-        );
+        const posId = await getPositionIdFromTx(tx);
 
         await positionManager.connect(controller).closePosition(posId, BigInt(i * 100));
 
@@ -2277,13 +2161,15 @@ describe("PositionManager", function () {
     it("should correctly calculate PnL with mixed profitable and losing positions", async function () {
       const ertId = 1n;
 
+      // All values use PRICE_PRECISION (10^18) for consistency
       // Position 1: 100 tokens at $500 entry = $50,000
+      // entryValueUsd = size * entryPrice / PRICE_PRECISION = 100 * 500 = 50000 (in PRICE_PRECISION units)
       await positionManager.connect(controller).recordPosition(
         ertId,
         await adapterA.getAddress(),
         await assetA.getAddress(),
-        100n * PRICE_PRECISION,
-        50000n * ONE_USD,
+        100n * PRICE_PRECISION,      // size: 100 tokens
+        50000n * PRICE_PRECISION,    // entryValueUsd: 100 * $500 = $50,000
         ActionType.SUPPLY
       );
 
@@ -2292,8 +2178,8 @@ describe("PositionManager", function () {
         ertId,
         await adapterB.getAddress(),
         await assetB.getAddress(),
-        200n * PRICE_PRECISION,
-        50000n * ONE_USD,
+        200n * PRICE_PRECISION,      // size: 200 tokens
+        50000n * PRICE_PRECISION,    // entryValueUsd: 200 * $250 = $50,000
         ActionType.STAKE
       );
 
@@ -2302,8 +2188,8 @@ describe("PositionManager", function () {
         ertId,
         await adapterA.getAddress(),
         await assetC.getAddress(),
-        50n * PRICE_PRECISION,
-        50000n * ONE_USD,
+        50n * PRICE_PRECISION,       // size: 50 tokens
+        50000n * PRICE_PRECISION,    // entryValueUsd: 50 * $1000 = $50,000
         ActionType.OPEN_POSITION
       );
 
@@ -2329,10 +2215,11 @@ describe("PositionManager", function () {
         prices
       );
 
-      // Position 1: 100 * 600 - 50000 = 60000 - 50000 = +10000
-      // Position 2: 200 * 200 - 50000 = 40000 - 50000 = -10000
-      // Position 3: 50 * 1000 - 50000 = 50000 - 50000 = 0
-      // Total: +10000 - 10000 + 0 = 0
+      // PnL calculation: currentValue = (size * price) / PRICE_PRECISION
+      // Position 1: (100 * 10^18 * 600 * 10^18) / 10^18 - 50000 * 10^18 = 60000 * 10^18 - 50000 * 10^18 = +10000 * 10^18
+      // Position 2: (200 * 10^18 * 200 * 10^18) / 10^18 - 50000 * 10^18 = 40000 * 10^18 - 50000 * 10^18 = -10000 * 10^18
+      // Position 3: (50 * 10^18 * 1000 * 10^18) / 10^18 - 50000 * 10^18 = 50000 * 10^18 - 50000 * 10^18 = 0
+      // Total: +10000 - 10000 + 0 = 0 (in PRICE_PRECISION units)
       expect(pnl).to.equal(0n);
     });
 
@@ -2340,7 +2227,7 @@ describe("PositionManager", function () {
       const ertId = 1n;
 
       // Create position with original controller
-      const posId = await positionManager.connect(controller).recordPosition.staticCall(
+      const tx = await positionManager.connect(controller).recordPosition(
         ertId,
         await adapterA.getAddress(),
         await assetA.getAddress(),
@@ -2348,15 +2235,7 @@ describe("PositionManager", function () {
         50000n,
         ActionType.SUPPLY
       );
-
-      await positionManager.connect(controller).recordPosition(
-        ertId,
-        await adapterA.getAddress(),
-        await assetA.getAddress(),
-        1000n,
-        50000n,
-        ActionType.SUPPLY
-      );
+      const posId = await getPositionIdFromTx(tx);
 
       // Change controller
       const newController = nonOwner;
