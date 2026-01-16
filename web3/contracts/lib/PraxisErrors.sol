@@ -184,4 +184,138 @@ library PraxisErrors {
 
     /// @notice Function not implemented
     error NotImplemented();
+
+    // =============================================================
+    //                  PHASE 6: EXECUTION RIGHTS ERRORS
+    // =============================================================
+
+    /// @notice Executor is banned from the protocol
+    /// @param executor The banned executor address
+    error ExecutorBanned(address executor);
+
+    /// @notice Requested capital exceeds tier limit
+    /// @param requested Amount requested
+    /// @param tierLimit Maximum allowed for tier
+    error CapitalExceedsTierLimit(uint256 requested, uint256 tierLimit);
+
+    /// @notice Drawdown exceeds tier limit
+    /// @param requested Requested drawdown bps
+    /// @param tierLimit Maximum allowed for tier
+    error DrawdownExceedsTierLimit(uint16 requested, uint16 tierLimit);
+
+    /// @notice Strategy risk level exceeds tier allowance
+    /// @param requested Requested risk level
+    /// @param tierLimit Maximum allowed for tier
+    error RiskLevelExceedsTierLimit(uint8 requested, uint8 tierLimit);
+
+    /// @notice Insufficient stake provided
+    /// @param provided Amount provided
+    /// @param required Amount required
+    error InsufficientStake(uint256 provided, uint256 required);
+
+    /// @notice ERT not found
+    /// @param ertId The ERT ID that wasn't found
+    error ERTNotFound(uint256 ertId);
+
+    /// @notice ERT is not active
+    /// @param ertId The ERT ID
+    /// @param currentStatus Current status of the ERT
+    error ERTNotActive(uint256 ertId, uint8 currentStatus);
+
+    /// @notice ERT has expired
+    /// @param ertId The ERT ID
+    /// @param expiryTime When it expired
+    error ERTExpired(uint256 ertId, uint256 expiryTime);
+
+    /// @notice Caller is not the ERT holder
+    /// @param caller The calling address
+    /// @param holder The actual holder
+    error NotERTHolder(address caller, address holder);
+
+    /// @notice Adapter not in ERT whitelist
+    /// @param adapter The adapter address
+    /// @param ertId The ERT ID
+    error AdapterNotAllowed(address adapter, uint256 ertId);
+
+    /// @notice Asset not in ERT whitelist
+    /// @param asset The asset address
+    /// @param ertId The ERT ID
+    error AssetNotAllowed(address asset, uint256 ertId);
+
+    /// @notice Capital limit exceeded
+    /// @param requested Amount requested to deploy
+    /// @param available Amount available
+    error CapitalLimitExceeded(uint256 requested, uint256 available);
+
+    /// @notice Drawdown limit exceeded
+    /// @param currentDrawdown Current drawdown in bps
+    /// @param maxDrawdown Maximum allowed drawdown
+    error DrawdownLimitExceeded(uint256 currentDrawdown, uint256 maxDrawdown);
+
+    /// @notice Position size exceeds limit
+    /// @param positionSize Position size in bps of capital
+    /// @param maxSize Maximum allowed size
+    error PositionSizeExceeded(uint256 positionSize, uint256 maxSize);
+
+    // =============================================================
+    //                  VAULT & SAFETY ERRORS
+    // =============================================================
+
+    /// @notice Vault utilization limit exceeded
+    /// @param currentUtilization Current utilization in bps
+    /// @param maxUtilization Maximum allowed utilization
+    error UtilizationLimitExceeded(uint256 currentUtilization, uint256 maxUtilization);
+
+    /// @notice Circuit breaker is active
+    error CircuitBreakerActive();
+
+    /// @notice Daily loss limit exceeded
+    /// @param dailyLoss Current daily loss in bps
+    /// @param maxDailyLoss Maximum allowed daily loss
+    error DailyLossLimitExceeded(uint256 dailyLoss, uint256 maxDailyLoss);
+
+    /// @notice Asset exposure limit exceeded
+    /// @param asset The asset address
+    /// @param currentExposure Current exposure amount
+    /// @param maxExposure Maximum allowed exposure
+    error AssetExposureLimitExceeded(address asset, uint256 currentExposure, uint256 maxExposure);
+
+    /// @notice Too much capital expiring on the same day
+    /// @param expiryDay The day timestamp
+    /// @param totalExpiring Total capital expiring
+    /// @param maxAllowed Maximum allowed
+    error ExpiryConcentrationExceeded(uint256 expiryDay, uint256 totalExpiring, uint256 maxAllowed);
+
+    /// @notice Insurance fund insufficient
+    /// @param required Amount required
+    /// @param available Amount available
+    error InsuranceFundInsufficient(uint256 required, uint256 available);
+
+    /// @notice Only the controller can call this function
+    error OnlyController();
+
+    /// @notice Only the settlement engine can call this function
+    error OnlySettlement();
+
+    /// @notice Only the vault can call this function
+    error OnlyVault();
+
+    /// @notice Stake percentage must exceed max drawdown
+    /// @param stakeBps Stake percentage
+    /// @param drawdownBps Drawdown percentage
+    error StakeMustExceedDrawdown(uint16 stakeBps, uint16 drawdownBps);
+
+    /// @notice Invalid tier for operation
+    /// @param tier The invalid tier value
+    error InvalidTier(uint8 tier);
+
+    /// @notice Duration too short
+    /// @param duration Provided duration
+    /// @param minDuration Minimum required duration
+    error DurationTooShort(uint256 duration, uint256 minDuration);
+
+    /// @notice Duration too long
+    /// @param duration Provided duration
+    /// @param maxDuration Maximum allowed duration
+    error DurationTooLong(uint256 duration, uint256 maxDuration);
 }

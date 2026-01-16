@@ -271,4 +271,215 @@ library PraxisEvents {
         address indexed previousOwner,
         address indexed newOwner
     );
+
+    // =============================================================
+    //                  PHASE 6: EXECUTION RIGHTS EVENTS
+    // =============================================================
+
+    /// @notice Emitted when an executor's tier is upgraded
+    /// @param executor Executor address
+    /// @param oldTier Previous tier
+    /// @param newTier New tier
+    event TierUpgrade(
+        address indexed executor,
+        PraxisStructs.ExecutorTier oldTier,
+        PraxisStructs.ExecutorTier newTier
+    );
+
+    /// @notice Emitted when an executor's tier is downgraded
+    /// @param executor Executor address
+    /// @param oldTier Previous tier
+    /// @param newTier New tier
+    event TierDowngrade(
+        address indexed executor,
+        PraxisStructs.ExecutorTier oldTier,
+        PraxisStructs.ExecutorTier newTier
+    );
+
+    /// @notice Emitted when an executor's reputation is updated
+    /// @param executor Executor address
+    /// @param settlements Total settlements
+    /// @param totalPnl Lifetime PnL
+    event ReputationUpdated(
+        address indexed executor,
+        uint256 settlements,
+        int256 totalPnl
+    );
+
+    /// @notice Emitted when an executor is banned
+    /// @param executor Executor address
+    /// @param reason Reason for ban
+    event ExecutorBanned(address indexed executor, string reason);
+
+    /// @notice Emitted when an executor is whitelisted
+    /// @param executor Executor address
+    event ExecutorWhitelisted(address indexed executor);
+
+    // =============================================================
+    //                     VAULT EVENTS
+    // =============================================================
+
+    /// @notice Emitted when capital is allocated to an ERT
+    /// @param ertId ERT identifier
+    /// @param amount Amount allocated
+    /// @param totalAllocated New total allocated
+    event CapitalAllocated(
+        uint256 indexed ertId,
+        uint256 amount,
+        uint256 totalAllocated
+    );
+
+    /// @notice Emitted when capital is returned from an ERT
+    /// @param ertId ERT identifier
+    /// @param amount Amount returned
+    /// @param pnl Profit or loss
+    event CapitalReturned(
+        uint256 indexed ertId,
+        uint256 amount,
+        int256 pnl
+    );
+
+    /// @notice Emitted when an action is executed through the vault
+    /// @param ertId ERT identifier
+    /// @param actionType Type of action
+    /// @param adapter Adapter used
+    event ActionExecuted(
+        uint256 indexed ertId,
+        PraxisStructs.ActionType actionType,
+        address indexed adapter
+    );
+
+    // =============================================================
+    //                  EXECUTION RIGHTS NFT EVENTS
+    // =============================================================
+
+    /// @notice Emitted when execution rights are minted
+    /// @param ertId ERT identifier
+    /// @param executor Executor address
+    /// @param vault Vault address
+    /// @param capitalLimit Maximum capital
+    /// @param expiryTime Expiry timestamp
+    /// @param stakedAmount Amount staked
+    event RightsMinted(
+        uint256 indexed ertId,
+        address indexed executor,
+        address indexed vault,
+        uint256 capitalLimit,
+        uint256 expiryTime,
+        uint256 stakedAmount
+    );
+
+    /// @notice Emitted when execution rights are settled
+    /// @param ertId ERT identifier
+    /// @param totalPnl Final PnL
+    /// @param capitalReturned Capital returned to vault
+    event RightsSettled(
+        uint256 indexed ertId,
+        int256 totalPnl,
+        uint256 capitalReturned
+    );
+
+    /// @notice Emitted when execution rights expire
+    /// @param ertId ERT identifier
+    /// @param expiryTime When it expired
+    event RightsExpired(uint256 indexed ertId, uint256 expiryTime);
+
+    // =============================================================
+    //                  SAFETY SYSTEM EVENTS
+    // =============================================================
+
+    /// @notice Emitted when circuit breaker is triggered
+    /// @param dailyLoss Daily loss amount
+    /// @param lossBps Loss in basis points
+    event CircuitBreakerTriggered(uint256 dailyLoss, uint256 lossBps);
+
+    /// @notice Emitted when circuit breaker is reset
+    /// @param resetBy Address that triggered reset
+    event CircuitBreakerReset(address indexed resetBy);
+
+    /// @notice Emitted when asset exposure is added
+    /// @param asset Asset address
+    /// @param amount Amount added
+    /// @param totalExposure New total exposure
+    event ExposureAdded(
+        address indexed asset,
+        uint256 amount,
+        uint256 totalExposure
+    );
+
+    /// @notice Emitted when asset exposure is removed
+    /// @param asset Asset address
+    /// @param amount Amount removed
+    /// @param totalExposure New total exposure
+    event ExposureRemoved(
+        address indexed asset,
+        uint256 amount,
+        uint256 totalExposure
+    );
+
+    /// @notice Emitted when insurance is collected from profit
+    /// @param amount Amount collected
+    /// @param fundBalance New fund balance
+    event InsuranceCollected(uint256 amount, uint256 fundBalance);
+
+    /// @notice Emitted when insurance covers a loss
+    /// @param lossAmount Total loss amount
+    /// @param coveredAmount Amount covered by insurance
+    /// @param fundBalance Remaining fund balance
+    event LossCovered(
+        uint256 lossAmount,
+        uint256 coveredAmount,
+        uint256 fundBalance
+    );
+
+    // =============================================================
+    //                  SETTLEMENT EVENTS
+    // =============================================================
+
+    /// @notice Emitted when an ERT is settled
+    /// @param ertId ERT identifier
+    /// @param totalPnl Total profit or loss
+    /// @param lpEarnings LP's total earnings (base fee + profit share)
+    /// @param executorEarnings Executor's earnings
+    /// @param insuranceFee Insurance fund contribution
+    event Settled(
+        uint256 indexed ertId,
+        int256 totalPnl,
+        uint256 lpEarnings,
+        uint256 executorEarnings,
+        uint256 insuranceFee
+    );
+
+    /// @notice Emitted when an ERT is force settled
+    /// @param ertId ERT identifier
+    /// @param reason Reason for force settlement
+    event ForceSettled(uint256 indexed ertId, string reason);
+
+    // =============================================================
+    //                  POSITION TRACKING EVENTS
+    // =============================================================
+
+    /// @notice Emitted when a position is recorded
+    /// @param ertId ERT identifier
+    /// @param positionId Position identifier
+    /// @param asset Asset address
+    /// @param size Position size
+    /// @param entryValueUsd Entry value in USD
+    event PositionRecorded(
+        uint256 indexed ertId,
+        bytes32 indexed positionId,
+        address indexed asset,
+        uint256 size,
+        uint256 entryValueUsd
+    );
+
+    /// @notice Emitted when a position is closed
+    /// @param ertId ERT identifier
+    /// @param positionId Position identifier
+    /// @param realizedPnl Realized PnL
+    event PositionClosed(
+        uint256 indexed ertId,
+        bytes32 indexed positionId,
+        int256 realizedPnl
+    );
 }
