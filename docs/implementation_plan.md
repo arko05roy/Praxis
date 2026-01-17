@@ -124,10 +124,10 @@ Phase C: Open Marketplace (Full vision)
 ## Project Milestones
 
 ```
-M1 ✅ ━━━━━━━━━━ M2 ✅ ━━━━━━━━ M3 ✅ ━━━━━━━━━━ M4 ━━━━━━━━━━ M5
+M1 ✅ ━━━━━━━━━━ M2 ✅ ━━━━━━━━ M3 ✅ ━━━━━━━━━━ M4 🟡 ━━━━━━━━ M5
 Oracle         Adapters       Vault &        Settlement     Testnet
 Foundation     (DEX ✅,       Execution      & Gateway      Launch
-(Done)         Yield ✅,      Rights NFT                    & Audit
+(Done)         Yield ✅,      Rights NFT     (90%)          & Audit
                Perp ✅,       (Done)
                FAssets ✅)
 ```
@@ -205,14 +205,19 @@ Foundation     (DEX ✅,       Execution      & Gateway      Launch
 
 ---
 
-### Milestone 4: Settlement Engine & Gateway
+### Milestone 4: Settlement Engine & Gateway 🟡 IN PROGRESS
 
 **Deliverable:** Trustless PnL calculation and unified user entry point
 
-| Contract | Purpose |
-|----------|---------|
-| `SettlementEngine.sol` | Calculates PnL using FlareOracle (FTSO), distributes fees |
-| `PraxisGateway.sol` | Single entry point for all LP and executor interactions |
+**Status:** 90% Complete - Contracts implemented, deployment script needed
+
+| Contract | Purpose | Status |
+|----------|---------|--------|
+| `SettlementEngine.sol` | Calculates PnL using FlareOracle (FTSO), distributes fees | ✅ Implemented |
+| `PraxisGateway.sol` | Single entry point for all LP and executor interactions | ✅ Implemented |
+| Phase 7 Interfaces | ISettlementEngine, IPraxisGateway, etc. | ✅ Implemented |
+| Phase 7 Tests | Settlement, Gateway, Integration tests | ✅ Written |
+| Deployment Script | `08_Phase7_Settlement.ts` | ⬜ Not Started |
 
 **Settlement Flow:**
 ```
@@ -261,7 +266,7 @@ Foundation     (DEX ✅,       Execution      & Gateway      Launch
 | 1 | Oracle Foundation | ✅ Complete | Trustless prices via FTSO, cross-chain via FDC |
 | 2 | Execution Infrastructure | ✅ Complete | DEX ✅, Yield ✅, Perps ✅, FAssets ✅ |
 | 3 | Vault & Rights System | ✅ Complete | Money stays locked, permissions are NFTs, reputation tiers + stake protect LPs |
-| 4 | Settlement & Gateway | ⬜ Not Started | Fair profit split, single entry point |
+| 4 | Settlement & Gateway | 🟡 In Progress | SettlementEngine ✅, PraxisGateway ✅, Tests ✅, Deployment ⬜ |
 | 5 | Testnet & Security | ⬜ Not Started | Audited, public testnet, mainnet ready |
 
 ---
@@ -445,7 +450,7 @@ Example strategy (3 actions):
 
 ## 📊 Implementation Progress
 
-**Last Updated:** January 16, 2026
+**Last Updated:** January 17, 2026
 
 ### Phase Status Overview
 
@@ -457,7 +462,7 @@ Example strategy (3 actions):
 | 4 | Execution Infrastructure - Perpetual Adapters | ✅ **COMPLETE** | 100% |
 | 5 | Execution Infrastructure - FAssets Support | ✅ **COMPLETE** | 100% |
 | 6 | Execution Vaults & Rights System | ✅ **COMPLETE** | 100% |
-| 7 | Settlement Engine & Gateway | ⬜ Not Started | 0% |
+| 7 | Settlement Engine & Gateway | 🟡 **IN PROGRESS** | 90% |
 | 8 | Security & Audit | ⬜ Not Started | 0% |
 | 9 | Mainnet Deployment | ⬜ Not Started | 0% |
 
@@ -486,14 +491,38 @@ Example strategy (3 actions):
 | ExposureManager | 30% max per-asset exposure | ✅ 90+ tests |
 | InsuranceFund | 2% profit collection for loss coverage | ✅ 100+ tests |
 
+### Phase 7 Contracts (In Development)
+
+| Contract | Purpose | Status |
+|----------|---------|--------|
+| SettlementEngine | PnL calculation, position unwinding, fee distribution | ✅ Implemented |
+| PraxisGateway | Unified entry point for all LP/executor interactions | ✅ Implemented |
+| ISettlementEngine | Settlement interface definition | ✅ Implemented |
+| IPraxisGateway | Gateway interface definition | ✅ Implemented |
+| IExecutionVault | Vault interface for settlement | ✅ Implemented |
+| IPositionManager | Position manager interface | ✅ Implemented |
+| IExecutionRightsNFT | ERT interface | ✅ Implemented |
+| IReputationManager | Reputation system interface | ✅ Implemented |
+
+### Phase 7 Tests
+
+| Test File | Description | Status |
+|-----------|-------------|--------|
+| SettlementEngine.test.ts | Settlement logic, fee distribution, position unwinding | ✅ Written |
+| PraxisGateway.test.ts | Gateway unified entry point tests | ✅ Written |
+| Phase7Integration.test.ts | End-to-end Phase 7 flow testing | ✅ Written |
+| Phase1to7Complete.test.ts | Complete protocol integration tests | ✅ Written |
+
 ### Test Results Summary
 
 | Test Suite | Tests | Status |
 |------------|-------|--------|
 | Unit Tests (Phases 1-6) | 1216 | ✅ All Passing |
 | Phase 6 Unit Tests | 1061 | ✅ All Passing |
+| Phase 7 Unit Tests | ~150 | 🟡 In Progress |
 | Phase 1-6 Integration (Flare Mainnet Fork) | 29 | ✅ All Passing |
-| **Total** | **1245** | **✅ All Passing**
+| Phase 1-7 End-to-End Integration | ~20 | 🟡 In Progress |
+| **Total** | **~1450+** | **🟡 In Progress**
 
 ---
 
@@ -2149,6 +2178,34 @@ describe("ReputationManager", () => {
 
 **Purpose:** Trustless PnL calculation and unified entry point
 
+**Status:** 🟡 IN PROGRESS (90% Complete)
+
+### Implementation Progress
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| SettlementEngine.sol | ✅ Implemented | 26KB, full settlement logic |
+| PraxisGateway.sol | ✅ Implemented | 15.6KB, unified entry point |
+| ISettlementEngine.sol | ✅ Implemented | Settlement interface |
+| IPraxisGateway.sol | ✅ Implemented | Gateway interface |
+| IExecutionVault.sol | ✅ Implemented | Vault interface |
+| IPositionManager.sol | ✅ Implemented | Position manager interface |
+| IExecutionRightsNFT.sol | ✅ Implemented | ERT interface |
+| IReputationManager.sol | ✅ Implemented | Reputation interface |
+| SettlementEngine.test.ts | ✅ Written | Comprehensive settlement tests |
+| PraxisGateway.test.ts | ✅ Written | Gateway tests |
+| Phase7Integration.test.ts | ✅ Written | E2E integration tests |
+| Phase1to7Complete.test.ts | ✅ Written | Full protocol integration |
+| 08_Phase7_Settlement.ts | ⬜ Not Started | Deployment script needed |
+
+### Remaining Tasks
+
+- [ ] Create deployment script `08_Phase7_Settlement.ts`
+- [ ] Run all Phase 7 tests on Flare mainnet fork
+- [ ] Wire SettlementEngine into ExecutionController
+- [ ] Wire PraxisGateway into all components
+- [ ] Integration testing with real adapters
+
 ### 7.1 SettlementEngine Contract
 
 #### 7.1.1 Implement FTSO-Based Settlement
@@ -2197,13 +2254,13 @@ contract SettlementEngine {
 ```
 
 **Tasks:**
-- 7.1.1.1 Create `contracts/core/SettlementEngine.sol`
-- 7.1.1.2 Implement position unwinding via adapters
-- 7.1.1.3 Implement PnL calculation using FlareOracle
-- 7.1.1.4 Implement fee distribution logic
-- 7.1.1.5 Implement early settlement
-- 7.1.1.6 Implement force settlement for expired ERTs
-- 7.1.1.7 Add events: `Settled`, `FeesDistributed`
+- 7.1.1.1 ✅ Create `contracts/core/SettlementEngine.sol`
+- 7.1.1.2 ✅ Implement position unwinding via adapters
+- 7.1.1.3 ✅ Implement PnL calculation using FlareOracle
+- 7.1.1.4 ✅ Implement fee distribution logic
+- 7.1.1.5 ✅ Implement early settlement
+- 7.1.1.6 ✅ Implement force settlement for expired ERTs
+- 7.1.1.7 ✅ Add events: `Settled`, `FeesDistributed`
 
 **Test 7.1.1-T1:** Settlement Tests
 ```typescript
@@ -2284,33 +2341,49 @@ contract PraxisGateway is ReentrancyGuard, Pausable, Ownable {
 ```
 
 **Tasks:**
-- 7.2.1.1 Create `contracts/core/PraxisGateway.sol`
-- 7.2.1.2 Wire up all sub-components
-- 7.2.1.3 Implement LP functions
-- 7.2.1.4 Implement executor functions
-- 7.2.1.5 Implement convenience functions
-- 7.2.1.6 Add pause functionality for emergencies
-- 7.2.1.7 Add events for all operations
+- 7.2.1.1 ✅ Create `contracts/core/PraxisGateway.sol`
+- 7.2.1.2 ⬜ Wire up all sub-components (pending deployment)
+- 7.2.1.3 ✅ Implement LP functions
+- 7.2.1.4 ✅ Implement executor functions
+- 7.2.1.5 ✅ Implement convenience functions
+- 7.2.1.6 ✅ Add pause functionality for emergencies
+- 7.2.1.7 ✅ Add events for all operations
 
-### 7.3 Deploy Complete System
+### 7.3 Deploy Complete System ⬜ PENDING
 
 #### 7.3.1 Deployment Script
+**Status:** ⬜ Not Started - needs `scripts/deploy/08_Phase7_Settlement.ts`
+
 ```typescript
-// scripts/deploy/deployAll.ts
+// scripts/deploy/08_Phase7_Settlement.ts
 async function main() {
-  // 1. Deploy Oracle (already done)
-  // 2. Deploy Adapters
-  // 3. Deploy SwapRouter, YieldRouter
-  // 4. Deploy ExecutionVault
-  // 5. Deploy ExecutionRightsNFT
-  // 6. Deploy ExecutionController
-  // 7. Deploy PositionManager
-  // 8. Deploy SettlementEngine
-  // 9. Deploy PraxisGateway
-  // 10. Wire up all permissions
-  // 11. Verify all contracts
+  // 1. Deploy SettlementEngine with dependencies
+  // 2. Deploy PraxisGateway with all component references
+  // 3. Wire SettlementEngine into:
+  //    - ExecutionController (for settlement authorization)
+  //    - ExecutionVault (for capital returns)
+  //    - InsuranceFund (for loss coverage)
+  //    - ReputationManager (for settlement recording)
+  // 4. Wire PraxisGateway into:
+  //    - ExecutionVault
+  //    - ExecutionRightsNFT
+  //    - ExecutionController
+  //    - SettlementEngine
+  //    - SwapRouter, YieldRouter, PerpetualRouter
+  // 5. Set up access control permissions
+  // 6. Verify all contracts on explorer
 }
 ```
+
+**Deployment Order:**
+1. ✅ Oracle (deployed: `0x0979854b028210Cf492a3bCB990B6a1D45d89eCc`)
+2. ✅ FDCVerifier (deployed: `0xe667bEf52f1EAD93Cb0375639a4eA36001d4edf3`)
+3. ✅ SwapRouter (deployed: `0x5886E78c68E1B65f255f27272eaD3B0d20161918`)
+4. ✅ Adapters (DEX, Yield, Perp, FAssets) - mainnet only
+5. ✅ Phase 6 Contracts (vault, ERT, controller, etc.)
+6. ⬜ SettlementEngine
+7. ⬜ PraxisGateway
+8. ⬜ Final wiring and permission setup
 
 **Test 7.3.1-T1:** End-to-End Integration Test
 ```typescript

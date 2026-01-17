@@ -46,6 +46,9 @@ contract PositionManager is Ownable {
     /// @notice Reference to the execution controller
     address public executionController;
 
+    /// @notice Reference to the settlement engine (can close positions during settlement)
+    address public settlementEngine;
+
     /// @notice Reference to the Flare oracle
     address public flareOracle;
 
@@ -57,7 +60,7 @@ contract PositionManager is Ownable {
     // =============================================================
 
     modifier onlyController() {
-        if (msg.sender != executionController) {
+        if (msg.sender != executionController && msg.sender != settlementEngine) {
             revert PraxisErrors.OnlyController();
         }
         _;
@@ -412,6 +415,14 @@ contract PositionManager is Ownable {
     function setExecutionController(address _executionController) external onlyOwner {
         if (_executionController == address(0)) revert PraxisErrors.ZeroAddress();
         executionController = _executionController;
+    }
+
+    /**
+     * @notice Set the settlement engine address
+     * @param _settlementEngine The settlement engine address
+     */
+    function setSettlementEngine(address _settlementEngine) external onlyOwner {
+        settlementEngine = _settlementEngine;
     }
 
     /**

@@ -827,14 +827,6 @@
   5. **Novel Primitive** — Execution rights don't exist anywhere else; this is new DeFi infrastructure
   6. **Realistic Path** — Phased rollout from self-execution to open marketplace
 
-  ---
-
-  ## Get Involved
-
-  - **GitHub:** [Repository Link]
-  - **Testnet:** Deployed on Coston2
-  - **Documentation:** This whitepaper + implementation plan
-  - **Contact:** [Contact Information]
 
   ---
 
