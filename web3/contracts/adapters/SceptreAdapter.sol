@@ -78,15 +78,16 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
      * @notice Deposit FLR/sFLR - for staking, use stake() instead
      * @dev This function is for IYieldAdapter compatibility
      *      For FLR staking, send FLR value with the call
+     *      Note: No nonReentrant here as _stake is called internally
      */
     function deposit(
         address asset,
         uint256 amount,
         address recipient
-    ) external payable override nonReentrant returns (uint256 shares) {
+    ) external payable override returns (uint256 shares) {
         // If asset is native FLR (address(0) or wflr), stake it
         if (asset == address(0) || asset == wflr) {
-            return stake(amount, recipient);
+            return _stake(amount, recipient);
         }
         revert PraxisErrors.AssetNotSupported(asset);
     }
@@ -151,7 +152,7 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
      * @notice Get total value locked in Sceptre
      */
     function getTVL(address) external view override returns (uint256) {
-        return sceptre.totalPooledFlare();
+        return sceptre.totalPooledFlr();
     }
 
     // =============================================================
@@ -168,6 +169,19 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
         uint256 amount,
         address recipient
     ) public payable override nonReentrant returns (uint256 shares) {
+        return _stake(amount, recipient);
+    }
+
+    /**
+     * @notice Internal stake implementation
+     * @param amount Amount of FLR to stake (must match msg.value)
+     * @param recipient Address to receive sFLR
+     * @return shares Amount of sFLR received
+     */
+    function _stake(
+        uint256 amount,
+        address recipient
+    ) internal returns (uint256 shares) {
         if (amount == 0) revert PraxisErrors.ZeroAmount();
         if (recipient == address(0)) revert PraxisErrors.ZeroAddress();
         if (msg.value != amount) revert PraxisErrors.InsufficientBalance(amount, msg.value);
@@ -175,8 +189,8 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
         // Get sFLR balance before
         uint256 balanceBefore = sceptre.balanceOf(address(this));
 
-        // Stake FLR via Sceptre
-        shares = sceptre.deposit{value: amount}();
+        // Stake FLR via Sceptre using submit() which returns shares
+        shares = sceptre.submit{value: amount}();
 
         // Verify we received the expected shares
         uint256 balanceAfter = sceptre.balanceOf(address(this));
@@ -201,8 +215,10 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
 
     /**
      * @notice Request to unstake sFLR (initiates cooldown)
+     * @dev Sceptre uses per-user indexed unlock requests, not global IDs
+     *      The returned requestId is actually the user's unlock request index
      * @param shares Amount of sFLR to unstake
-     * @return requestId Unique identifier for the withdrawal request
+     * @return requestId The unlock request index for this adapter's address
      */
     function requestUnstake(
         uint256 shares
@@ -212,10 +228,13 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
         // Pull sFLR from caller
         IERC20(address(sceptre)).safeTransferFrom(msg.sender, address(this), shares);
 
-        // Request withdrawal from Sceptre
-        requestId = sceptre.requestWithdrawal(shares);
+        // Get the current unlock request count (this will be the new index)
+        requestId = sceptre.getUnlockRequestCount(address(this));
 
-        // Track the request owner
+        // Request unlock from Sceptre (no return value)
+        sceptre.requestUnlock(shares);
+
+        // Track the request owner using our internal index
         requestOwners[requestId] = msg.sender;
         userRequests[msg.sender].push(requestId);
 
@@ -231,7 +250,8 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
 
     /**
      * @notice Complete a pending unstake request after cooldown
-     * @param requestId The withdrawal request identifier
+     * @dev Uses Sceptre's index-based redeem function
+     * @param requestId The unlock request index (from this adapter's perspective)
      * @param recipient Address to receive the unstaked FLR
      * @return amount Amount of FLR received
      */
@@ -246,35 +266,37 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
         if (owner != msg.sender) revert PraxisErrors.Unauthorized();
 
         // Check if withdrawal is ready
-        if (!sceptre.isWithdrawalReady(requestId)) {
-            (,, uint256 unlockTime,) = sceptre.getWithdrawalRequest(requestId);
+        if (!_isUnlockClaimable(requestId)) {
+            (uint256 startedAt,) = sceptre.userUnlockRequests(address(this), requestId);
+            uint256 unlockTime = startedAt + sceptre.cooldownPeriod();
             revert PraxisErrors.CooldownNotElapsed(unlockTime, block.timestamp);
         }
 
         // Get balance before withdrawal
         uint256 balanceBefore = address(this).balance;
 
-        // Complete the withdrawal
-        amount = sceptre.completeWithdrawal(requestId);
+        // Redeem the specific unlock request by index
+        // Note: Sceptre's redeem(uint256) is the overloaded version that takes an index
+        sceptre.redeem(requestId);
 
         // Verify we received FLR
         uint256 balanceAfter = address(this).balance;
-        uint256 received = balanceAfter - balanceBefore;
+        amount = balanceAfter - balanceBefore;
 
-        if (received == 0) revert PraxisErrors.ZeroAmount();
+        if (amount == 0) revert PraxisErrors.ZeroAmount();
 
         // Transfer FLR to recipient
-        (bool success, ) = recipient.call{value: received}("");
+        (bool success, ) = recipient.call{value: amount}("");
         if (!success) revert PraxisErrors.ZeroAmount();
 
         emit PraxisEvents.UnstakeCompleted(
             msg.sender,
             address(0), // FLR (native)
-            received,
+            amount,
             requestId
         );
 
-        return received;
+        return amount;
     }
 
     /**
@@ -287,15 +309,36 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
 
     /**
      * @notice Check if an unstake request is ready to be completed
-     * @param requestId The withdrawal request identifier
+     * @param requestId The unlock request index
      */
     function isUnstakeClaimable(uint256 requestId) external view override returns (bool) {
-        return sceptre.isWithdrawalReady(requestId);
+        return _isUnlockClaimable(requestId);
+    }
+
+    /**
+     * @notice Internal function to check if unlock is claimable
+     * @param unlockIndex The unlock request index
+     */
+    function _isUnlockClaimable(uint256 unlockIndex) internal view returns (bool) {
+        // Get request details from Sceptre
+        (uint256 startedAt, uint256 shareAmount) = sceptre.userUnlockRequests(address(this), unlockIndex);
+
+        // If no shares, request doesn't exist or was already redeemed
+        if (shareAmount == 0) return false;
+
+        // Check if cooldown has elapsed
+        uint256 cooldown = sceptre.cooldownPeriod();
+        uint256 unlockTime = startedAt + cooldown;
+
+        // Also check we're within the redeem period
+        uint256 redeemWindowEnd = unlockTime + sceptre.redeemPeriod();
+
+        return block.timestamp >= unlockTime && block.timestamp <= redeemWindowEnd;
     }
 
     /**
      * @notice Get details of an unstake request
-     * @param requestId The withdrawal request identifier
+     * @param requestId The unlock request index
      */
     function getUnstakeRequest(
         uint256 requestId
@@ -306,15 +349,14 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
         bool claimed
     ) {
         user = requestOwners[requestId];
-        (address owner, uint256 requestShares, uint256 unlock, bool completed) =
-            sceptre.getWithdrawalRequest(requestId);
 
-        // Use the Sceptre data
-        if (owner != address(0)) {
-            shares = requestShares;
-            unlockTime = unlock;
-            claimed = completed;
-        }
+        // Get request details from Sceptre
+        (uint256 startedAt, uint256 shareAmount) = sceptre.userUnlockRequests(address(this), requestId);
+
+        shares = shareAmount;
+        unlockTime = startedAt + sceptre.cooldownPeriod();
+        // If shareAmount is 0, either never existed or was redeemed
+        claimed = (shareAmount == 0 && user != address(0));
     }
 
     /**
@@ -327,7 +369,7 @@ contract SceptreAdapter is IStakingAdapter, Ownable, ReentrancyGuard {
     /**
      * @notice Get all withdrawal requests for a user
      * @param user Address of the user
-     * @return Array of request IDs
+     * @return Array of request indices
      */
     function getUserRequests(address user) external view returns (uint256[] memory) {
         return userRequests[user];

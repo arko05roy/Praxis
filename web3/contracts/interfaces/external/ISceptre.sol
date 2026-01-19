@@ -6,6 +6,12 @@ pragma solidity ^0.8.28;
  * @notice Interface for the Sceptre liquid staking protocol on Flare
  * @dev sFLR is the liquid staking token that represents staked FLR
  *      Address on Flare Mainnet: 0x12e605bc104e93B45e1aD99F9e555f659051c2BB
+ *
+ * IMPORTANT: This interface matches the actual mainnet contract.
+ * Key differences from typical staking interfaces:
+ * - deposit() returns nothing, use submit() to get shares returned
+ * - Uses requestUnlock/redeem pattern, not requestWithdrawal/completeWithdrawal
+ * - Unlock requests are per-user indexed, not global request IDs
  */
 interface ISceptre {
     // =============================================================
@@ -13,30 +19,62 @@ interface ISceptre {
     // =============================================================
 
     /**
-     * @notice Deposit FLR and receive sFLR
+     * @notice Deposit FLR and receive sFLR (no return value)
+     * @dev Use submit() if you need the share amount returned
+     */
+    function deposit() external payable;
+
+    /**
+     * @notice Submit FLR and receive sFLR with share amount returned
      * @return shares Amount of sFLR shares minted
      */
-    function deposit() external payable returns (uint256 shares);
+    function submit() external payable returns (uint256 shares);
 
     /**
-     * @notice Submit a request to withdraw staked FLR (initiates cooldown)
-     * @param shares Amount of sFLR to unstake
-     * @return requestId Unique identifier for the withdrawal request
+     * @notice Submit wrapped FLR (WFLR) and receive sFLR
+     * @param amount Amount of WFLR to stake
+     * @return shares Amount of sFLR shares minted
      */
-    function requestWithdrawal(uint256 shares) external returns (uint256 requestId);
+    function submitWrapped(uint256 amount) external returns (uint256 shares);
 
     /**
-     * @notice Complete a withdrawal request after cooldown period
-     * @param requestId The withdrawal request identifier
-     * @return amount Amount of FLR received
+     * @notice Request to unlock sFLR for redemption (initiates cooldown)
+     * @param shareAmount Amount of sFLR to unlock
      */
-    function completeWithdrawal(uint256 requestId) external returns (uint256 amount);
+    function requestUnlock(uint256 shareAmount) external;
 
     /**
-     * @notice Cancel a pending withdrawal request
-     * @param requestId The withdrawal request identifier
+     * @notice Redeem all unlocked requests that are past cooldown
      */
-    function cancelWithdrawal(uint256 requestId) external;
+    function redeem() external;
+
+    /**
+     * @notice Redeem a specific unlock request by index
+     * @param unlockIndex Index of the unlock request for the caller
+     * @dev This is an overloaded version of redeem()
+     */
+    function redeem(uint256 unlockIndex) external;
+
+    /**
+     * @notice Cancel a specific unlock request
+     * @param unlockIndex Index of the unlock request for the caller
+     */
+    function cancelUnlockRequest(uint256 unlockIndex) external;
+
+    /**
+     * @notice Cancel all pending (not yet redeemable) unlock requests
+     */
+    function cancelPendingUnlockRequests() external;
+
+    /**
+     * @notice Cancel all redeemable unlock requests
+     */
+    function cancelRedeemableUnlockRequests() external;
+
+    /**
+     * @notice Redeem overdue shares (past redeem window) - returns shares to user
+     */
+    function redeemOverdueShares() external;
 
     // =============================================================
     //                         VIEW FUNCTIONS
@@ -44,10 +82,10 @@ interface ISceptre {
 
     /**
      * @notice Get the amount of FLR that would be received for shares
-     * @param shares Amount of sFLR shares
+     * @param shareAmount Amount of sFLR shares
      * @return Amount of FLR the shares represent
      */
-    function getPooledFlrByShares(uint256 shares) external view returns (uint256);
+    function getPooledFlrByShares(uint256 shareAmount) external view returns (uint256);
 
     /**
      * @notice Get the amount of shares that would be minted for FLR
@@ -60,47 +98,110 @@ interface ISceptre {
      * @notice Get the total amount of FLR in the staking pool
      * @return Total pooled FLR
      */
-    function totalPooledFlare() external view returns (uint256);
+    function totalPooledFlr() external view returns (uint256);
+
+    /**
+     * @notice Get the total shares (same as totalSupply for sFLR)
+     * @return Total shares
+     */
+    function totalShares() external view returns (uint256);
 
     /**
      * @notice Get the cooldown period for withdrawals
-     * @return Cooldown period in seconds
+     * @return Cooldown period in seconds (~14.5 days)
      */
     function cooldownPeriod() external view returns (uint256);
 
     /**
      * @notice Get the redeem period after cooldown (window to claim)
-     * @return Redeem period in seconds
+     * @return Redeem period in seconds (~2 days)
      */
     function redeemPeriod() external view returns (uint256);
 
     /**
-     * @notice Get withdrawal request details
-     * @param requestId The withdrawal request identifier
-     * @return owner Address that owns the request
-     * @return shares Amount of sFLR in the request
-     * @return unlockTime Timestamp when withdrawal can be completed
-     * @return completed Whether the withdrawal has been completed
+     * @notice Get unlock request details for a user
+     * @param user Address of the user
+     * @param unlockIndex Index of the unlock request
+     * @return startedAt Timestamp when unlock was requested
+     * @return shareAmount Amount of sFLR in the request
      */
-    function getWithdrawalRequest(uint256 requestId) external view returns (
-        address owner,
-        uint256 shares,
-        uint256 unlockTime,
-        bool completed
+    function userUnlockRequests(address user, uint256 unlockIndex) external view returns (
+        uint256 startedAt,
+        uint256 shareAmount
     );
 
     /**
-     * @notice Check if a withdrawal request is ready to be claimed
-     * @param requestId The withdrawal request identifier
-     * @return True if the request can be completed
+     * @notice Get the number of unlock requests for a user
+     * @param user Address of the user
+     * @return Number of unlock requests
      */
-    function isWithdrawalReady(uint256 requestId) external view returns (bool);
+    function getUnlockRequestCount(address user) external view returns (uint256);
 
     /**
-     * @notice Get the next withdrawal request ID
-     * @return The next request ID that will be assigned
+     * @notice Get paginated unlock requests for a user
+     * @param user Address of the user
+     * @param from Starting index
+     * @param to Ending index (exclusive)
+     * @return requests Array of unlock request structs
+     * @return indices Array of request indices
      */
-    function nextWithdrawalRequestId() external view returns (uint256);
+    function getPaginatedUnlockRequests(
+        address user,
+        uint256 from,
+        uint256 to
+    ) external view returns (
+        UnlockRequest[] memory requests,
+        uint256[] memory indices
+    );
+
+    /**
+     * @notice Get shares held in custody for a user (during unlock)
+     * @param user Address of the user
+     * @return Amount of shares in custody
+     */
+    function userSharesInCustody(address user) external view returns (uint256);
+
+    /**
+     * @notice Check if the contract is paused
+     * @return True if paused
+     */
+    function paused() external view returns (bool);
+
+    /**
+     * @notice Check if minting is paused
+     * @return True if minting is paused
+     */
+    function mintingPaused() external view returns (bool);
+
+    /**
+     * @notice Get the number of unique stakers
+     * @return Staker count
+     */
+    function stakerCount() external view returns (uint256);
+
+    /**
+     * @notice Get the maximum FLR that can be staked (cap)
+     * @return Total pooled FLR cap
+     */
+    function totalPooledFlrCap() external view returns (uint256);
+
+    /**
+     * @notice Get the wrapped FLR token address
+     * @return WFLR token address
+     */
+    function wrappedToken() external view returns (address);
+
+    // =============================================================
+    //                         STRUCTS
+    // =============================================================
+
+    /**
+     * @notice Unlock request structure
+     */
+    struct UnlockRequest {
+        uint256 startedAt;
+        uint256 shareAmount;
+    }
 
     // =============================================================
     //                         ERC20 FUNCTIONS

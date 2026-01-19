@@ -323,7 +323,7 @@ describe("KineticAdapter Integration", function () {
 
       await expect(
         freshAdapter.connect(nonOwner).addMarket(kUSDC)
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(freshAdapter, "OwnableUnauthorizedAccount");
     });
   });
 
