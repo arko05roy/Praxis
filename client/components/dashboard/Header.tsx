@@ -22,10 +22,7 @@ export function Header() {
                         smallScreen: 'avatar',
                         largeScreen: 'full',
                     }}
-                    showBalance={{
-                        smallScreen: false,
-                        largeScreen: true,
-                    }}
+                    showBalance={false}
                 />
 
                 <div className="flex items-center gap-2 border-l border-white/10 pl-4 ml-2">

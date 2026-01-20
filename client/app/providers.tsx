@@ -7,7 +7,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 
-import { getConfig } from "./config";
+import { getConfig, coston2 } from "./config";
 
 type Props = {
   children: ReactNode;
@@ -30,7 +30,7 @@ export function Providers({ children, initialState }: Props) {
             fontStack: "system",
             overlayBlur: "small",
           })}
-          initialChain={114}
+          initialChain={coston2}
         >
           {children}
         </RainbowKitProvider>

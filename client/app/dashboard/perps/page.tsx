@@ -50,12 +50,12 @@ export default function PerpetualsPage() {
                         </div>
                     </div>
 
-                    <PositionPanel />
+                    <PositionPanel market={activeMarket} />
                 </div>
 
                 {/* Right Column: Order Form */}
                 <div className="lg:col-span-4 h-full">
-                    <OrderForm />
+                    <OrderForm market={activeMarket} />
                 </div>
             </div>
         </div>
