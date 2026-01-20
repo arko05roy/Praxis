@@ -10,19 +10,24 @@ import {
     Store,
     BarChart2,
     Headphones,
-    Settings
+    Settings,
+    TrendingUp,
+    Activity,
+    ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutGrid, section: "Main" },
-    { name: "Wallet", href: "/dashboard/wallet", icon: Wallet, section: "Main" },
-    { name: "Watchlist", href: "/dashboard/watchlist", icon: Bookmark, section: "Main" },
-    { name: "Transaction", href: "/dashboard/transactions", icon: ArrowLeftRight, section: "Main" },
-    { name: "Market", href: "/dashboard/market", icon: Store, section: "Insign" },
-    { name: "Analytics", href: "/dashboard/analytics", icon: BarChart2, section: "Insign" },
-    { name: "Support", href: "/dashboard/support", icon: Headphones, section: "Tools" },
-    { name: "Setting", href: "/dashboard/settings", icon: Settings, section: "Tools" },
+    { name: "LP Portal", href: "/dashboard/lp-portal", icon: Wallet, section: "Main" },
+    { name: "Executor Portal", href: "/dashboard/executor", icon: Store, section: "Main" },
+    { name: "ERT Management", href: "/dashboard/erts", icon: Bookmark, section: "Trading" },
+    { name: "Terminal", href: "/dashboard/terminal", icon: BarChart2, section: "Trading" },
+    { name: "Swap", href: "/dashboard/swap", icon: ArrowLeftRight, section: "Trading" },
+    { name: "Yield Hub", href: "/dashboard/yield", icon: TrendingUp, section: "Trading" },
+    { name: "Perpetuals", href: "/dashboard/perps", icon: Activity, section: "Trading" },
+    { name: "FAssets", href: "/dashboard/fassets", icon: ShieldCheck, section: "Assets" },
+    { name: "System Health", href: "/dashboard/health", icon: Headphones, section: "Tools" },
 ];
 
 export function Sidebar() {
@@ -38,7 +43,7 @@ export function Sidebar() {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-8">
-                {["Main", "Insign", "Tools"].map((section) => (
+                {["Main", "Trading", "Assets", "Tools"].map((section) => (
                     <div key={section}>
                         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3 pl-2">
                             {section}
