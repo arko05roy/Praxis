@@ -822,6 +822,242 @@ export const UtilizationControllerABI = [
   },
 ] as const;
 
+// ExposureManager ABI
+export const ExposureManagerABI = [
+  {
+    name: 'getExposure',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'asset', type: 'address' }],
+    outputs: [
+      { name: 'exposure', type: 'uint256' },
+      { name: 'maxAllowed', type: 'uint256' },
+      { name: 'utilizationBps', type: 'uint256' },
+    ],
+  },
+  {
+    name: 'canAddExposure',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'usdAmount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'assetExposure',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'asset', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'MAX_SINGLE_ASSET_BPS',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'getTotalExposure',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'getAssetList',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address[]' }],
+  },
+  {
+    name: 'getAllExposures',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [
+      {
+        name: 'exposures',
+        type: 'tuple[]',
+        components: [
+          { name: 'asset', type: 'address' },
+          { name: 'exposure', type: 'uint256' },
+          { name: 'maxAllowed', type: 'uint256' },
+          { name: 'utilizationBps', type: 'uint256' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'getRemainingCapacity',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'asset', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
+// FlareOracle ABI
+export const FlareOracleABI = [
+  {
+    name: 'getPrice',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'feedId', type: 'bytes21' }],
+    outputs: [
+      { name: 'price', type: 'uint256' },
+      { name: 'decimals', type: 'uint8' },
+      { name: 'timestamp', type: 'uint64' },
+    ],
+  },
+  {
+    name: 'getPriceWithCheck',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'feedId', type: 'bytes21' },
+      { name: 'maxAge', type: 'uint256' },
+    ],
+    outputs: [
+      { name: 'price', type: 'uint256' },
+      { name: 'decimals', type: 'uint8' },
+      { name: 'timestamp', type: 'uint64' },
+    ],
+  },
+  {
+    name: 'getMultiplePrices',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'feedIds', type: 'bytes21[]' }],
+    outputs: [
+      {
+        name: 'prices',
+        type: 'tuple[]',
+        components: [
+          { name: 'price', type: 'uint256' },
+          { name: 'decimals', type: 'uint8' },
+          { name: 'timestamp', type: 'uint64' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'getTokenPriceUSD',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'token', type: 'address' }],
+    outputs: [
+      { name: 'priceUsd', type: 'uint256' },
+      { name: 'decimals', type: 'uint8' },
+    ],
+  },
+  {
+    name: 'tokenFeeds',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'token', type: 'address' }],
+    outputs: [{ name: 'feedId', type: 'bytes21' }],
+  },
+  {
+    name: 'MAX_PRICE_AGE',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
+// SwapRouter ABI
+export const SwapRouterABI = [
+  {
+    name: 'getAllQuotes',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+      { name: 'amountIn', type: 'uint256' },
+    ],
+    outputs: [
+      {
+        name: 'quotes',
+        type: 'tuple[]',
+        components: [
+          { name: 'adapter', type: 'address' },
+          { name: 'adapterName', type: 'string' },
+          { name: 'amountOut', type: 'uint256' },
+          { name: 'gasEstimate', type: 'uint256' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'findBestRoute',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+      { name: 'amountIn', type: 'uint256' },
+    ],
+    outputs: [
+      { name: 'bestAdapter', type: 'address' },
+      { name: 'bestAmountOut', type: 'uint256' },
+      { name: 'gasEstimate', type: 'uint256' },
+    ],
+  },
+  {
+    name: 'swap',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+      { name: 'amountIn', type: 'uint256' },
+      { name: 'minAmountOut', type: 'uint256' },
+      { name: 'to', type: 'address' },
+      { name: 'deadline', type: 'uint256' },
+    ],
+    outputs: [{ name: 'amountOut', type: 'uint256' }],
+  },
+  {
+    name: 'swapViaAdapter',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'adapter', type: 'address' },
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+      { name: 'amountIn', type: 'uint256' },
+      { name: 'minAmountOut', type: 'uint256' },
+      { name: 'to', type: 'address' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'extraData', type: 'bytes' },
+    ],
+    outputs: [{ name: 'amountOut', type: 'uint256' }],
+  },
+  {
+    name: 'supportsPair',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'getAdapters',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address[]' }],
+  },
+] as const;
+
 // ERC20 ABI (for asset token)
 export const ERC20ABI = [
   {

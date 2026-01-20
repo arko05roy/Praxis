@@ -615,6 +615,447 @@ export function useKineticMarkets() {
 }
 
 // =============================================================
+//                    KINETIC BORROW HOOKS
+// =============================================================
+
+// Extended kToken ABI for borrowing
+const KTokenBorrowABI = [
+  {
+    name: 'borrow',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'borrowAmount', type: 'uint256' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'repayBorrow',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'repayAmount', type: 'uint256' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'repayBorrowBehalf',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'borrower', type: 'address' },
+      { name: 'repayAmount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'borrowBalanceCurrent',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'borrowBalanceStored',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'borrowRatePerBlock',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'supplyRatePerBlock',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'totalBorrows',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'getCash',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
+// Extended Comptroller ABI
+const ComptrollerExtendedABI = [
+  ...ComptrollerABI,
+  {
+    name: 'borrowCaps',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'kToken', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'borrowGuardianPaused',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'kToken', type: 'address' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'getAssetsIn',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'address[]' }],
+  },
+  {
+    name: 'checkMembership',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'account', type: 'address' },
+      { name: 'kToken', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'exitMarket',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'kTokenAddress', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
+export interface KineticBorrowData {
+  kToken: `0x${string}`;
+  borrowBalance: bigint;
+  borrowRatePerBlock: bigint;
+  borrowAPY: number;
+  totalBorrows: bigint;
+  availableCash: bigint;
+}
+
+export function useKineticBorrowBalance(kTokenAddress: `0x${string}` | undefined) {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+
+  const { data: borrowBalance, isLoading, refetch } = useReadContract({
+    address: kTokenAddress || '0x0000000000000000000000000000000000000000',
+    abi: KTokenBorrowABI,
+    functionName: 'borrowBalanceStored',
+    args: address ? [address] : undefined,
+    query: { enabled: isAvailable && !!kTokenAddress && !!address },
+  });
+
+  return {
+    data: borrowBalance,
+    isLoading,
+    refetch,
+    isAvailable,
+  };
+}
+
+export function useKineticBorrowAPY(kTokenAddress: `0x${string}` | undefined) {
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+
+  const { data: borrowRatePerBlock, isLoading } = useReadContract({
+    address: kTokenAddress || '0x0000000000000000000000000000000000000000',
+    abi: KTokenBorrowABI,
+    functionName: 'borrowRatePerBlock',
+    query: { enabled: isAvailable && !!kTokenAddress },
+  });
+
+  // Calculate APY: (1 + ratePerBlock) ^ blocksPerYear - 1
+  // Flare has ~2 second blocks, so ~15,768,000 blocks per year
+  const blocksPerYear = 15768000n;
+  const borrowAPY = borrowRatePerBlock
+    ? (Number(borrowRatePerBlock) * Number(blocksPerYear) / 1e18) * 100
+    : 0;
+
+  return {
+    data: borrowRatePerBlock,
+    borrowAPY,
+    isLoading,
+    isAvailable,
+  };
+}
+
+export function useKineticSupplyAPY(kTokenAddress: `0x${string}` | undefined) {
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+
+  const { data: supplyRatePerBlock, isLoading } = useReadContract({
+    address: kTokenAddress || '0x0000000000000000000000000000000000000000',
+    abi: KTokenBorrowABI,
+    functionName: 'supplyRatePerBlock',
+    query: { enabled: isAvailable && !!kTokenAddress },
+  });
+
+  const blocksPerYear = 15768000n;
+  const supplyAPY = supplyRatePerBlock
+    ? (Number(supplyRatePerBlock) * Number(blocksPerYear) / 1e18) * 100
+    : 0;
+
+  return {
+    data: supplyRatePerBlock,
+    supplyAPY,
+    isLoading,
+    isAvailable,
+  };
+}
+
+export function useKineticBorrow() {
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const borrow = async (kTokenAddress: `0x${string}`, amount: bigint) => {
+    writeContract({
+      address: kTokenAddress,
+      abi: KTokenBorrowABI,
+      functionName: 'borrow',
+      args: [amount],
+    });
+  };
+
+  return {
+    borrow,
+    hash,
+    isPending,
+    isConfirming,
+    isSuccess,
+    receipt,
+    error,
+    isAvailable,
+  };
+}
+
+export function useKineticRepay() {
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const repay = async (kTokenAddress: `0x${string}`, amount: bigint) => {
+    writeContract({
+      address: kTokenAddress,
+      abi: KTokenBorrowABI,
+      functionName: 'repayBorrow',
+      args: [amount],
+    });
+  };
+
+  // Repay max (use type(uint256).max)
+  const repayMax = async (kTokenAddress: `0x${string}`) => {
+    const maxUint256 = 2n ** 256n - 1n;
+    await repay(kTokenAddress, maxUint256);
+  };
+
+  return {
+    repay,
+    repayMax,
+    hash,
+    isPending,
+    isConfirming,
+    isSuccess,
+    receipt,
+    error,
+    isAvailable,
+  };
+}
+
+export function useKineticEnterMarket() {
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+  const addresses = isAvailable ? getKineticAddresses(chainId) : null;
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const enterMarket = async (kTokenAddress: `0x${string}`) => {
+    if (!addresses?.comptroller) return;
+
+    writeContract({
+      address: addresses.comptroller,
+      abi: ComptrollerABI,
+      functionName: 'enterMarkets',
+      args: [[kTokenAddress]],
+    });
+  };
+
+  const enterMarkets = async (kTokenAddresses: `0x${string}`[]) => {
+    if (!addresses?.comptroller) return;
+
+    writeContract({
+      address: addresses.comptroller,
+      abi: ComptrollerABI,
+      functionName: 'enterMarkets',
+      args: [kTokenAddresses],
+    });
+  };
+
+  return {
+    enterMarket,
+    enterMarkets,
+    hash,
+    isPending,
+    isConfirming,
+    isSuccess,
+    receipt,
+    error,
+    isAvailable,
+  };
+}
+
+export function useKineticExitMarket() {
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+  const addresses = isAvailable ? getKineticAddresses(chainId) : null;
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const exitMarket = async (kTokenAddress: `0x${string}`) => {
+    if (!addresses?.comptroller) return;
+
+    writeContract({
+      address: addresses.comptroller,
+      abi: ComptrollerExtendedABI,
+      functionName: 'exitMarket',
+      args: [kTokenAddress],
+    });
+  };
+
+  return {
+    exitMarket,
+    hash,
+    isPending,
+    isConfirming,
+    isSuccess,
+    receipt,
+    error,
+    isAvailable,
+  };
+}
+
+export function useKineticAccountHealth() {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+  const addresses = isAvailable ? getKineticAddresses(chainId) : null;
+
+  const { data, isLoading, error, refetch } = useReadContract({
+    address: addresses?.comptroller || '0x0000000000000000000000000000000000000000',
+    abi: ComptrollerABI,
+    functionName: 'getAccountLiquidity',
+    args: address ? [address] : undefined,
+    query: { enabled: isAvailable && !!addresses?.comptroller && !!address },
+  });
+
+  // Returns: [error, liquidity, shortfall]
+  // If liquidity > 0: account is healthy
+  // If shortfall > 0: account is underwater
+  const accountHealth = data
+    ? {
+        error: data[0],
+        liquidity: data[1],
+        shortfall: data[2],
+        isHealthy: data[1] > 0n && data[2] === 0n,
+        isUnderwater: data[2] > 0n,
+      }
+    : undefined;
+
+  return {
+    data: accountHealth,
+    isLoading,
+    error,
+    refetch,
+    isAvailable,
+  };
+}
+
+export function useKineticCollateralStatus(kTokenAddress: `0x${string}` | undefined) {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+  const addresses = isAvailable ? getKineticAddresses(chainId) : null;
+
+  const { data: isCollateral, isLoading, refetch } = useReadContract({
+    address: addresses?.comptroller || '0x0000000000000000000000000000000000000000',
+    abi: ComptrollerExtendedABI,
+    functionName: 'checkMembership',
+    args: address && kTokenAddress ? [address, kTokenAddress] : undefined,
+    query: { enabled: isAvailable && !!addresses?.comptroller && !!address && !!kTokenAddress },
+  });
+
+  return {
+    isCollateral,
+    isLoading,
+    refetch,
+    isAvailable,
+  };
+}
+
+export function useKineticMarketInfo(kTokenAddress: `0x${string}` | undefined) {
+  const chainId = useChainId();
+  const isAvailable = areExternalProtocolsAvailable(chainId);
+
+  const { data: totalBorrows } = useReadContract({
+    address: kTokenAddress || '0x0000000000000000000000000000000000000000',
+    abi: KTokenBorrowABI,
+    functionName: 'totalBorrows',
+    query: { enabled: isAvailable && !!kTokenAddress },
+  });
+
+  const { data: cash } = useReadContract({
+    address: kTokenAddress || '0x0000000000000000000000000000000000000000',
+    abi: KTokenBorrowABI,
+    functionName: 'getCash',
+    query: { enabled: isAvailable && !!kTokenAddress },
+  });
+
+  const { borrowAPY } = useKineticBorrowAPY(kTokenAddress);
+  const { supplyAPY } = useKineticSupplyAPY(kTokenAddress);
+
+  const totalSupply = (cash || 0n) + (totalBorrows || 0n);
+  const utilization = totalSupply > 0n
+    ? Number((totalBorrows || 0n) * 10000n / totalSupply) / 100
+    : 0;
+
+  return {
+    totalBorrows,
+    availableCash: cash,
+    totalSupply,
+    utilization,
+    borrowAPY,
+    supplyAPY,
+    isAvailable,
+  };
+}
+
+// =============================================================
 //                    UTILITY HOOKS
 // =============================================================
 

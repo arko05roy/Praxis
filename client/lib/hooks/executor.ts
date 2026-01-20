@@ -502,3 +502,250 @@ export function useExecuteWithRights() {
     error,
   };
 }
+
+// =============================================================
+//                    MY ERTS LIST HOOK
+// =============================================================
+
+export interface ERTListItem {
+  tokenId: bigint;
+  status: number;
+  statusName: string;
+  capitalLimit: bigint;
+  expiryTime: bigint;
+  isExpired: boolean;
+  remainingTime: number;
+}
+
+export function useMyERTs() {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const addresses = getAddresses(chainId);
+
+  // First get the count of ERTs owned
+  const { data: ertCount, isLoading: countLoading } = useReadContract({
+    address: addresses.ExecutionRightsNFT,
+    abi: ExecutionRightsNFTABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+
+  // For each index, get the token ID
+  // Note: This is a simplified version - in production you'd use multicall
+  // For now, we return the count and let the UI query individual tokens
+
+  return {
+    count: ertCount || 0n,
+    ownerAddress: address,
+    nftContractAddress: addresses.ExecutionRightsNFT,
+    isLoading: countLoading,
+    // Helper to get token at index
+    getTokenAtIndex: async (index: bigint) => {
+      // This would be called by the UI for each index
+      return { index, address: addresses.ExecutionRightsNFT };
+    },
+  };
+}
+
+// =============================================================
+//                  ERT TOKEN BY INDEX HOOK
+// =============================================================
+
+export function useERTByIndex(ownerAddress: `0x${string}` | undefined, index: bigint | undefined) {
+  const chainId = useChainId();
+  const addresses = getAddresses(chainId);
+
+  const { data: tokenId, isLoading, error, refetch } = useReadContract({
+    address: addresses.ExecutionRightsNFT,
+    abi: ExecutionRightsNFTABI,
+    functionName: 'tokenOfOwnerByIndex',
+    args: ownerAddress !== undefined && index !== undefined ? [ownerAddress, index] : undefined,
+    query: { enabled: !!ownerAddress && index !== undefined },
+  });
+
+  return {
+    data: tokenId,
+    isLoading,
+    error,
+    refetch,
+  };
+}
+
+// =============================================================
+//                  ERT VALIDITY HOOK
+// =============================================================
+
+export function useERTValidity(ertId: bigint | undefined) {
+  const chainId = useChainId();
+  const addresses = getAddresses(chainId);
+
+  const { data: isValid, isLoading: validLoading } = useReadContract({
+    address: addresses.ExecutionRightsNFT,
+    abi: ExecutionRightsNFTABI,
+    functionName: 'isValid',
+    args: ertId !== undefined ? [ertId] : undefined,
+    query: { enabled: ertId !== undefined },
+  });
+
+  const { data: isExpired, isLoading: expiredLoading } = useReadContract({
+    address: addresses.ExecutionRightsNFT,
+    abi: ExecutionRightsNFTABI,
+    functionName: 'isExpired',
+    args: ertId !== undefined ? [ertId] : undefined,
+    query: { enabled: ertId !== undefined },
+  });
+
+  return {
+    isValid,
+    isExpired,
+    isActive: isValid && !isExpired,
+    isLoading: validLoading || expiredLoading,
+  };
+}
+
+// =============================================================
+//                  ACTIVE ERTS FILTER HOOK
+// =============================================================
+
+export function useActiveERTsCount() {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const addresses = getAddresses(chainId);
+
+  // Get total count - in production, filter on-chain or use subgraph
+  const { data: totalCount, isLoading } = useReadContract({
+    address: addresses.ExecutionRightsNFT,
+    abi: ExecutionRightsNFTABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+
+  return {
+    totalCount,
+    // Note: Active count would require iterating through all tokens
+    // In production, use events/subgraph for this
+    isLoading,
+  };
+}
+
+// =============================================================
+//               ERT TIME REMAINING HOOK
+// =============================================================
+
+export function useERTTimeRemaining(ertId: bigint | undefined) {
+  const { data: rights } = useExecutionRights(ertId);
+
+  if (!rights) {
+    return {
+      remainingSeconds: undefined,
+      remainingFormatted: undefined,
+      isExpired: undefined,
+      expiresAt: undefined,
+    };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const expiryTime = Number(rights.expiryTime);
+  const remainingSeconds = Math.max(0, expiryTime - now);
+
+  // Format remaining time
+  const days = Math.floor(remainingSeconds / 86400);
+  const hours = Math.floor((remainingSeconds % 86400) / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+
+  let formatted: string;
+  if (remainingSeconds === 0) {
+    formatted = 'Expired';
+  } else if (days > 0) {
+    formatted = `${days}d ${hours}h`;
+  } else if (hours > 0) {
+    formatted = `${hours}h ${minutes}m`;
+  } else {
+    formatted = `${minutes}m`;
+  }
+
+  return {
+    remainingSeconds,
+    remainingFormatted: formatted,
+    isExpired: remainingSeconds === 0,
+    expiresAt: new Date(expiryTime * 1000),
+    percentRemaining: rights.startTime
+      ? (remainingSeconds / (expiryTime - Number(rights.startTime))) * 100
+      : 0,
+  };
+}
+
+// =============================================================
+//               ERT DRAWDOWN STATUS HOOK
+// =============================================================
+
+export function useERTDrawdownStatus(ertId: bigint | undefined) {
+  const { data: rights } = useExecutionRights(ertId);
+
+  if (!rights) {
+    return {
+      currentDrawdown: undefined,
+      maxDrawdown: undefined,
+      drawdownPercentage: undefined,
+      isNearLimit: undefined,
+      isAtLimit: undefined,
+    };
+  }
+
+  const capitalLimit = rights.capitalLimit;
+  const realizedPnl = rights.status.realizedPnl;
+  const unrealizedPnl = rights.status.unrealizedPnl;
+  const totalPnl = realizedPnl + unrealizedPnl;
+
+  // Calculate drawdown (negative PnL as percentage of capital)
+  const currentDrawdownBps = totalPnl < 0n && capitalLimit > 0n
+    ? Number((-totalPnl * 10000n) / capitalLimit)
+    : 0;
+
+  const maxDrawdownBps = rights.constraints.maxDrawdownBps;
+
+  return {
+    currentDrawdown: totalPnl < 0n ? -totalPnl : 0n,
+    currentDrawdownBps,
+    maxDrawdownBps,
+    drawdownPercentage: currentDrawdownBps / 100,
+    maxDrawdownPercentage: maxDrawdownBps / 100,
+    isNearLimit: currentDrawdownBps >= maxDrawdownBps * 0.8,
+    isAtLimit: currentDrawdownBps >= maxDrawdownBps,
+    headroom: maxDrawdownBps - currentDrawdownBps,
+  };
+}
+
+// =============================================================
+//               ERT CAPITAL UTILIZATION HOOK
+// =============================================================
+
+export function useERTCapitalUtilization(ertId: bigint | undefined) {
+  const { data: rights } = useExecutionRights(ertId);
+
+  if (!rights) {
+    return {
+      deployed: undefined,
+      limit: undefined,
+      available: undefined,
+      utilizationPercentage: undefined,
+    };
+  }
+
+  const deployed = rights.status.capitalDeployed;
+  const limit = rights.capitalLimit;
+  const available = limit > deployed ? limit - deployed : 0n;
+  const utilizationPercentage = limit > 0n
+    ? Number((deployed * 10000n) / limit) / 100
+    : 0;
+
+  return {
+    deployed,
+    limit,
+    available,
+    utilizationPercentage,
+    isFullyDeployed: deployed >= limit,
+  };
+}
