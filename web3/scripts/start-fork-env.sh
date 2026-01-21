@@ -8,7 +8,7 @@ echo "╚═══════════════════════�
 # Configuration
 FORK_RPC="https://flare-api.flare.network/ext/C/rpc"
 LOCAL_PORT=8546
-CHAIN_ID=14
+CHAIN_ID=31337  # Local fork chain ID (different from Flare mainnet to avoid MetaMask confusion)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB3_DIR="$(dirname "$SCRIPT_DIR")"
 

@@ -1,4 +1,5 @@
-import { ethers, network } from "hardhat";
+import { network } from "hardhat";
+const { ethers } = await network.connect();
 
 /**
  * PRAXIS Mega Fork Deployment Script
@@ -74,6 +75,9 @@ const EXTERNAL = {
 // =============================================================================
 
 interface DeployedAddresses {
+  // Mock Tokens (for demo)
+  mockUsdc: string;
+
   // Oracle
   mockFlareOracle: string;
 
@@ -140,6 +144,7 @@ async function main(): Promise<DeployedAddresses> {
   console.log("");
 
   const deployed: DeployedAddresses = {
+    mockUsdc: "",
     mockFlareOracle: "",
     swapRouter: "",
     sparkDEXAdapter: "",
@@ -167,6 +172,14 @@ async function main(): Promise<DeployedAddresses> {
   // =========================================================================
   logPhase("PHASE 1", "Mock Oracle Deployment");
 
+  // Deploy MockUSDC for demo (mintable ERC20)
+  logStep("Deploying MockUSDC (demo token)...");
+  const MockERC20 = await ethers.getContractFactory("MockERC20");
+  const mockUsdc = await MockERC20.deploy("Mock USDC", "mUSDC", 6);
+  await mockUsdc.waitForDeployment();
+  deployed.mockUsdc = await mockUsdc.getAddress();
+  logSuccess(`MockUSDC: ${deployed.mockUsdc}`);
+
   logStep("Deploying MockFlareOracle...");
   const MockFlareOracle = await ethers.getContractFactory("MockFlareOracle");
   const mockOracle = await MockFlareOracle.deploy();
@@ -177,7 +190,7 @@ async function main(): Promise<DeployedAddresses> {
   // Set initial prices
   logStep("Setting initial token prices...");
   const tokens = [
-    { addr: EXTERNAL.USDC, price: ethers.parseEther("1"), name: "USDC" },
+    { addr: deployed.mockUsdc, price: ethers.parseEther("1"), name: "MockUSDC" },
     { addr: EXTERNAL.USDT, price: ethers.parseEther("1"), name: "USDT" },
     { addr: EXTERNAL.WFLR, price: ethers.parseEther("0.015"), name: "WFLR" },
     { addr: EXTERNAL.WETH, price: ethers.parseEther("3500"), name: "WETH" },
@@ -289,12 +302,20 @@ async function main(): Promise<DeployedAddresses> {
   logSuccess(`PerpetualRouter: ${deployed.perpetualRouter}`);
 
   // SparkDEXEternalAdapter
+  // Constructor requires: address[5] addresses_, address primaryCollateral_
+  // addresses_[0] = orderBook, [1] = store, [2] = positionManager, [3] = fundingTracker, [4] = tradingValidator
   logStep("Deploying SparkDEXEternalAdapter...");
   const SparkDEXEternalAdapter = await ethers.getContractFactory("SparkDEXEternalAdapter");
-  const sparkDEXEternalAdapter = await SparkDEXEternalAdapter.deploy(
+  const perpetualAddresses: [string, string, string, string, string] = [
     EXTERNAL.SPARKDEX_ETERNAL.orderBook,
     EXTERNAL.SPARKDEX_ETERNAL.store,
-    EXTERNAL.SPARKDEX_ETERNAL.positionManager
+    EXTERNAL.SPARKDEX_ETERNAL.positionManager,
+    EXTERNAL.SPARKDEX_ETERNAL.fundingTracker,
+    "0x7c6F8Db7C4Cb32F9540478264b15637933E443A4", // tradingValidator
+  ];
+  const sparkDEXEternalAdapter = await SparkDEXEternalAdapter.deploy(
+    perpetualAddresses,
+    EXTERNAL.WFLR // primaryCollateral
   );
   await sparkDEXEternalAdapter.waitForDeployment();
   deployed.sparkDEXEternalAdapter = await sparkDEXEternalAdapter.getAddress();
@@ -318,11 +339,11 @@ async function main(): Promise<DeployedAddresses> {
   deployed.reputationManager = await reputationManager.getAddress();
   logSuccess(`ReputationManager: ${deployed.reputationManager}`);
 
-  // ExecutionVault
+  // ExecutionVault (uses MockUSDC for demo)
   logStep("Deploying ExecutionVault...");
   const ExecutionVault = await ethers.getContractFactory("ExecutionVault");
   const executionVault = await ExecutionVault.deploy(
-    EXTERNAL.USDC,
+    deployed.mockUsdc, // Use MockUSDC so we can mint for demo
     "PRAXIS Vault Shares",
     "pxUSDC"
   );
@@ -357,7 +378,7 @@ async function main(): Promise<DeployedAddresses> {
   // InsuranceFund
   logStep("Deploying InsuranceFund...");
   const InsuranceFund = await ethers.getContractFactory("InsuranceFund");
-  const insuranceFund = await InsuranceFund.deploy(deployed.executionVault, EXTERNAL.USDC);
+  const insuranceFund = await InsuranceFund.deploy(deployed.executionVault, deployed.mockUsdc);
   await insuranceFund.waitForDeployment();
   deployed.insuranceFund = await insuranceFund.getAddress();
   logSuccess(`InsuranceFund: ${deployed.insuranceFund}`);
@@ -547,6 +568,9 @@ async function main(): Promise<DeployedAddresses> {
   // Write addresses to file
   const fs = await import("fs");
   const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
   const outputPath = path.join(__dirname, "../../deployed-addresses.json");
   fs.writeFileSync(outputPath, JSON.stringify(deployed, null, 2));
   console.log(`\n📁 Addresses saved to: ${outputPath}`);
@@ -558,14 +582,20 @@ async function main(): Promise<DeployedAddresses> {
 //                               EXECUTE
 // =============================================================================
 
-main()
-  .then((addresses) => {
-    console.log("\n✅ Mega deployment successful!");
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error("\n❌ Deployment failed:", error);
-    process.exit(1);
-  });
+// Only run main() if this script is executed directly (not imported)
+const isMainModule = import.meta.url === `file://${process.argv[1]}` ||
+                     process.argv[1]?.endsWith('mega-fork-deploy.ts');
+
+if (isMainModule) {
+  main()
+    .then((addresses) => {
+      console.log("\n✅ Mega deployment successful!");
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error("\n❌ Deployment failed:", error);
+      process.exit(1);
+    });
+}
 
 export { main, DeployedAddresses };

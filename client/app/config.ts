@@ -42,11 +42,45 @@ export const flare = defineChain({
     },
 })
 
+// Define Local Fork (Anvil) - for demo and testing
+// Uses same chain ID as Flare mainnet (14) but different RPC
+export const flareFork = defineChain({
+    id: 31337, // Anvil default chain ID for local testing
+    name: 'Flare Fork (Local)',
+    nativeCurrency: {
+        decimals: 18,
+        name: 'Flare',
+        symbol: 'FLR',
+    },
+    rpcUrls: {
+        default: { http: ['http://127.0.0.1:8546'] },
+    },
+    blockExplorers: {
+        default: { name: 'Local', url: 'http://127.0.0.1:8546' },
+    },
+    testnet: true,
+})
+
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID'
 
+// Check if we're using local fork
+const useLocalFork = process.env.NEXT_PUBLIC_USE_LOCAL_FORK === 'true'
+
 export function getConfig() {
+    // Include local fork chain when enabled
+    const chains = useLocalFork ? [flareFork, coston2, flare] : [coston2, flare]
+
+    const transports: Record<number, ReturnType<typeof http>> = {
+        [coston2.id]: http(),
+        [flare.id]: http(),
+    }
+
+    if (useLocalFork) {
+        transports[flareFork.id] = http('http://127.0.0.1:8546')
+    }
+
     return createConfig({
-        chains: [coston2, flare],
+        chains: chains as any,
         connectors: [
             injected(),
             walletConnect({
@@ -63,9 +97,6 @@ export function getConfig() {
         storage: createStorage({
             storage: cookieStorage,
         }),
-        transports: {
-            [coston2.id]: http(),
-            [flare.id]: http(),
-        },
+        transports,
     })
 }

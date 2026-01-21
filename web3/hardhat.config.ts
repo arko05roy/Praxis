@@ -59,7 +59,7 @@ export default defineConfig({
       },
     },
 
-    // Anvil Fork (run anvil with: anvil --fork-url https://flare-api.flare.network/ext/C/rpc --port 8546)
+    // Anvil Fork (run anvil with: anvil --fork-url https://flare-api.flare.network/ext/C/rpc --port 8546 --chain-id 31337)
     anvilFork: {
       type: "http",
       chainType: "l1",
@@ -77,7 +77,7 @@ export default defineConfig({
         "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
         "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
       ],
-      chainId: 14,
+      chainId: 31337, // Local fork chain ID (matches client config)
     },
 
     // Flare Testnet (Coston2)
