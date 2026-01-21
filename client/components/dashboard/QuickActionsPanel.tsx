@@ -1,8 +1,33 @@
 "use client";
 
-import { ArrowDown, X, Bitcoin } from "lucide-react";
+import { useCommonPrices, useTokenBalance } from "@/lib/hooks";
+import { getAddresses } from "@/lib/contracts/addresses";
+import { useChainId } from "wagmi";
+import { ArrowDown, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { formatUnits } from "viem";
 
 export function QuickActionsPanel() {
+    const chainId = useChainId();
+    const addresses = getAddresses(chainId);
+    const { BTC, USDC, isLoading: pricesLoading } = useCommonPrices();
+
+    // Balances
+    const { data: btcBalance } = useTokenBalance(addresses.MockFBTC);
+
+    // State
+    const [amount, setAmount] = useState<string>("");
+
+    // Calculate Rate: BTC Price / USDC Price
+    // PriceData has price (scaled) and decimals. formatted is string.
+    const btcPrice = BTC ? Number(BTC.formatted) : 0;
+    const usdcPrice = USDC ? Number(USDC.formatted) : 1;
+    const rate = usdcPrice > 0 ? btcPrice / usdcPrice : 0;
+
+    const receiveAmount = amount ? Number(amount) * rate : 0;
+
+    const btcBalanceFormatted = btcBalance ? formatUnits(btcBalance.value, btcBalance.decimals) : "0";
+
     return (
         <div className="glass-panel rounded-2xl p-6 h-full flex flex-col">
             <div className="flex items-center justify-between mb-6">
@@ -18,16 +43,22 @@ export function QuickActionsPanel() {
                     <div className="flex justify-between mb-2">
                         <span className="text-xs text-text-muted font-medium">FROM:</span>
                         <div className="flex items-center gap-2 bg-black/40 rounded-full px-2 py-0.5 border border-white/10 cursor-pointer">
-                            <div className="w-4 h-4 rounded-full bg-bitcoin flex items-center justify-center text-[10px] text-white">B</div>
+                            <div className="w-4 h-4 rounded-full bg-[#f7931a] flex items-center justify-center text-[10px] text-white">B</div>
                             <span className="text-xs text-white">BTC</span>
                             <span className="text-xs text-text-muted">▼</span>
                         </div>
                     </div>
                     <div className="flex justify-between items-end">
                         <div className="text-xs text-text-muted">
-                            Available: <span className="text-white">0.045 MAX</span>
+                            Available: <span className="text-white">{Number(btcBalanceFormatted).toFixed(4)}</span>
                         </div>
-                        <span className="text-xl font-mono text-white">0.024</span>
+                        <input
+                            type="number"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            placeholder="0.00"
+                            className="bg-transparent text-right text-xl font-mono text-white focus:outline-none w-32 placeholder:text-white/20"
+                        />
                     </div>
                 </div>
 
@@ -43,8 +74,8 @@ export function QuickActionsPanel() {
                     <div className="flex justify-between mb-2">
                         <span className="text-xs text-text-muted font-medium">TO:</span>
                         <div className="flex items-center gap-2 bg-black/40 rounded-full px-2 py-0.5 border border-white/10 cursor-pointer">
-                            <div className="w-4 h-4 rounded-full bg-accent flex items-center justify-center text-[10px] text-black font-bold">T</div>
-                            <span className="text-xs text-white">USDT</span>
+                            <div className="w-4 h-4 rounded-full bg-accent flex items-center justify-center text-[10px] text-black font-bold">$</div>
+                            <span className="text-xs text-white">USDC</span>
                             <span className="text-xs text-text-muted">▼</span>
                         </div>
                     </div>
@@ -52,7 +83,9 @@ export function QuickActionsPanel() {
                         <div className="text-xs text-text-muted">
                             Receive:
                         </div>
-                        <span className="text-xl font-mono text-white">24,230.00</span>
+                        <span className="text-xl font-mono text-white">
+                            {receiveAmount > 0 ? receiveAmount.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0.00"}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -60,7 +93,7 @@ export function QuickActionsPanel() {
             <div className="mt-6 space-y-3">
                 <div className="flex justify-between text-xs text-text-muted px-1">
                     <span>Rate</span>
-                    <span>1 BTC = 98,230 USDT</span>
+                    <span>1 BTC ≈ {rate.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</span>
                 </div>
 
                 <button className="w-full bg-accent hover:bg-accent-hover text-black font-bold py-4 rounded-xl transition-all shadow-[0_4px_20px_rgba(143,212,96,0.3)] hover:shadow-[0_6px_25px_rgba(143,212,96,0.4)] hover:translate-y-[-1px] active:translate-y-[0px] flex items-center justify-center gap-2">

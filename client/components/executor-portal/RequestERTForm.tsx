@@ -1,33 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import { useMintERT, useTierConfig, useRequiredStake, useTokenBalance, useExecutorStatus } from "@/lib/hooks";
+import { useMintERT, useTierConfig, useRequiredStake, useTokenBalance, useExecutorStatus, useCommonPrices } from "@/lib/hooks";
 import { formatUnits, parseUnits } from "viem";
 import { Loader2, Calculator } from "lucide-react";
+
+import { useBalance, useAccount } from "wagmi";
 
 export function RequestERTForm() {
     const [capitalAmount, setCapitalAmount] = useState("");
     const [durationDays, setDurationDays] = useState("30");
     const [leverage, setLeverage] = useState(2);
 
+    const { address } = useAccount();
+
     const { data: status } = useExecutorStatus();
     const { data: tierConfig } = useTierConfig();
     const { mintWithDefaults, isPending } = useMintERT();
+    const { FLR } = useCommonPrices();
+
+    // Get Native FLR Balance for Validation
+    const { data: balanceData } = useBalance({
+        address: address,
+    });
 
     // Calculate stake requirements
     const capitalBigInt = capitalAmount ? parseUnits(capitalAmount, 6) : 0n;
     const { data: requiredStake } = useRequiredStake(capitalBigInt);
 
     const maxCapital = tierConfig ? formatUnits(tierConfig.maxCapital, 6) : "0";
-    const stakeAmount = requiredStake ? formatUnits(requiredStake, 18) : "0";
+
+    // requiredStake is in USD (6 decimals) from contract. Convert to FLR.
+    const flrPrice = FLR ? Number(FLR.formatted) : 0;
+    const requiredStakeUsd = requiredStake ? Number(formatUnits(requiredStake, 6)) : 0;
+    const stakeAmountFlr = flrPrice > 0 ? requiredStakeUsd / flrPrice : 0;
+    const stakeAmountWei = parseUnits(stakeAmountFlr.toFixed(18), 18);
+
+    const hasInsufficientBalance = balanceData && stakeAmountWei > balanceData.value;
 
     const handleRequest = () => {
-        if (!requiredStake) return;
+        if (!requiredStake || !stakeAmountWei) return;
 
         mintWithDefaults(
             capitalBigInt,
             Number(durationDays),
-            requiredStake,
+            stakeAmountWei, // Send actual FLR amount
             [], // Default all adapters
             []  // Default all assets
         );
@@ -64,9 +81,11 @@ export function RequestERTForm() {
                         type="number"
                         value={capitalAmount}
                         onChange={(e) => setCapitalAmount(e.target.value)}
-                        max={maxCapital}
+                        // Only enforce max validation if loaded. Don't block typing.
+                        max={maxCapital !== "0" ? maxCapital : undefined}
                         className="w-full bg-background-secondary border border-white/5 rounded-xl px-4 py-3 text-white outline-none focus:border-accent/50 transition-colors"
-                        placeholder={`Max: ${Number(maxCapital).toLocaleString()}`}
+                        placeholder={tierConfig ? `Max: ${Number(maxCapital).toLocaleString()}` : "Loading limits..."}
+                        disabled={!tierConfig}
                     />
                 </div>
 
@@ -92,8 +111,10 @@ export function RequestERTForm() {
                 {/* Stats Summary */}
                 <div className="bg-black/20 rounded-xl p-4 space-y-3">
                     <div className="flex justify-between text-sm">
-                        <span className="text-text-muted">Required Stake (FLR)</span>
-                        <span className="text-white font-mono">{Number(stakeAmount).toFixed(2)}</span>
+                        <span className="text-text-muted">Required Stake (FLR) <span className="text-xs opacity-70">(Auto-deducted)</span></span>
+                        <span className={`${hasInsufficientBalance ? 'text-error font-bold' : 'text-white font-mono'}`}>
+                            {stakeAmountFlr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-text-muted">Base Fee APR</span>
@@ -107,11 +128,11 @@ export function RequestERTForm() {
 
                 <button
                     onClick={handleRequest}
-                    disabled={!capitalAmount || isPending || !requiredStake}
+                    disabled={!capitalAmount || isPending || !requiredStake || !stakeAmountWei || hasInsufficientBalance}
                     className="w-full bg-accent hover:bg-accent-hover text-black font-bold py-4 rounded-xl transition-all shadow-[0_4px_20px_rgba(143,212,96,0.3)] hover:shadow-[0_6px_25px_rgba(143,212,96,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                     {isPending ? <Loader2 className="animate-spin w-5 h-5" /> : null}
-                    Mint Execution Rights (ERT)
+                    {hasInsufficientBalance ? `Insufficient FLR Balance (${balanceData ? Number(balanceData.formatted).toFixed(2) : '0'})` : 'Mint Execution Rights (ERT)'}
                 </button>
             </div>
         </div>

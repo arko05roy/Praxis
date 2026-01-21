@@ -36,7 +36,7 @@ export function DepositForm() {
                     <div className="flex justify-between mb-2">
                         <span className="text-xs text-text-muted font-medium">Amount (USDC)</span>
                         <span className="text-xs text-text-muted">
-                            Balance: {balance ? formatUnits(balance, 6) : "0.00"}
+                            Balance: {balance ? formatUnits(balance.value, balance.decimals) : "0.00"}
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ export function DepositForm() {
                             className="bg-transparent text-2xl font-mono text-white placeholder-text-muted outline-none w-full"
                         />
                         <button
-                            onClick={() => setAmount(balance ? formatUnits(balance, 6) : "")}
+                            onClick={() => setAmount(balance ? formatUnits(balance.value, balance.decimals) : "")}
                             className="text-xs bg-white/10 hover:bg-white/20 text-accent px-2 py-1 rounded transition-colors"
                         >
                             MAX

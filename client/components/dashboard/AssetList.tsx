@@ -12,7 +12,8 @@ const ASSETS = [
 ];
 
 export function AssetList() {
-    const { data: prices, isLoading } = useCommonPrices();
+    const prices = useCommonPrices();
+    const isLoading = prices.isLoading;
 
     // Mock change data since common prices might not have 24h change yet
     const changes: Record<string, number> = {

@@ -191,11 +191,11 @@ export function KineticLendingCard() {
                     <div className="flex justify-between mb-2">
                         <label className="text-xs text-text-muted">Supply {selectedMarket}</label>
                         <button
-                            onClick={() => underlyingBalance && setAmount(formatUnits(underlyingBalance, market.decimals))}
+                            onClick={() => underlyingBalance && setAmount(formatUnits(underlyingBalance.value, underlyingBalance.decimals))}
                             className="text-xs text-text-muted hover:text-blue-400 transition-colors"
                         >
                             Available: {balanceLoading ? '...' : underlyingBalance
-                                ? Number(formatUnits(underlyingBalance, market.decimals)).toLocaleString(undefined, { maximumFractionDigits: 4 })
+                                ? Number(formatUnits(underlyingBalance.value, underlyingBalance.decimals)).toLocaleString(undefined, { maximumFractionDigits: 4 })
                                 : '0'}
                         </button>
                     </div>
@@ -208,7 +208,7 @@ export function KineticLendingCard() {
                             className="bg-transparent text-2xl font-bold text-white outline-none w-full"
                         />
                         <button
-                            onClick={() => underlyingBalance && setAmount(formatUnits(underlyingBalance, market.decimals))}
+                            onClick={() => underlyingBalance && setAmount(formatUnits(underlyingBalance.value, underlyingBalance.decimals))}
                             className="text-xs bg-white/10 hover:bg-white/20 text-blue-400 px-2 py-1 rounded transition-colors"
                         >
                             MAX

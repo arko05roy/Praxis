@@ -29,12 +29,12 @@ export function useVaultInfo() {
 
   const vaultInfo: VaultInfo | undefined = data
     ? {
-        totalAssets: data.totalAssets,
-        totalShares: data.totalShares,
-        allocatedCapital: data.allocatedCapital,
-        availableCapital: data.availableCapital,
-        utilizationRate: Number(data.utilizationRate) / 100, // Convert BPS to percentage
-      }
+      totalAssets: data.totalAssets,
+      totalShares: data.totalShares,
+      allocatedCapital: data.allocatedCapital,
+      availableCapital: data.availableCapital,
+      utilizationRate: Number(data.utilizationRate) / 100, // Convert BPS to percentage
+    }
     : undefined;
 
   return {
@@ -82,9 +82,9 @@ export function useLPBalance() {
   const balance: LPBalance | undefined =
     shares !== undefined
       ? {
-          shares,
-          assetsValue: assetsValue ?? 0n,
-        }
+        shares,
+        assetsValue: assetsValue ?? 0n,
+      }
       : undefined;
 
   return {
@@ -349,25 +349,34 @@ export function useVaultRedeem() {
 //                    TOKEN BALANCE HOOK
 // =============================================================
 
-export function useTokenBalance() {
+export function useTokenBalance(tokenAddress?: `0x${string}`) {
   const { address } = useAccount();
   const chainId = useChainId();
   const addresses = getAddresses(chainId);
+  const targetToken = tokenAddress || addresses.Asset;
 
-  const { data: balance, isLoading, error, refetch } = useReadContract({
-    address: addresses.Asset,
+  const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = useReadContract({
+    address: targetToken,
     abi: ERC20ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     query: {
-      enabled: !!address,
+      enabled: !!address && !!targetToken,
+    },
+  });
+
+  const { data: decimals, isLoading: decimalsLoading } = useReadContract({
+    address: targetToken,
+    abi: ERC20ABI,
+    functionName: 'decimals',
+    query: {
+      enabled: !!targetToken,
     },
   });
 
   return {
-    data: balance,
-    isLoading,
-    error,
-    refetch,
+    data: balance !== undefined && decimals !== undefined ? { value: balance, decimals } : undefined,
+    isLoading: balanceLoading || decimalsLoading,
+    refetch: refetchBalance,
   };
 }
