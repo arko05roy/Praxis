@@ -1,6 +1,9 @@
+"use client"
 import HeroFuturistic from "@/components/ui/hero-futuristic";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
   return (
     <main className="relative min-h-screen w-full bg-black text-white overflow-hidden flex flex-col items-center justify-center font-sans tracking-tight selection:bg-white selection:text-black">
 
@@ -35,18 +38,13 @@ export default function Home() {
         <div className="absolute top-8 right-8 text-[10px] md:text-xs font-mono text-zinc-400 space-y-4 text-right">
           <div>
             <span className="inline-block w-1 h-3 bg-zinc-600 mr-2 align-middle"></span>
-            CREATED BY<br />
-            <span className="text-white">ALEX GILEV</span>
+            Chain<br />
+            <span className="text-white">FLARE</span>
           </div>
           <div>
             <span className="inline-block w-1 h-3 bg-zinc-600 mr-2 align-middle"></span>
             FOLLOW<br />
-            <span className="text-white">@AGENTICUI</span>
-          </div>
-          <div>
-            <span className="inline-block w-1 h-3 bg-zinc-600 mr-2 align-middle"></span>
-            LOCATION<br />
-            <span className="text-white">MIAMI, FL</span>
+            <span className="text-white">@praxis</span>
           </div>
           <div className="w-6 h-6 border-t border-r border-white/40 ml-auto mt-4"></div>
         </div>
@@ -69,7 +67,7 @@ export default function Home() {
       <div className="relative z-30 flex flex-col items-center text-center max-w-4xl px-4 mt-32 md:mt-20">
 
         <div className="font-mono text-xs md:text-sm text-zinc-500 mb-6 tracking-widest uppercase">
-          Coming Q1 2026
+          The new way of Lending
         </div>
 
         <h1 className="text-6xl md:text-8xl lg:text-9xl font-serif tracking-tighter mb-6 text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-400 leading-[0.9]">
@@ -77,12 +75,11 @@ export default function Home() {
         </h1>
 
         <p className="text-sm md:text-base text-zinc-400 max-w-lg mx-auto leading-relaxed mb-12">
-          The world&apos;s first enterprise-grade design system <br className="hidden md:block" />
-          for building scalable agentic experiences.
+         exclusively on flare mainnet
         </p>
 
         <button className="group relative px-8 py-3 bg-zinc-900 border border-zinc-800 text-xs md:text-sm font-bold tracking-widest text-white uppercase transition-all hover:bg-zinc-800 hover:border-zinc-700 hover:text-white">
-          <span className="relative z-10">Pre-Order</span>
+          <span onClick={() => router.push('/dashboard')} className="relative z-10">Continue To Dashboard</span>
           <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
         </button>
 
