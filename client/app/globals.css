@@ -21,22 +21,21 @@
 
 :root {
   /* Core Palette */
-  --background: #0a0f0d;
-  --background-secondary: #141a17;
-  --background-tertiary: #1a241f;
+  --background: #000000;
+  --background-secondary: #111111;
+  --background-tertiary: #222222;
 
-  --accent: #8fd460;
-  --accent-hover: #a3e074;
+  --accent: #ffffff;
+  --accent-hover: #cccccc;
 
   --error: #ef4444;
-  /* Bright Red for errors/negative changes */
-  --success: #8fd460;
+  --success: #ffffff;
 
   --text-primary: #ffffff;
-  --text-secondary: #a0a8a3;
-  --text-muted: #4a524d;
+  --text-secondary: #888888;
+  --text-muted: #555555;
 
-  /* Crypto Colors */
+  /* Crypto Colors - Desaturated/Monochrome where possible for this theme */
   --bitcoin: #f7931a;
   --ethereum: #627eea;
 }

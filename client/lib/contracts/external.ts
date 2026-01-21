@@ -18,6 +18,12 @@ export const SPARKDEX_ADDRESSES = {
     factory: '' as `0x${string}`,
     nonfungiblePositionManager: '' as `0x${string}`,
   },
+  31337: {
+    swapRouter: '' as `0x${string}`,
+    quoterV2: '' as `0x${string}`,
+    factory: '' as `0x${string}`,
+    nonfungiblePositionManager: '' as `0x${string}`,
+  },
 } as const;
 
 // =============================================================
@@ -44,6 +50,19 @@ export const SPARKDEX_ETERNAL_ADDRESSES = {
     timelock: '0xB0739F8e71E20B384d29e4597602C89FB7E0A808' as `0x${string}`,
   },
   114: {
+    orderBook: '' as `0x${string}`,
+    store: '' as `0x${string}`,
+    positionManager: '' as `0x${string}`,
+    fundingTracker: '' as `0x${string}`,
+    executor: '' as `0x${string}`,
+    tradingValidator: '' as `0x${string}`,
+    referralStorage: '' as `0x${string}`,
+    referralReader: '' as `0x${string}`,
+    addressStorage: '' as `0x${string}`,
+    ftsoV2: '' as `0x${string}`,
+    timelock: '' as `0x${string}`,
+  },
+  31337: {
     orderBook: '' as `0x${string}`,
     store: '' as `0x${string}`,
     positionManager: '' as `0x${string}`,
@@ -86,6 +105,10 @@ export const BLAZESWAP_ADDRESSES = {
     router: '' as `0x${string}`,
     factory: '' as `0x${string}`,
   },
+  31337: {
+    router: '' as `0x${string}`,
+    factory: '' as `0x${string}`,
+  },
 } as const;
 
 // =============================================================
@@ -106,6 +129,13 @@ export const ENOSYS_ADDRESSES = {
     factory: '0x0000000000000000000000000000000000000000' as `0x${string}`, // UNVERIFIED (V3 factory)
   },
   114: {
+    nonfungiblePositionManager: '' as `0x${string}`,
+    v2Factory: '' as `0x${string}`,
+    swapRouter: '' as `0x${string}`,
+    quoterV2: '' as `0x${string}`,
+    factory: '' as `0x${string}`,
+  },
+  31337: {
     nonfungiblePositionManager: '' as `0x${string}`,
     v2Factory: '' as `0x${string}`,
     swapRouter: '' as `0x${string}`,
@@ -142,6 +172,16 @@ export const FASSET_ADDRESSES = {
       FDOGE: [],
     },
   },
+  31337: {
+    FXRP: '' as `0x${string}`,
+    FBTC: '' as `0x${string}`,
+    FDOGE: '' as `0x${string}`,
+    pools: {
+      FXRP: [],
+      FBTC: [],
+      FDOGE: [],
+    },
+  },
 } as const;
 
 // FAsset FTSO Feed IDs
@@ -163,6 +203,11 @@ export const FLARE_SYSTEM_ADDRESSES = {
   },
   114: {
     ftsoV2: '0x3d893C53D9e8056135C26C8c638B76C8b60Df726' as `0x${string}`, // Same on testnet
+    contractRegistry: '0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019' as `0x${string}`,
+    fdcHub: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+  },
+  31337: {
+    ftsoV2: '0x3d893C53D9e8056135C26C8c638B76C8b60Df726' as `0x${string}`,
     contractRegistry: '0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019' as `0x${string}`,
     fdcHub: '0x0000000000000000000000000000000000000000' as `0x${string}`,
   },
@@ -195,6 +240,9 @@ export const SCEPTRE_ADDRESSES = {
   114: {
     sFLR: '' as `0x${string}`, // Not deployed on Coston2
   },
+  31337: {
+    sFLR: '' as `0x${string}`,
+  },
 } as const;
 
 // =============================================================
@@ -213,6 +261,10 @@ export const KINETIC_ADDRESSES = {
     },
   },
   114: {
+    comptroller: '' as `0x${string}`, // Not deployed on Coston2
+    kTokens: {},
+  },
+  31337: {
     comptroller: '' as `0x${string}`, // Not deployed on Coston2
     kTokens: {},
   },
@@ -237,6 +289,13 @@ export const TOKEN_ADDRESSES = {
     USDT: '' as `0x${string}`,
     WETH: '' as `0x${string}`,
   },
+  31337: {
+    WFLR: '0xC67DCE33D7A8efA5FfEB961899C73fe01bCe9273' as `0x${string}`,
+    sFLR: '' as `0x${string}`,
+    USDC: '' as `0x${string}`,
+    USDT: '' as `0x${string}`,
+    WETH: '' as `0x${string}`,
+  },
 } as const;
 
 // =============================================================
@@ -254,31 +313,31 @@ export const V3_FEE_TIERS = {
 //                    HELPER FUNCTIONS
 // =============================================================
 
-export type SupportedChainId = 14 | 114;
+export type SupportedChainId = 14 | 114 | 31337;
 
 export function getSparkDEXAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return SPARKDEX_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`SparkDEX not available on chain ${chainId}`);
 }
 
 export function getSceptreAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return SCEPTRE_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`Sceptre not available on chain ${chainId}`);
 }
 
 export function getKineticAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return KINETIC_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`Kinetic not available on chain ${chainId}`);
 }
 
 export function getTokenAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return TOKEN_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`Tokens not configured for chain ${chainId}`);
@@ -293,35 +352,35 @@ export function areExternalProtocolsAvailable(chainId: number): boolean {
 }
 
 export function getSparkDEXEternalAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return SPARKDEX_ETERNAL_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`SparkDEX Eternal not available on chain ${chainId}`);
 }
 
 export function getBlazeSwapAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return BLAZESWAP_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`BlazeSwap not available on chain ${chainId}`);
 }
 
 export function getEnosysAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return ENOSYS_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`Enosys not available on chain ${chainId}`);
 }
 
 export function getFAssetAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return FASSET_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`FAssets not available on chain ${chainId}`);
 }
 
 export function getFlareSystemAddresses(chainId: number) {
-  if (chainId === 14 || chainId === 114) {
+  if (chainId === 14 || chainId === 114 || chainId === 31337) {
     return FLARE_SYSTEM_ADDRESSES[chainId as SupportedChainId];
   }
   throw new Error(`Flare system contracts not available on chain ${chainId}`);

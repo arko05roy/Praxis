@@ -1,12 +1,11 @@
 {
   "designSystem": {
     "metadata": {
-      "name": "Cryptfy Crypto Wallet Design System",
+      "name": "Praxis Crypto Wallet Design System",
       "type": "Financial Dashboard",
       "platform": "Web Application",
       "designStyle": "Modern Dark Theme Crypto Interface"
     },
-    
     "colorPalette": {
       "primary": {
         "background": "#0a0f0d",
@@ -46,7 +45,6 @@
         "usdt": "#26a17b"
       }
     },
-
     "typography": {
       "fontFamily": {
         "primary": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -86,7 +84,6 @@
         "wider": "0.05em"
       }
     },
-
     "spacing": {
       "scale": {
         "0": "0px",
@@ -113,7 +110,6 @@
         "inputPaddingHorizontal": "16px"
       }
     },
-
     "borderRadius": {
       "none": "0px",
       "sm": "4px",
@@ -132,7 +128,6 @@
         "avatar": "50%"
       }
     },
-
     "shadows": {
       "none": "none",
       "sm": "0 1px 2px 0 rgba(0, 0, 0, 0.3)",
@@ -147,7 +142,6 @@
         "subtle": "0 0 12px rgba(255, 255, 255, 0.1)"
       }
     },
-
     "components": {
       "sidebar": {
         "structure": {
@@ -205,7 +199,6 @@
           "color": "inherit"
         }
       },
-
       "card": {
         "default": {
           "backgroundColor": "#141a17",
@@ -224,7 +217,6 @@
           "boxShadow": "0 8px 24px rgba(0, 0, 0, 0.6)"
         }
       },
-
       "button": {
         "primary": {
           "backgroundColor": "#8fd460",
@@ -264,7 +256,6 @@
           "fontSize": "14px"
         }
       },
-
       "input": {
         "default": {
           "backgroundColor": "#1a241f",
@@ -291,7 +282,6 @@
           "opacity": 0.6
         }
       },
-
       "dropdown": {
         "trigger": {
           "backgroundColor": "#1a241f",
@@ -326,7 +316,6 @@
           "color": "#ffffff"
         }
       },
-
       "badge": {
         "default": {
           "padding": "4px 10px",
@@ -350,7 +339,6 @@
           "color": "#a0a8a3"
         }
       },
-
       "chart": {
         "miniSparkline": {
           "width": "80px",
@@ -374,7 +362,6 @@
           }
         }
       },
-
       "assetListItem": {
         "structure": {
           "display": "flex",
@@ -426,7 +413,6 @@
           "gap": "4px"
         }
       },
-
       "walletHeader": {
         "structure": {
           "display": "flex",
@@ -464,7 +450,6 @@
           "borderColor": "rgba(255, 255, 255, 0.2)"
         }
       },
-
       "portfolioSummary": {
         "balance": {
           "fontSize": "56px",
@@ -500,7 +485,6 @@
           "fontWeight": 400
         }
       },
-
       "swapInterface": {
         "container": {
           "backgroundColor": "#141a17",
@@ -586,7 +570,6 @@
         }
       }
     },
-
     "layout": {
       "grid": {
         "columns": 12,
@@ -611,7 +594,6 @@
         "margin": "0 auto"
       }
     },
-
     "animations": {
       "transitions": {
         "fast": "150ms ease",
@@ -628,28 +610,53 @@
       },
       "keyframes": {
         "fadeIn": {
-          "from": {"opacity": 0},
-          "to": {"opacity": 1}
+          "from": {
+            "opacity": 0
+          },
+          "to": {
+            "opacity": 1
+          }
         },
         "slideUp": {
-          "from": {"transform": "translateY(20px)", "opacity": 0},
-          "to": {"transform": "translateY(0)", "opacity": 1}
+          "from": {
+            "transform": "translateY(20px)",
+            "opacity": 0
+          },
+          "to": {
+            "transform": "translateY(0)",
+            "opacity": 1
+          }
         },
         "slideDown": {
-          "from": {"transform": "translateY(-20px)", "opacity": 0},
-          "to": {"transform": "translateY(0)", "opacity": 1}
+          "from": {
+            "transform": "translateY(-20px)",
+            "opacity": 0
+          },
+          "to": {
+            "transform": "translateY(0)",
+            "opacity": 1
+          }
         },
         "scaleIn": {
-          "from": {"transform": "scale(0.95)", "opacity": 0},
-          "to": {"transform": "scale(1)", "opacity": 1}
+          "from": {
+            "transform": "scale(0.95)",
+            "opacity": 0
+          },
+          "to": {
+            "transform": "scale(1)",
+            "opacity": 1
+          }
         },
         "pulse": {
-          "0%, 100%": {"opacity": 1},
-          "50%": {"opacity": 0.5}
+          "0%, 100%": {
+            "opacity": 1
+          },
+          "50%": {
+            "opacity": 0.5
+          }
         }
       }
     },
-
     "patterns": {
       "glassmorphism": {
         "background": "rgba(26, 36, 31, 0.6)",
@@ -669,7 +676,6 @@
         "margin": "24px 0"
       }
     },
-
     "iconography": {
       "style": "outline",
       "strokeWidth": "1.5px",
@@ -688,7 +694,6 @@
         "displayType": "logo with background color"
       }
     },
-
     "dataVisualization": {
       "percentageIndicators": {
         "positive": {
@@ -718,7 +723,6 @@
         "tooltipShadow": "0 4px 12px rgba(0, 0, 0, 0.6)"
       }
     },
-
     "states": {
       "interactive": {
         "default": {
@@ -744,7 +748,6 @@
         }
       }
     },
-
     "accessibility": {
       "focusRing": {
         "outline": "2px solid #8fd460",
@@ -760,7 +763,6 @@
         "fallbackTransition": "none"
       }
     },
-
     "responsive": {
       "mobile": {
         "sidebarBehavior": "bottom navigation",
@@ -777,7 +779,6 @@
         "optimal": "full 12 column grid"
       }
     },
-
     "bestPractices": {
       "consistencyRules": [
         "Always use defined color tokens, never hardcoded hex values",

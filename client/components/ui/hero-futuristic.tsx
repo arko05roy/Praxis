@@ -58,16 +58,16 @@ const PostProcessing = ({
         const uvY = uv().y;
         const scanWidth = float(0.05);
         const scanLine = smoothstep(0, scanWidth, abs(uvY.sub(scanPos)));
-        const redOverlay = vec3(1, 0, 0).mul(oneMinus(scanLine)).mul(0.4);
+        const redOverlay = vec3(1, 1, 1).mul(oneMinus(scanLine)).mul(0.2);
 
-        // Mix the original scene with the red overlay
+        // Mix the original scene with the white overlay
         const withScanEffect = mix(
             scenePassColor,
             add(scenePassColor, redOverlay),
             fullScreenEffect ? smoothstep(0.9, 1.0, oneMinus(scanLine)) : 1.0
         );
 
-        // Add bloom effect after scan effect
+        // Add bloom effect after scan effect (less intensity)
         const final = withScanEffect.add(bloomPass);
 
         postProcessing.outputNode = final;
@@ -116,7 +116,7 @@ const Scene = () => {
         const aspect = float(WIDTH).div(HEIGHT);
         const tUv = vec2(uv().x.mul(aspect), uv().y);
 
-        const tiling = vec2(120.0);
+        const tiling = vec2(50.0); // Less dense for cleaner look
         const tiledUv = mod(tUv.mul(tiling), 2.0).sub(1.0);
 
         const brightness = mx_cell_noise_float(tUv.mul(tiling).div(2));
@@ -128,7 +128,8 @@ const Scene = () => {
 
         const flow = oneMinus(smoothstep(0, 0.02, abs(depth.sub(uProgress))));
 
-        const mask = dot.mul(flow).mul(vec3(10, 0, 0));
+        // Monochrome mask (white lines)
+        const mask = dot.mul(flow).mul(vec3(5, 5, 5));
 
         const final = blendScreen(tMap, mask);
 
@@ -137,6 +138,9 @@ const Scene = () => {
             transparent: true,
             opacity: 0,
         });
+
+        // Forced monochrome override if needed, but colorNode handles it
+        // simplified to just show the mask mainly if we want pure lines
 
         return {
             material,
@@ -151,7 +155,7 @@ const Scene = () => {
 
     useFrame(({ clock }) => {
         uniforms.uProgress.value = (Math.sin(clock.getElapsedTime() * 0.5) * 0.5 + 0.5);
-        // Плавное появление
+        // Fade in
         if (meshRef.current && 'material' in meshRef.current && meshRef.current.material) {
             const mat = meshRef.current.material as any;
             if ('opacity' in mat) {
@@ -168,7 +172,7 @@ const Scene = () => {
         uniforms.uPointer.value = pointer;
     });
 
-    const scaleFactor = 0.40;
+    const scaleFactor = 0.6; // Slightly larger for central focus
     return (
         <mesh ref={meshRef} scale={[w * scaleFactor, h * scaleFactor, 1]} material={material}>
             <planeGeometry />
@@ -177,68 +181,8 @@ const Scene = () => {
 };
 
 export const HeroFuturistic = () => {
-    const titleWords = 'The next genration of web3 loans'.split(' ');
-    const subtitle = '';
-    const [visibleWords, setVisibleWords] = useState(0);
-    const [subtitleVisible, setSubtitleVisible] = useState(false);
-    const [delays, setDelays] = useState<number[]>([]);
-    const [subtitleDelay, setSubtitleDelay] = useState(0);
-
-    useEffect(() => {
-        // Только на клиенте: генерируем случайные задержки для глитча
-        setDelays(titleWords.map(() => Math.random() * 0.07));
-        setSubtitleDelay(Math.random() * 0.1);
-    }, [titleWords.length]);
-
-    useEffect(() => {
-        if (visibleWords < titleWords.length) {
-            const timeout = setTimeout(() => setVisibleWords(visibleWords + 1), 600);
-            return () => clearTimeout(timeout);
-        } else {
-            const timeout = setTimeout(() => setSubtitleVisible(true), 800);
-            return () => clearTimeout(timeout);
-        }
-    }, [visibleWords, titleWords.length]);
-
     return (
-        <div className="h-svh w-full relative overflow-hidden bg-black text-white">
-            <div className="h-full uppercase items-center w-full absolute z-10 pointer-events-none px-10 flex justify-center flex-col">
-                <div className="text-3xl md:text-5xl xl:text-6xl 2xl:text-7xl font-extrabold flex justify-center">
-                    <div className="flex space-x-2 lg:space-x-6 overflow-hidden">
-                        {titleWords.map((word, index) => (
-                            <div
-                                key={index}
-                                className={`transition-opacity duration-500 ease-in-out ${index < visibleWords ? 'opacity-100' : 'opacity-0'}`}
-                                style={{ transitionDelay: `${index * 130 + (delays[index] || 0) * 1000}ms` }}
-                            >
-                                {word}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="text-xs md:text-xl xl:text-2xl 2xl:text-3xl mt-2 overflow-hidden font-bold">
-                    <div
-                        className={`transition-opacity duration-500 ease-in-out ${subtitleVisible ? 'opacity-100' : 'opacity-0'}`}
-                        style={{ transitionDelay: `${titleWords.length * 130 + 200 + subtitleDelay * 1000}ms` }}
-                    >
-                        {subtitle}
-                    </div>
-                </div>
-            </div>
-
-            <button
-                className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 text-sm font-medium transition-opacity duration-1000 opacity-0 animate-fade-in-delayed"
-                style={{ animationDelay: '2.2s', animationFillMode: 'forwards' }}
-            >
-                Scroll to explore
-                <span className="animate-bounce">
-                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M11 5V17" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                        <path d="M6 12L11 17L16 12" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                </span>
-            </button>
-
+        <div className="w-full h-full relative overflow-hidden bg-black text-white flex items-center justify-center">
             <div className="absolute inset-0 w-full h-full">
                 <Canvas
                     flat
@@ -248,7 +192,7 @@ export const HeroFuturistic = () => {
                         return renderer;
                     }}
                 >
-                    <PostProcessing fullScreenEffect={true} />
+                    <PostProcessing fullScreenEffect={true} strength={0.2} />
                     <Scene />
                 </Canvas>
             </div>

@@ -39,7 +39,7 @@ export function Sidebar() {
                 <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
                     <LayoutGrid className="w-5 h-5 text-black" />
                 </div>
-                <span className="text-xl font-bold text-white tracking-wide">Cryptfy</span>
+                <span className="text-xl font-bold text-white tracking-wide">Praxis</span>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-8">
