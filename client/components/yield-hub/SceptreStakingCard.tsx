@@ -1,27 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { useSceptreStats, useSceptreBalance, useSceptreStake } from "@/lib/hooks";
-import { formatUnits } from "viem";
-import { Droplets, ArrowRight, Loader2 } from "lucide-react";
+import { useSceptreStats, useSceptreBalance, useSceptreStake, useNativeBalance } from "@/lib/hooks";
+import { formatUnits, parseEther } from "viem";
+import { Droplets, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 
 export function SceptreStakingCard() {
-    const { data: stats } = useSceptreStats();
-    const { data: balance } = useSceptreBalance();
-    // Simplified mock hook usage for staking as the actual one would need args
+    const { data: stats, isAvailable } = useSceptreStats();
+    const { sFLRBalance, flrEquivalent } = useSceptreBalance();
+    const { balance: nativeBalance } = useNativeBalance();
+    const { stake, isPending, isConfirming, isSuccess, error } = useSceptreStake();
     const [amount, setAmount] = useState("");
-    const [isStaking, setIsStaking] = useState(false);
 
-    const apy = stats ? stats.apy : 8.4; // Valid fallback
-    const exchangeRate = stats ? stats.exchangeRate : 1.045;
+    const apy = stats ? stats.apy : 4.0; // Valid fallback
+    const exchangeRate = stats ? stats.exchangeRate : 1.0;
 
     const handleStake = async () => {
-        setIsStaking(true);
-        // Simulate network request
-        await new Promise(r => setTimeout(r, 2000));
-        setIsStaking(false);
-        setAmount("");
+        if (!amount || Number(amount) <= 0) return;
+        try {
+            const amountWei = parseEther(amount);
+            await stake(amountWei);
+            setAmount("");
+        } catch (e) {
+            console.error("Stake failed:", e);
+        }
     };
+
+    const isStaking = isPending || isConfirming;
 
     return (
         <div className="glass-panel p-6 rounded-2xl relative overflow-hidden">
@@ -53,7 +58,9 @@ export function SceptreStakingCard() {
                 <div className="bg-background-secondary p-4 rounded-xl border border-white/5">
                     <div className="flex justify-between mb-2">
                         <label className="text-xs text-text-muted">Stake Amount</label>
-                        <span className="text-xs text-text-muted">Available: 1,240 FLR</span>
+                        <span className="text-xs text-text-muted">
+                            Available: {nativeBalance ? Number(formatUnits(nativeBalance, 18)).toFixed(2) : "0.00"} FLR
+                        </span>
                     </div>
                     <div className="flex items-center gap-2">
                         <input
@@ -63,7 +70,18 @@ export function SceptreStakingCard() {
                             placeholder="0.0"
                             className="bg-transparent text-2xl font-bold text-white outline-none w-full"
                         />
-                        <button className="text-xs bg-white/10 hover:bg-white/20 text-purple-400 px-2 py-1 rounded transition-colors">
+                        <button
+                            onClick={() => {
+                                if (nativeBalance) {
+                                    // Leave 0.1 FLR for gas
+                                    const maxAmount = nativeBalance > parseEther("0.1")
+                                        ? nativeBalance - parseEther("0.1")
+                                        : 0n;
+                                    setAmount(formatUnits(maxAmount, 18));
+                                }
+                            }}
+                            className="text-xs bg-white/10 hover:bg-white/20 text-purple-400 px-2 py-1 rounded transition-colors"
+                        >
                             MAX
                         </button>
                     </div>
@@ -76,12 +94,34 @@ export function SceptreStakingCard() {
                     </span>
                 </div>
 
+                {isSuccess && (
+                    <div className="flex items-center justify-center gap-2 text-green-400 text-sm py-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Staking successful!
+                    </div>
+                )}
+
+                {error && (
+                    <div className="text-red-400 text-xs text-center py-2">
+                        Error: {error.message?.slice(0, 50)}...
+                    </div>
+                )}
+
                 <button
                     onClick={handleStake}
-                    disabled={!amount || isStaking}
+                    disabled={!amount || Number(amount) <= 0 || isStaking || !isAvailable}
                     className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                    {isStaking ? <Loader2 className="animate-spin w-5 h-5" /> : "Stake FLR"}
+                    {isStaking ? (
+                        <>
+                            <Loader2 className="animate-spin w-5 h-5" />
+                            {isPending ? "Confirm in wallet..." : "Staking..."}
+                        </>
+                    ) : !isAvailable ? (
+                        "Sceptre not available"
+                    ) : (
+                        "Stake FLR"
+                    )}
                 </button>
             </div>
         </div>

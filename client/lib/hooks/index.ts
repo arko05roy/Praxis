@@ -9,6 +9,7 @@ export {
   usePreviewDeposit,
   usePreviewRedeem,
   useTokenBalance,
+  useVaultRedeem, // Direct ERC-4626 redeem fallback
   type VaultInfo,
   type LPBalance,
   type DepositResult,

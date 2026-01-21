@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+# Removed set -e to prevent script from exiting on non-critical errors
 
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║         PRAXIS Demo Environment Setup                          ║"
@@ -7,7 +7,8 @@ echo "║  Creates a warm state with ~14 days of protocol history        ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
 # Configuration
-FORK_RPC="https://flare-api.flare.network/ext/C/rpc"
+# Primary RPC - can be overridden with FORK_RPC env var
+FORK_RPC="${FORK_RPC:-https://flare-api.flare.network/ext/C/rpc}"
 LOCAL_PORT=8546
 CHAIN_ID=31337  # Local fork chain ID (MetaMask friendly)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -92,6 +93,10 @@ start_anvil() {
         --block-time 1 \
         --accounts 10 \
         --balance 10000 \
+        --timeout 120000 \
+        --retries 5 \
+        --no-rate-limit \
+        --compute-units-per-second 1000 \
         > /tmp/praxis/anvil.log 2>&1 &
 
     ANVIL_PID=$!
@@ -256,6 +261,18 @@ print_summary() {
     echo ""
 }
 
+# Cleanup function
+cleanup() {
+    echo ""
+    log_info "Shutting down Anvil..."
+    if [ -f /tmp/praxis/anvil.pid ]; then
+        kill $(cat /tmp/praxis/anvil.pid) 2>/dev/null || true
+        rm /tmp/praxis/anvil.pid
+    fi
+    log_success "Cleanup complete"
+    exit 0
+}
+
 # Main execution
 main() {
     check_anvil
@@ -265,6 +282,18 @@ main() {
     deploy_warm_state
     update_client_addresses
     print_summary
+
+    # Keep the script running and show Anvil logs
+    echo ""
+    log_info "Demo environment is running. Press Ctrl+C to stop."
+    log_info "Tailing Anvil logs..."
+    echo ""
+
+    # Set up cleanup trap
+    trap cleanup SIGINT SIGTERM
+
+    # Tail the Anvil logs to keep the script running
+    tail -f /tmp/praxis/anvil.log
 }
 
 main "$@"

@@ -308,6 +308,44 @@ export function usePreviewRedeem(shares: bigint | undefined) {
 }
 
 // =============================================================
+//               VAULT REDEEM HOOK (ERC-4626 DIRECT)
+// =============================================================
+
+export function useVaultRedeem() {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const addresses = getAddresses(chainId);
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  // Redeem shares directly from the ExecutionVault (ERC-4626)
+  const redeem = async (shares: bigint) => {
+    if (!address) return;
+
+    writeContract({
+      address: addresses.ExecutionVault,
+      abi: ExecutionVaultABI,
+      functionName: 'redeem',
+      args: [shares, address, address], // shares, receiver, owner
+    });
+  };
+
+  return {
+    redeem,
+    hash,
+    isPending,
+    isConfirming,
+    isSuccess,
+    receipt,
+    error,
+  };
+}
+
+// =============================================================
 //                    TOKEN BALANCE HOOK
 // =============================================================
 

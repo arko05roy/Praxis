@@ -4,11 +4,14 @@ import { useLPBalance } from "@/lib/hooks";
 import { formatUnits } from "viem";
 import { Wallet, PieChart } from "lucide-react";
 
+// ERC-4626 vault shares typically have same decimals as underlying asset (USDC = 6)
+const SHARE_DECIMALS = 6;
+
 export function LPBalanceCard() {
     const { data: balance, isLoading } = useLPBalance();
 
-    const shares = balance ? formatUnits(balance.shares, 18) : "0";
-    const assetsValue = balance ? formatUnits(balance.assetsValue, 6) : "0";
+    const shares = balance ? formatUnits(balance.shares, SHARE_DECIMALS) : "0";
+    const assetsValue = balance ? formatUnits(balance.assetsValue, SHARE_DECIMALS) : "0";
 
     return (
         <div className="glass-panel rounded-2xl p-6 relative overflow-hidden group">

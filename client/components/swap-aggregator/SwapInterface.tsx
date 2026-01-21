@@ -1,12 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useTokenBalance, useNativeBalance } from "@/lib/hooks";
+import { useNativeBalance } from "@/lib/hooks";
 import { ArrowDown, Settings, RotateCw, Check } from "lucide-react";
 import { formatUnits } from "viem";
-import { useAccount } from "wagmi";
+import { useAccount, useBalance } from "wagmi";
 
 const AVAILABLE_TOKENS = ['FLR', 'USDC', 'WETH', 'sFLR'];
+
+// Token addresses for balance queries
+const TOKEN_ADDRESSES: Record<string, `0x${string}` | undefined> = {
+    'FLR': undefined, // Native token, use useNativeBalance
+    'USDC': '0xFbDa5F676cB37624f28265A144A48B0d6e87d3b6',
+    'WETH': '0x1502FA4be69d526124D453619276FacCab275d55',
+    'sFLR': '0x12e605bc104e93B45e1aD99F9e555f659051c2BB',
+};
+
+const TOKEN_DECIMALS: Record<string, number> = {
+    'FLR': 18,
+    'USDC': 6,
+    'WETH': 18,
+    'sFLR': 18,
+};
 
 const TOKEN_ICONS: Record<string, { bg: string; text: string; letter: string }> = {
     'FLR': { bg: 'bg-accent/20', text: 'text-accent', letter: 'F' },
@@ -29,13 +44,24 @@ export function SwapInterface({ onQuoteUpdate, bestQuote, isLoading }: SwapInter
     const [showToSelector, setShowToSelector] = useState(false);
 
     const { address } = useAccount();
-    const { data: tokenBalance } = useTokenBalance();
-    const { data: nativeBalance } = useNativeBalance();
+    const { balance: nativeBalance } = useNativeBalance();
 
-    // Use native balance for FLR, token balance for others
+    // Get token address for current fromToken
+    const fromTokenAddress = TOKEN_ADDRESSES[fromToken];
+
+    // Query ERC20 balance for the selected token (skip for native FLR)
+    const { data: tokenBalanceData } = useBalance({
+        address,
+        token: fromTokenAddress,
+        query: {
+            enabled: !!address && fromToken !== 'FLR' && !!fromTokenAddress,
+        },
+    });
+
+    // Use native balance for FLR, ERC20 balance for others
     const displayBalance = fromToken === 'FLR'
         ? nativeBalance
-        : tokenBalance;
+        : tokenBalanceData?.value;
 
     // Debounce quote update
     useEffect(() => {
@@ -69,13 +95,18 @@ export function SwapInterface({ onQuoteUpdate, bestQuote, isLoading }: SwapInter
 
     const handleMaxClick = () => {
         if (displayBalance) {
+            const decimals = TOKEN_DECIMALS[fromToken] || 18;
             // Leave some for gas if native token
+            const gasReserve = 10n ** 17n; // 0.1 FLR
             const maxAmount = fromToken === 'FLR'
-                ? displayBalance > 10n ** 17n ? displayBalance - 10n ** 17n : 0n
+                ? displayBalance > gasReserve ? displayBalance - gasReserve : 0n
                 : displayBalance;
-            setAmount(formatUnits(maxAmount, fromToken === 'USDC' ? 6 : 18));
+            setAmount(formatUnits(maxAmount, decimals));
         }
     };
+
+    // Get decimals for current token
+    const fromDecimals = TOKEN_DECIMALS[fromToken] || 18;
 
     const fromIcon = TOKEN_ICONS[fromToken] || TOKEN_ICONS['FLR'];
     const toIcon = TOKEN_ICONS[toToken] || TOKEN_ICONS['USDC'];
@@ -98,7 +129,7 @@ export function SwapInterface({ onQuoteUpdate, bestQuote, isLoading }: SwapInter
                             onClick={handleMaxClick}
                             className="text-xs text-text-muted hover:text-accent transition-colors"
                         >
-                            Balance: {displayBalance ? Number(formatUnits(displayBalance, fromToken === 'USDC' ? 6 : 18)).toFixed(4) : "0.00"}
+                            Balance: {displayBalance ? Number(formatUnits(displayBalance, fromDecimals)).toFixed(4) : "0.00"}
                             {displayBalance && <span className="ml-1 text-accent">(MAX)</span>}
                         </button>
                     </div>

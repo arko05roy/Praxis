@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Flame, Zap, Layers, Loader2, RefreshCw } from "lucide-react";
+import { Check, Flame, Zap, Layers, Loader2, RefreshCw, TestTube2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Quote {
@@ -22,7 +22,9 @@ interface QuotesComparisonProps {
 const DEX_ICONS: Record<string, { icon: typeof Flame; bg: string; text: string }> = {
     'BlazeSwap': { icon: Flame, bg: 'bg-orange-500/10', text: 'text-orange-500' },
     'SparkDEX': { icon: Zap, bg: 'bg-purple-500/10', text: 'text-purple-500' },
+    'SparkDEX V3': { icon: Zap, bg: 'bg-purple-500/10', text: 'text-purple-500' },
     'Enosys': { icon: Layers, bg: 'bg-blue-500/10', text: 'text-blue-500' },
+    'Mock (Demo)': { icon: TestTube2, bg: 'bg-yellow-500/10', text: 'text-yellow-500' },
 };
 
 export function QuotesComparison({ quotes, isLoading, onSwap, swapPending }: QuotesComparisonProps) {
@@ -77,6 +79,11 @@ export function QuotesComparison({ quotes, isLoading, onSwap, swapPending }: Quo
                         {quote.isBest && (
                             <div className="absolute top-0 right-0 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">
                                 BEST PRICE
+                            </div>
+                        )}
+                        {quote.dex === 'Mock (Demo)' && (
+                            <div className="absolute top-0 left-0 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-br-lg">
+                                DEMO
                             </div>
                         )}
 
