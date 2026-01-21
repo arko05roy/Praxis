@@ -11,7 +11,7 @@ import { getConfig, coston2 } from "./config";
 
 type Props = {
   children: ReactNode;
-  initialState: State | undefined;
+  initialState?: State | undefined;
 };
 
 export function Providers({ children, initialState }: Props) {

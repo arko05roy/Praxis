@@ -14,9 +14,8 @@ export function ERTSelector({ selectedId, onSelect }: ERTSelectorProps) {
     const { count } = useMyERTs();
     const [isOpen, setIsOpen] = useState(false);
 
-    // Mock list for UI dev
-    const mockIds = [1n, 2n];
-    const displayIds = count > 0n ? Array.from({ length: Number(count) }, (_, i) => BigInt(i)) : mockIds;
+    // Get actual ERT IDs from contract
+    const indices = count > 0n ? Array.from({ length: Number(count) }, (_, i) => i) : [];
 
     const SelectedERTDisplay = ({ id }: { id: bigint | undefined }) => {
         const { data: rights } = useExecutionRights(id);
@@ -49,18 +48,47 @@ export function ERTSelector({ selectedId, onSelect }: ERTSelectorProps) {
 
             {isOpen && (
                 <div className="absolute top-full left-0 w-full mt-2 glass-panel bg-[#0a0f0d] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
-                    {displayIds.map((id) => (
-                        <div
-                            key={id.toString()}
-                            onClick={() => { onSelect(id); setIsOpen(false); }}
-                            className="p-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 flex items-center gap-3"
-                        >
-                            <span className="font-mono text-xs text-text-muted">#{id.toString()}</span>
-                            <span className="text-sm text-white">ERT Contract</span>
-                        </div>
+                    {indices.map((index) => (
+                        <ERTOptionByIndex
+                            key={index}
+                            index={index}
+                            onSelect={(id) => { onSelect(id); setIsOpen(false); }}
+                        />
                     ))}
+                    {indices.length === 0 && (
+                        <div className="p-3 text-xs text-text-muted text-center">
+                            No Active ERTs
+                        </div>
+                    )}
                 </div>
             )}
+        </div>
+    );
+}
+
+import { useERTByIndex } from "@/lib/hooks";
+import { useAccount } from "wagmi";
+
+function ERTOptionByIndex({ index, onSelect }: { index: number, onSelect: (id: bigint) => void }) {
+    const { address } = useAccount();
+    const { data: tokenId, isLoading } = useERTByIndex(address, BigInt(index));
+
+    if (isLoading || tokenId === undefined) {
+        return (
+            <div className="p-3 border-b border-white/5 flex items-center gap-3 animate-pulse">
+                <div className="w-8 h-4 bg-white/10 rounded"></div>
+                <div className="w-16 h-4 bg-white/10 rounded"></div>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            onClick={() => onSelect(tokenId)}
+            className="p-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 flex items-center gap-3"
+        >
+            <span className="font-mono text-xs text-text-muted">#{tokenId.toString()}</span>
+            <span className="text-sm text-white">ERT Contract</span>
         </div>
     );
 }

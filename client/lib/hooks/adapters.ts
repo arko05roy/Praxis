@@ -157,41 +157,48 @@ export function useSparkDEXSwap() {
 //                    SCEPTRE HOOKS (sFLR)
 // =============================================================
 
-// Sceptre sFLR ABI (minimal)
+// Sceptre sFLR ABI (Mock Compatible)
 const SceptreABI = [
   {
-    name: 'submit',
+    name: 'stake',
     type: 'function',
     stateMutability: 'payable',
     inputs: [],
-    outputs: [{ name: 'shares', type: 'uint256' }],
+    outputs: [],
   },
   {
-    name: 'totalPooledFlr',
+    name: 'unstake',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'msFLRAmount', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    name: 'totalStaked',
     type: 'function',
     stateMutability: 'view',
     inputs: [],
     outputs: [{ name: '', type: 'uint256' }],
   },
   {
-    name: 'totalShares',
+    name: 'totalSupply',
     type: 'function',
     stateMutability: 'view',
     inputs: [],
     outputs: [{ name: '', type: 'uint256' }],
   },
   {
-    name: 'getSharesByPooledFlr',
+    name: 'previewStake',
     type: 'function',
     stateMutability: 'view',
-    inputs: [{ name: '_flrAmount', type: 'uint256' }],
+    inputs: [{ name: 'flrAmount', type: 'uint256' }],
     outputs: [{ name: '', type: 'uint256' }],
   },
   {
-    name: 'getPooledFlrByShares',
+    name: 'previewUnstake',
     type: 'function',
     stateMutability: 'view',
-    inputs: [{ name: '_sharesAmount', type: 'uint256' }],
+    inputs: [{ name: 'msFLRAmount', type: 'uint256' }],
     outputs: [{ name: '', type: 'uint256' }],
   },
   {
@@ -202,18 +209,11 @@ const SceptreABI = [
     outputs: [{ name: '', type: 'uint256' }],
   },
   {
-    name: 'requestUnlock',
+    name: 'getExchangeRate',
     type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: '_sharesAmount', type: 'uint256' }],
-    outputs: [{ name: 'unlockIndex', type: 'uint256' }],
-  },
-  {
-    name: 'redeem',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: '_unlockIndex', type: 'uint256' }],
-    outputs: [],
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
   },
 ] as const;
 
@@ -233,14 +233,14 @@ export function useSceptreStats() {
   const { data: totalPooledFlr, isLoading: flrLoading } = useReadContract({
     address: addresses?.sFLR || '0x0000000000000000000000000000000000000000',
     abi: SceptreABI,
-    functionName: 'totalPooledFlr',
+    functionName: 'totalStaked',
     query: { enabled: isAvailable && !!addresses?.sFLR },
   });
 
   const { data: totalShares, isLoading: sharesLoading } = useReadContract({
     address: addresses?.sFLR || '0x0000000000000000000000000000000000000000',
     abi: SceptreABI,
-    functionName: 'totalShares',
+    functionName: 'totalSupply',
     query: { enabled: isAvailable && !!addresses?.sFLR },
   });
 
@@ -249,11 +249,11 @@ export function useSceptreStats() {
   const stats: SceptreStats | undefined =
     totalPooledFlr !== undefined && totalShares !== undefined && totalShares > 0n
       ? {
-          totalPooledFlr,
-          totalShares,
-          exchangeRate: Number(totalPooledFlr) / Number(totalShares),
-          apy: 4.0, // Approximate APY - in production, calculate from historical data
-        }
+        totalPooledFlr,
+        totalShares,
+        exchangeRate: Number(totalPooledFlr) / Number(totalShares),
+        apy: 4.0, // Approximate APY - in production, calculate from historical data
+      }
       : undefined;
 
   return {
@@ -281,7 +281,7 @@ export function useSceptreBalance() {
   const { data: flrEquivalent } = useReadContract({
     address: addresses?.sFLR || '0x0000000000000000000000000000000000000000',
     abi: SceptreABI,
-    functionName: 'getPooledFlrByShares',
+    functionName: 'previewUnstake',
     args: sFLRBalance ? [sFLRBalance] : undefined,
     query: { enabled: isAvailable && !!sFLRBalance && sFLRBalance > 0n },
   });
@@ -313,7 +313,7 @@ export function useSceptreStake() {
     writeContract({
       address: addresses.sFLR,
       abi: SceptreABI,
-      functionName: 'submit',
+      functionName: 'stake',
       value: amountFLR,
     });
   };
@@ -348,7 +348,7 @@ export function useSceptreUnstake() {
     writeContract({
       address: addresses.sFLR,
       abi: SceptreABI,
-      functionName: 'requestUnlock',
+      functionName: 'unstake',
       args: [sharesAmount],
     });
   };
@@ -356,12 +356,8 @@ export function useSceptreUnstake() {
   const redeem = async (unlockIndex: bigint) => {
     if (!addresses?.sFLR) return;
 
-    writeContract({
-      address: addresses.sFLR,
-      abi: SceptreABI,
-      functionName: 'redeem',
-      args: [unlockIndex],
-    });
+    // MockSceptre redeem is no-op as unstake is instant
+    console.log("MockSceptre redeem is no-op as unstake is instant, unlockIndex:", unlockIndex);
   };
 
   return {
@@ -376,6 +372,7 @@ export function useSceptreUnstake() {
     isAvailable,
   };
 }
+
 
 // =============================================================
 //                    KINETIC HOOKS (LENDING)
@@ -979,12 +976,12 @@ export function useKineticAccountHealth() {
   // If shortfall > 0: account is underwater
   const accountHealth = data
     ? {
-        error: data[0],
-        liquidity: data[1],
-        shortfall: data[2],
-        isHealthy: data[1] > 0n && data[2] === 0n,
-        isUnderwater: data[2] > 0n,
-      }
+      error: data[0],
+      liquidity: data[1],
+      shortfall: data[2],
+      isHealthy: data[1] > 0n && data[2] === 0n,
+      isUnderwater: data[2] > 0n,
+    }
     : undefined;
 
   return {

@@ -31,7 +31,12 @@ export function AssetList() {
 
             <div className="space-y-3">
                 {ASSETS.map((asset) => {
-                    const price = prices?.[asset.symbol as keyof typeof prices] || 0;
+                    const priceData = prices?.[asset.symbol as keyof typeof prices];
+                    // Handle missing data: if priceData is undefined or is number 0 (fallback), handle gracefully
+                    // Note: priceData is an object now, not a number
+                    const hasPrice = !!priceData;
+                    const priceVal = hasPrice && typeof priceData === 'object' ? Number(priceData.formatted) : 0;
+
                     const change = changes[asset.symbol] || 0;
                     const isPositive = change >= 0;
 
@@ -43,13 +48,13 @@ export function AssetList() {
                                 </div>
                                 <div>
                                     <h4 className="text-white font-medium text-sm">{asset.name}</h4>
-                                    <span className="text-text-muted text-xs">{asset.symbol} • ${Number(price).toLocaleString()}</span>
+                                    <span className="text-text-muted text-xs">{asset.symbol} • ${priceVal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
 
                             <div className="text-right">
                                 <p className="text-white font-mono font-medium text-sm">
-                                    {isLoading ? '...' : Number(price).toFixed(asset.symbol === 'USDC' ? 4 : 2)}
+                                    {isLoading ? '...' : priceVal.toFixed(asset.symbol === 'USDC' ? 4 : 2)}
                                 </p>
                                 <p className={`text-xs font-medium flex items-center justify-end gap-1 ${isPositive ? 'text-accent' : 'text-error'}`}>
                                     {isPositive ? '+' : ''}{change}%

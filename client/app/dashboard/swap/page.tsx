@@ -6,27 +6,34 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAllSwapQuotes, useBestSwapRoute, useAggregatedSwap, useRegisteredAdapters, usePriceImpact, useCommonPrices, useBlazeSwapQuote, useBlazeSwapSwap } from "@/lib/hooks";
 import { parseUnits, formatUnits } from "viem";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { COSTON2_TOKENS, TOKEN_DECIMALS } from "@/lib/contracts/external";
 
-// Token addresses (will be replaced with proper config)
+// Token addresses from deployed Coston2 contracts
 const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
-    'FLR': '0x1D80c49BbBCd1C0911346656B529DF9E5c2F783d' as `0x${string}`, // WFLR
-    'USDC': '0xFbDa5F676cB37624f28265A144A48B0d6e87d3b6' as `0x${string}`,
-    'WETH': '0x1502FA4be69d526124D453619276FacCab275d55' as `0x${string}`,
-    'sFLR': '0x12e605bc104e93B45e1aD99F9e555f659051c2BB' as `0x${string}`,
+    'WFLR': COSTON2_TOKENS.MockWFLR,
+    'USDC': COSTON2_TOKENS.MockUSDC,
+    'FXRP': COSTON2_TOKENS.MockFXRP,
+    'FBTC': COSTON2_TOKENS.MockFBTC,
+    'FDOGE': COSTON2_TOKENS.MockFDOGE,
+    'sFLR': COSTON2_TOKENS.MockSFLR,
 };
 
-const TOKEN_DECIMALS: Record<string, number> = {
-    'FLR': 18,
-    'USDC': 6,
-    'WETH': 18,
-    'sFLR': 18,
+const TOKEN_DECIMALS_MAP: Record<string, number> = {
+    'WFLR': TOKEN_DECIMALS.MockWFLR,
+    'USDC': TOKEN_DECIMALS.MockUSDC,
+    'FXRP': TOKEN_DECIMALS.MockFXRP,
+    'FBTC': TOKEN_DECIMALS.MockFBTC,
+    'FDOGE': TOKEN_DECIMALS.MockFDOGE,
+    'sFLR': TOKEN_DECIMALS.MockSFLR,
 };
 
 // Token prices in USD for mock quotes (demo fallback when DEX has no liquidity)
 const TOKEN_PRICES_USD: Record<string, number> = {
-    'FLR': 0.015,
+    'WFLR': 0.015,
     'USDC': 1.0,
-    'WETH': 3500,
+    'FXRP': 0.50,
+    'FBTC': 45000,
+    'FDOGE': 0.08,
     'sFLR': 0.016,
 };
 
@@ -60,15 +67,15 @@ function generateMockQuote(
 
 export default function SwapAggregatorPage() {
     const [amount, setAmount] = useState("");
-    const [fromToken, setFromToken] = useState("FLR");
+    const [fromToken, setFromToken] = useState("WFLR");
     const [toToken, setToToken] = useState("USDC");
     const [slippage, setSlippage] = useState(0.5);
 
     // Get token addresses
     const tokenIn = TOKEN_ADDRESSES[fromToken];
     const tokenOut = TOKEN_ADDRESSES[toToken];
-    const decimalsIn = TOKEN_DECIMALS[fromToken] || 18;
-    const decimalsOut = TOKEN_DECIMALS[toToken] || 18;
+    const decimalsIn = TOKEN_DECIMALS_MAP[fromToken] || 18;
+    const decimalsOut = TOKEN_DECIMALS_MAP[toToken] || 18;
 
     // Parse amount to bigint
     const amountIn = amount && Number(amount) > 0
@@ -126,11 +133,11 @@ export default function SwapAggregatorPage() {
     const bestQuote = combinedQuotes[0];
 
     // Get common prices for rate calculation
-    const { data: prices } = useCommonPrices();
+    const prices = useCommonPrices();
 
     // Calculate price impact
-    const expectedRate = prices?.flr && fromToken === 'FLR'
-        ? BigInt(Math.floor(prices.flr * 1e6)) // FLR price in USDC terms
+    const expectedRate = prices?.flr?.price && fromToken === 'FLR'
+        ? BigInt(Math.floor(Number(prices.flr.price) * 1e6)) // FLR price in USDC terms
         : undefined;
 
     const { priceImpact, isSevere, isModerate } = usePriceImpact(
@@ -237,11 +244,10 @@ export default function SwapAggregatorPage() {
                     )}
                 </div>
                 {priceImpact !== undefined && priceImpact > 0 && (
-                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
-                        isSevere ? 'bg-red-500/10 text-red-400' :
+                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${isSevere ? 'bg-red-500/10 text-red-400' :
                         isModerate ? 'bg-yellow-500/10 text-yellow-400' :
-                        'bg-green-500/10 text-green-400'
-                    }`}>
+                            'bg-green-500/10 text-green-400'
+                        }`}>
                         {isSevere ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                         <span>Price Impact: {priceImpact.toFixed(2)}%</span>
                     </div>
@@ -264,11 +270,10 @@ export default function SwapAggregatorPage() {
                                     <button
                                         key={s}
                                         onClick={() => setSlippage(s)}
-                                        className={`px-2 py-0.5 rounded ${
-                                            slippage === s
-                                                ? 'bg-accent text-black'
-                                                : 'bg-white/5 text-text-muted hover:bg-white/10'
-                                        }`}
+                                        className={`px-2 py-0.5 rounded ${slippage === s
+                                            ? 'bg-accent text-black'
+                                            : 'bg-white/5 text-text-muted hover:bg-white/10'
+                                            }`}
                                     >
                                         {s}%
                                     </button>

@@ -5,28 +5,35 @@ import { useNativeBalance } from "@/lib/hooks";
 import { ArrowDown, Settings, RotateCw, Check } from "lucide-react";
 import { formatUnits } from "viem";
 import { useAccount, useBalance } from "wagmi";
+import { COSTON2_TOKENS, TOKEN_DECIMALS } from "@/lib/contracts/external";
 
-const AVAILABLE_TOKENS = ['FLR', 'USDC', 'WETH', 'sFLR'];
+const AVAILABLE_TOKENS = ['WFLR', 'USDC', 'FXRP', 'FBTC', 'FDOGE'];
 
-// Token addresses for balance queries
+// Token addresses for balance queries using deployed Coston2 contracts
 const TOKEN_ADDRESSES: Record<string, `0x${string}` | undefined> = {
-    'FLR': undefined, // Native token, use useNativeBalance
-    'USDC': '0xFbDa5F676cB37624f28265A144A48B0d6e87d3b6',
-    'WETH': '0x1502FA4be69d526124D453619276FacCab275d55',
-    'sFLR': '0x12e605bc104e93B45e1aD99F9e555f659051c2BB',
+    'WFLR': COSTON2_TOKENS.MockWFLR,
+    'USDC': COSTON2_TOKENS.MockUSDC,
+    'FXRP': COSTON2_TOKENS.MockFXRP,
+    'FBTC': COSTON2_TOKENS.MockFBTC,
+    'FDOGE': COSTON2_TOKENS.MockFDOGE,
+    'sFLR': COSTON2_TOKENS.MockSFLR,
 };
 
-const TOKEN_DECIMALS: Record<string, number> = {
-    'FLR': 18,
-    'USDC': 6,
-    'WETH': 18,
-    'sFLR': 18,
+const TOKEN_DECIMALS_MAP: Record<string, number> = {
+    'WFLR': TOKEN_DECIMALS.MockWFLR,
+    'USDC': TOKEN_DECIMALS.MockUSDC,
+    'FXRP': TOKEN_DECIMALS.MockFXRP,
+    'FBTC': TOKEN_DECIMALS.MockFBTC,
+    'FDOGE': TOKEN_DECIMALS.MockFDOGE,
+    'sFLR': TOKEN_DECIMALS.MockSFLR,
 };
 
 const TOKEN_ICONS: Record<string, { bg: string; text: string; letter: string }> = {
-    'FLR': { bg: 'bg-accent/20', text: 'text-accent', letter: 'F' },
+    'WFLR': { bg: 'bg-accent/20', text: 'text-accent', letter: 'W' },
     'USDC': { bg: 'bg-blue-500/20', text: 'text-blue-500', letter: 'U' },
-    'WETH': { bg: 'bg-purple-500/20', text: 'text-purple-500', letter: 'E' },
+    'FXRP': { bg: 'bg-purple-500/20', text: 'text-purple-500', letter: 'X' },
+    'FBTC': { bg: 'bg-orange-500/20', text: 'text-orange-500', letter: 'B' },
+    'FDOGE': { bg: 'bg-yellow-500/20', text: 'text-yellow-500', letter: 'D' },
     'sFLR': { bg: 'bg-green-500/20', text: 'text-green-500', letter: 'S' },
 };
 
@@ -38,7 +45,7 @@ interface SwapInterfaceProps {
 
 export function SwapInterface({ onQuoteUpdate, bestQuote, isLoading }: SwapInterfaceProps) {
     const [amount, setAmount] = useState("");
-    const [fromToken, setFromToken] = useState("FLR");
+    const [fromToken, setFromToken] = useState("WFLR");
     const [toToken, setToToken] = useState("USDC");
     const [showFromSelector, setShowFromSelector] = useState(false);
     const [showToSelector, setShowToSelector] = useState(false);
@@ -49,19 +56,17 @@ export function SwapInterface({ onQuoteUpdate, bestQuote, isLoading }: SwapInter
     // Get token address for current fromToken
     const fromTokenAddress = TOKEN_ADDRESSES[fromToken];
 
-    // Query ERC20 balance for the selected token (skip for native FLR)
+    // Query ERC20 balance for the selected token
     const { data: tokenBalanceData } = useBalance({
         address,
         token: fromTokenAddress,
         query: {
-            enabled: !!address && fromToken !== 'FLR' && !!fromTokenAddress,
+            enabled: !!address && !!fromTokenAddress,
         },
     });
 
-    // Use native balance for FLR, ERC20 balance for others
-    const displayBalance = fromToken === 'FLR'
-        ? nativeBalance
-        : tokenBalanceData?.value;
+    // Use ERC20 balance
+    const displayBalance = tokenBalanceData?.value;
 
     // Debounce quote update
     useEffect(() => {
@@ -95,20 +100,15 @@ export function SwapInterface({ onQuoteUpdate, bestQuote, isLoading }: SwapInter
 
     const handleMaxClick = () => {
         if (displayBalance) {
-            const decimals = TOKEN_DECIMALS[fromToken] || 18;
-            // Leave some for gas if native token
-            const gasReserve = 10n ** 17n; // 0.1 FLR
-            const maxAmount = fromToken === 'FLR'
-                ? displayBalance > gasReserve ? displayBalance - gasReserve : 0n
-                : displayBalance;
-            setAmount(formatUnits(maxAmount, decimals));
+            const decimals = TOKEN_DECIMALS_MAP[fromToken] || 18;
+            setAmount(formatUnits(displayBalance, decimals));
         }
     };
 
     // Get decimals for current token
-    const fromDecimals = TOKEN_DECIMALS[fromToken] || 18;
+    const fromDecimals = TOKEN_DECIMALS_MAP[fromToken] || 18;
 
-    const fromIcon = TOKEN_ICONS[fromToken] || TOKEN_ICONS['FLR'];
+    const fromIcon = TOKEN_ICONS[fromToken] || TOKEN_ICONS['WFLR'];
     const toIcon = TOKEN_ICONS[toToken] || TOKEN_ICONS['USDC'];
 
     return (

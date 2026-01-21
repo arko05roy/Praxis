@@ -9,18 +9,6 @@ import { useState } from "react";
 export function ERTListView() {
     const { count, isLoading } = useMyERTs();
 
-    // In a real implementation we would fetch the IDs. 
-    // For now, since `useMyERTs` only returns count in our mock hook, 
-    // we'll generate a range of IDs based on the count or mock it if count > 0.
-    // Assuming the hook might be updated or we use a separate fetcher.
-
-    // MOCK for display if count is 0 in development environment without valid chain data
-    // Remove this array locally if you want strictly real data
-    const mockIds = (count > 0n) ? Array.from({ length: Number(count) }, (_, i) => BigInt(i)) : [1n, 2n];
-
-    const idsToRender = mockIds;
-    // Ideally: const idsToRender = useAllMyTokenIds() ...
-
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -29,7 +17,7 @@ export function ERTListView() {
         );
     }
 
-    if (idsToRender.length === 0) {
+    if (count === 0n) {
         return (
             <div className="flex flex-col items-center justify-center h-64 glass-panel rounded-2xl border-dashed border-white/10">
                 <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
@@ -47,10 +35,13 @@ export function ERTListView() {
         );
     }
 
+    // Create array of indices [0, 1, ... count-1]
+    const indices = Array.from({ length: Number(count) }, (_, i) => i);
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {idsToRender.map((id) => (
-                <ERTCard key={id.toString()} ertId={id} />
+            {indices.map((index) => (
+                <ERTCardByIndex key={index} index={index} />
             ))}
 
             {/* Add New Card (always visible at end) */}
@@ -64,4 +55,22 @@ export function ERTListView() {
             </Link>
         </div>
     );
+}
+
+import { useERTByIndex } from "@/lib/hooks";
+import { useAccount } from "wagmi";
+
+function ERTCardByIndex({ index }: { index: number }) {
+    const { address } = useAccount();
+    const { data: tokenId, isLoading } = useERTByIndex(address, BigInt(index));
+
+    if (isLoading || tokenId === undefined) {
+        return (
+            <div className="h-[240px] glass-panel rounded-2xl animate-pulse flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-white/20" />
+            </div>
+        );
+    }
+
+    return <ERTCard ertId={tokenId} />;
 }

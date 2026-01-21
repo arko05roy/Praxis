@@ -58,15 +58,15 @@ export function RequestERTForm() {
             </div>
 
             <div className="space-y-6">
-                {/* Capital Input */}
                 <div className="space-y-2">
                     <label className="text-sm text-text-secondary">Capital Needed (USD)</label>
                     <input
                         type="number"
                         value={capitalAmount}
                         onChange={(e) => setCapitalAmount(e.target.value)}
+                        max={maxCapital}
                         className="w-full bg-background-secondary border border-white/5 rounded-xl px-4 py-3 text-white outline-none focus:border-accent/50 transition-colors"
-                        placeholder="e.g. 50000"
+                        placeholder={`Max: ${Number(maxCapital).toLocaleString()}`}
                     />
                 </div>
 
@@ -79,8 +79,8 @@ export function RequestERTForm() {
                                 key={d}
                                 onClick={() => setDurationDays(d)}
                                 className={`py-2 rounded-lg text-sm font-medium border transition-colors ${durationDays === d
-                                        ? 'bg-accent/20 border-accent text-accent'
-                                        : 'bg-white/5 border-transparent text-text-muted hover:bg-white/10'
+                                    ? 'bg-accent/20 border-accent text-accent'
+                                    : 'bg-white/5 border-transparent text-text-muted hover:bg-white/10'
                                     }`}
                             >
                                 {d}d

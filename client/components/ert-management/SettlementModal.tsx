@@ -51,11 +51,11 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
         await forceSettle(ertId);
     };
 
-    const formatUSD = (value: bigint | undefined) => {
+    const formatValue = (value: bigint | undefined, decimals: number = 6, prefix: string = "$") => {
         if (value === undefined) return "-";
         const isNegative = value < 0n;
         const absValue = isNegative ? -value : value;
-        return `${isNegative ? "-" : ""}$${Number(formatUnits(absValue, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return `${isNegative ? "-" : ""}${prefix}${Number(formatUnits(absValue, decimals)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: decimals === 18 ? 4 : 2 })}`;
     };
 
     return (
@@ -114,7 +114,7 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
                                     <div>
                                         <p className="text-xs text-text-muted">Total PnL</p>
                                         <p className={cn("text-2xl font-bold", isProfitable ? "text-green-500" : "text-red-500")}>
-                                            {formatUSD(settlement?.totalPnl)}
+                                            {formatValue(settlement?.totalPnl)}
                                         </p>
                                     </div>
                                 </div>
@@ -136,20 +136,20 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
                             <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
                                     <span className="text-text-muted">LP Base Fee</span>
-                                    <span className="text-white">{formatUSD(settlement?.lpBaseFee)}</span>
+                                    <span className="text-white">{formatValue(settlement?.lpBaseFee)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-text-muted">LP Profit Share (20%)</span>
-                                    <span className="text-white">{formatUSD(settlement?.lpProfitShare)}</span>
+                                    <span className="text-white">{formatValue(settlement?.lpProfitShare)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-text-muted">Insurance Fund (2%)</span>
-                                    <span className="text-white">{formatUSD(settlement?.insuranceFee)}</span>
+                                    <span className="text-white">{formatValue(settlement?.insuranceFee)}</span>
                                 </div>
                                 <div className="border-t border-white/10 pt-2 flex justify-between font-bold">
                                     <span className="text-white">Your Profit</span>
                                     <span className={isProfitable ? "text-accent" : "text-red-400"}>
-                                        {formatUSD(settlement?.executorProfit)}
+                                        {formatValue(settlement?.executorProfit)}
                                     </span>
                                 </div>
                             </div>
@@ -162,16 +162,16 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
                                     <DollarSign className="w-4 h-4 text-accent" />
                                     <span className="text-xs text-text-muted">Capital Returned</span>
                                 </div>
-                                <p className="text-lg font-bold text-white">{formatUSD(settlement?.capitalReturned)}</p>
+                                <p className="text-lg font-bold text-white">{formatValue(settlement?.capitalReturned)}</p>
                             </div>
                             <div className="glass-panel p-4 rounded-xl">
                                 <div className="flex items-center gap-2 mb-2">
                                     <Shield className="w-4 h-4 text-accent" />
                                     <span className="text-xs text-text-muted">Stake Returned</span>
                                 </div>
-                                <p className="text-lg font-bold text-white">{formatUSD(settlement?.stakeReturned)}</p>
+                                <p className="text-lg font-bold text-white">{formatValue(settlement?.stakeReturned, 18, "")} <span className="text-xs text-text-muted">FLR</span></p>
                                 {settlement?.stakeSlashed && settlement.stakeSlashed > 0n && (
-                                    <p className="text-xs text-red-400">-{formatUSD(settlement.stakeSlashed)} slashed</p>
+                                    <p className="text-xs text-red-400">-{formatValue(settlement.stakeSlashed, 18, "")} FLR slashed</p>
                                 )}
                             </div>
                         </div>

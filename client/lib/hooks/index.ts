@@ -130,11 +130,13 @@ export {
   usePositionPnl,
   useMarkPrice,
   useIndexPrice,
+  // User Positions
+  useUserPerpPositions,
   // Types
   type PerpMarket,
   type PerpPosition,
-  type PerpMarketInfo,
-  type FundingInfo,
+  type OpenPositionParams,
+  type ClosePositionParams,
 } from './perpetuals';
 
 // =============================================================

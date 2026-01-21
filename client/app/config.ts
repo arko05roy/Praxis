@@ -7,7 +7,7 @@ import {
 import { injected, walletConnect } from 'wagmi/connectors'
 import { defineChain } from 'viem'
 
-// Define Coston2 testnet with proper native currency
+// Define Coston2 testnet - PRIMARY NETWORK for demo
 export const coston2 = defineChain({
     id: 114,
     name: 'Coston2',
@@ -25,7 +25,7 @@ export const coston2 = defineChain({
     testnet: true,
 })
 
-// Define Flare mainnet
+// Define Flare mainnet (for reference - not used in testnet demo)
 export const flare = defineChain({
     id: 14,
     name: 'Flare',
@@ -42,45 +42,15 @@ export const flare = defineChain({
     },
 })
 
-// Define Local Fork (Anvil) - for demo and testing
-// Uses same chain ID as Flare mainnet (14) but different RPC
-export const flareFork = defineChain({
-    id: 31337, // Anvil default chain ID for local testing
-    name: 'Flare Fork (Local)',
-    nativeCurrency: {
-        decimals: 18,
-        name: 'Flare',
-        symbol: 'FLR',
-    },
-    rpcUrls: {
-        default: { http: ['http://127.0.0.1:8546'] },
-    },
-    blockExplorers: {
-        default: { name: 'Local', url: 'http://127.0.0.1:8546' },
-    },
-    testnet: true,
-})
-
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID'
 
-// Check if we're using local fork
-const useLocalFork = process.env.NEXT_PUBLIC_USE_LOCAL_FORK === 'true'
-
 export function getConfig() {
-    // Include local fork chain when enabled
-    const chains = useLocalFork ? [flareFork, coston2, flare] : [coston2, flare]
-
-    const transports: Record<number, ReturnType<typeof http>> = {
-        [coston2.id]: http(),
-        [flare.id]: http(),
-    }
-
-    if (useLocalFork) {
-        transports[flareFork.id] = http('http://127.0.0.1:8546')
-    }
+    // Coston2 is the primary network for testnet demo
+    // Flare mainnet included for wallet compatibility but not actively used
+    const chains = [coston2, flare] as const
 
     return createConfig({
-        chains: chains as any,
+        chains,
         connectors: [
             injected(),
             walletConnect({
@@ -97,6 +67,22 @@ export function getConfig() {
         storage: createStorage({
             storage: cookieStorage,
         }),
-        transports,
+        transports: {
+            [coston2.id]: http(),
+            [flare.id]: http(),
+        },
     })
+}
+
+// Default chain for the application
+export const DEFAULT_CHAIN_ID = 114; // Coston2
+
+// Check if a chain is supported
+export function isSupportedChain(chainId: number): boolean {
+    return chainId === 114 || chainId === 14;
+}
+
+// Check if the chain is the testnet
+export function isTestnetChain(chainId: number): boolean {
+    return chainId === 114;
 }

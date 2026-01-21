@@ -158,14 +158,14 @@ export function useFTSOPrice(feedName: string | undefined) {
 
   const priceData: PriceData | undefined = data && feedName && feedId
     ? {
-        feedId,
-        feedName,
-        price: data[0],
-        decimals: Number(data[1]),
-        timestamp: data[2],
-        formatted: formatUnits(data[0], Number(data[1])),
-        isStale: now - data[2] > maxAge,
-      }
+      feedId,
+      feedName,
+      price: data[0],
+      decimals: Number(data[1]),
+      timestamp: data[2],
+      formatted: formatUnits(data[0], Number(data[1])),
+      isStale: now - data[2] > maxAge,
+    }
     : undefined;
 
   return {
@@ -199,14 +199,14 @@ export function useFlareOraclePrice(feedName: string | undefined) {
 
   const priceData: PriceData | undefined = data && feedName && feedId
     ? {
-        feedId,
-        feedName,
-        price: data[0],
-        decimals: Number(data[1]),
-        timestamp: data[2],
-        formatted: formatUnits(data[0], Number(data[1])),
-        isStale: now - data[2] > maxAge,
-      }
+      feedId,
+      feedName,
+      price: data[0],
+      decimals: Number(data[1]),
+      timestamp: data[2],
+      formatted: formatUnits(data[0], Number(data[1])),
+      isStale: now - data[2] > maxAge,
+    }
     : undefined;
 
   return {
@@ -235,11 +235,11 @@ export function useTokenPriceUSD(tokenAddress: `0x${string}` | undefined) {
 
   const tokenPrice: TokenPrice | undefined = data && tokenAddress
     ? {
-        token: tokenAddress,
-        priceUsd: data[0],
-        decimals: Number(data[1]),
-        formatted: formatUnits(data[0], Number(data[1])),
-      }
+      token: tokenAddress,
+      priceUsd: data[0],
+      decimals: Number(data[1]),
+      formatted: formatUnits(data[0], Number(data[1])),
+    }
     : undefined;
 
   return {
@@ -273,14 +273,14 @@ export function useMultiplePrices(feedNames: string[]) {
 
   const prices: PriceData[] | undefined = data
     ? data.map((priceData, index) => ({
-        feedId: feedIds[index],
-        feedName: feedNames[index],
-        price: priceData.price,
-        decimals: Number(priceData.decimals),
-        timestamp: priceData.timestamp,
-        formatted: formatUnits(priceData.price, Number(priceData.decimals)),
-        isStale: now - priceData.timestamp > maxAge,
-      }))
+      feedId: feedIds[index],
+      feedName: feedNames[index],
+      price: priceData.price,
+      decimals: Number(priceData.decimals),
+      timestamp: priceData.timestamp,
+      formatted: formatUnits(priceData.price, Number(priceData.decimals)),
+      isStale: now - priceData.timestamp > maxAge,
+    }))
     : undefined;
 
   return {
@@ -295,26 +295,40 @@ export function useMultiplePrices(feedNames: string[]) {
 //              COMMON ASSET PRICES HOOK
 // =============================================================
 
-export function useCommonPrices() {
+export interface CommonPrices {
+  FLR: PriceData | undefined;
+  BTC: PriceData | undefined;
+  ETH: PriceData | undefined;
+  XRP: PriceData | undefined;
+  DOGE: PriceData | undefined;
+  USDC: PriceData | undefined;
+  isLoading: boolean;
+  refetch: () => void;
+}
+
+export function useCommonPrices(): CommonPrices {
   const flr = useFTSOPrice('FLR/USD');
   const btc = useFTSOPrice('BTC/USD');
   const eth = useFTSOPrice('ETH/USD');
   const xrp = useFTSOPrice('XRP/USD');
   const doge = useFTSOPrice('DOGE/USD');
+  const usdc = useFTSOPrice('USDC/USD');
 
   return {
-    flr: flr.data,
-    btc: btc.data,
-    eth: eth.data,
-    xrp: xrp.data,
-    doge: doge.data,
-    isLoading: flr.isLoading || btc.isLoading || eth.isLoading || xrp.isLoading || doge.isLoading,
+    FLR: flr.data,
+    BTC: btc.data,
+    ETH: eth.data,
+    XRP: xrp.data,
+    DOGE: doge.data,
+    USDC: usdc.data,
+    isLoading: flr.isLoading || btc.isLoading || eth.isLoading || xrp.isLoading || doge.isLoading || usdc.isLoading,
     refetch: () => {
       flr.refetch();
       btc.refetch();
       eth.refetch();
       xrp.refetch();
       doge.refetch();
+      usdc.refetch();
     },
   };
 }
@@ -383,14 +397,14 @@ export function usePriceWithValidation(feedName: string | undefined, maxAgeSecon
 
   const priceData: PriceData | undefined = data && feedName && feedId
     ? {
-        feedId,
-        feedName,
-        price: data[0],
-        decimals: Number(data[1]),
-        timestamp: data[2],
-        formatted: formatUnits(data[0], Number(data[1])),
-        isStale: false, // Already validated by contract
-      }
+      feedId,
+      feedName,
+      price: data[0],
+      decimals: Number(data[1]),
+      timestamp: data[2],
+      formatted: formatUnits(data[0], Number(data[1])),
+      isStale: false, // Already validated by contract
+    }
     : undefined;
 
   return {
