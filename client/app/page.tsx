@@ -67,15 +67,15 @@ export default function Home() {
       <div className="relative z-30 flex flex-col items-center text-center max-w-4xl px-4 mt-32 md:mt-20">
 
         <div className="font-mono text-xs md:text-sm text-zinc-500 mb-6 tracking-widest uppercase">
-          The new way of Lending
+          <span className="bg-white text-black px-1">The new way of Lending</span>
         </div>
 
-        <h1 className="text-6xl md:text-8xl lg:text-9xl font-serif tracking-tighter mb-6 text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-400 leading-[0.9]">
+        <h1 className="text-6xl md:text-8xl lg:text-9xl font-serif tracking-tighter mb-6 bg-white text-black px-2 inline-block leading-[0.9]">
           Praxis
         </h1>
 
         <p className="text-sm md:text-base text-zinc-400 max-w-lg mx-auto leading-relaxed mb-12">
-         exclusively on flare mainnet
+          <span className="bg-white text-black px-1">exclusively on flare mainnet</span>
         </p>
 
         <button className="group relative px-8 py-3 bg-zinc-900 border border-zinc-800 text-xs md:text-sm font-bold tracking-widest text-white uppercase transition-all hover:bg-zinc-800 hover:border-zinc-700 hover:text-white">
