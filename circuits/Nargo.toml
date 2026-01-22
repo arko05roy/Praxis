@@ -1,0 +1,17 @@
+[workspace]
+members = [
+    "private_swap",
+    "private_yield",
+    "private_perp",
+    "private_settlement",
+    "ert_ownership",
+]
+
+# PRAXIS ZK Circuits
+# Zero-Knowledge Proofs for Private DeFi Execution
+#
+# These circuits enable:
+# - Private swaps without revealing token pairs or amounts
+# - Private yield strategies without revealing protocols or deposits
+# - Private perpetual positions without revealing direction or leverage
+# - Private settlement without revealing trade history

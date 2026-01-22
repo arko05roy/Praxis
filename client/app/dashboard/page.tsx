@@ -4,6 +4,7 @@ import { UserPositionSummary } from "@/components/dashboard/UserPositionSummary"
 import { ProtocolStatsCard } from "@/components/dashboard/ProtocolStatsCard";
 import { AssetList } from "@/components/dashboard/AssetList";
 import { QuickActionsPanel } from "@/components/dashboard/QuickActionsPanel";
+import { WalletBalances } from "@/components/dashboard/WalletBalances";
 
 export default function DashboardPage() {
     return (
@@ -17,9 +18,10 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Right Column (Stats & Swap) */}
+            {/* Right Column (Stats & Wallet) */}
             <div className="lg:col-span-4 flex flex-col gap-6">
                 <ProtocolStatsCard />
+                <WalletBalances />
                 <div className="flex-1 min-h-[400px]">
                     <QuickActionsPanel />
                 </div>

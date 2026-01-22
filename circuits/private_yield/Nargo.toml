@@ -1,0 +1,8 @@
+[package]
+name = "private_yield"
+type = "bin"
+authors = ["PRAXIS Protocol"]
+compiler_version = ">=0.30.0"
+
+[dependencies]
+ert_ownership = { path = "../ert_ownership" }

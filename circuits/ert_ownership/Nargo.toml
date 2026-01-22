@@ -1,0 +1,7 @@
+[package]
+name = "ert_ownership"
+type = "lib"
+authors = ["PRAXIS Protocol"]
+compiler_version = ">=0.30.0"
+
+[dependencies]

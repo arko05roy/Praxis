@@ -13,7 +13,8 @@ import {
     Settings,
     TrendingUp,
     Activity,
-    ShieldCheck
+    ShieldCheck,
+    Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutGrid, section: "Main" },
     { name: "LP Portal", href: "/dashboard/lp-portal", icon: Wallet, section: "Main" },
     { name: "Executor Portal", href: "/dashboard/executor", icon: Store, section: "Main" },
+    { name: "Private Execution", href: "/dashboard/private-execution", icon: Shield, section: "Trading" },
     { name: "ERT Management", href: "/dashboard/erts", icon: Bookmark, section: "Trading" },
     { name: "Terminal", href: "/dashboard/terminal", icon: BarChart2, section: "Trading" },
     { name: "Swap", href: "/dashboard/swap", icon: ArrowLeftRight, section: "Trading" },
