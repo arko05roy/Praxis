@@ -1,6 +1,6 @@
 "use client";
 
-import { useEstimateSettlement, useEstimatePnl, useFeeBreakdown, useCanSettle, useSettleERT, useForceSettleERT, useEnhancedPrice } from "@/lib/hooks";
+import { useEstimateSettlement, useEstimatePnl, useFeeBreakdown, useCanSettle, useSettleERT, useForceSettleERT, useEnhancedPrice, useExecutionRights } from "@/lib/hooks";
 import { formatUnits } from "viem";
 import { X, Loader2, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, DollarSign, Shield, Percent, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,7 @@ export function SettlementModal({
     const { data: pnl, isProfitable, isLoading: pnlLoading } = useEstimatePnl(ertId);
     const { data: feeBreakdown, isLoading: feeLoading } = useFeeBreakdown(ertId, pnl);
     const { data: canSettleResult, isLoading: canSettleLoading } = useCanSettle(ertId);
+    const { data: executionRights } = useExecutionRights(ertId);
 
     // Current FTSO price for verification display
     const { enhanced: currentFTSOPrice } = useEnhancedPrice(feedName);
@@ -74,6 +75,45 @@ export function SettlementModal({
         const isNegative = value < 0n;
         const absValue = isNegative ? -value : value;
         return `${isNegative ? "-" : ""}${prefix}${Number(formatUnits(absValue, decimals)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: decimals === 18 ? 4 : 2 })}`;
+    };
+
+    // Calculate fees locally when contract returns zeros
+    // Fee percentages: LP Profit Share 20%, Insurance 2%, LP Base Fee 0.5% of capital
+    const LP_PROFIT_SHARE_BPS = 2000n; // 20%
+    const INSURANCE_FEE_BPS = 200n; // 2%
+    const LP_BASE_FEE_BPS = 50n; // 0.5%
+    const BPS_DIVISOR = 10000n;
+
+    const effectivePnl = pnl ?? settlement?.totalPnl ?? 0n;
+    // Use executionRights.capitalLimit as primary source, fall back to settlement.capitalReturned
+    const capitalAmount = executionRights?.capitalLimit ?? settlement?.capitalReturned ?? 0n;
+
+    const baseFee = capitalAmount * LP_BASE_FEE_BPS / BPS_DIVISOR;
+    const profitShare = effectivePnl > 0n ? effectivePnl * LP_PROFIT_SHARE_BPS / BPS_DIVISOR : 0n;
+    const insuranceFee = effectivePnl > 0n ? effectivePnl * INSURANCE_FEE_BPS / BPS_DIVISOR : 0n;
+
+    const calculatedFees = {
+        lpBaseFee: baseFee,
+        lpProfitShare: profitShare,
+        insuranceFee: insuranceFee,
+        // Executor profit = PnL minus all fees (base fee always applies)
+        executorProfit: effectivePnl - baseFee - profitShare - insuranceFee,
+    };
+
+    // Use contract values if non-zero, otherwise use calculated values
+    const displayFees = {
+        lpBaseFee: (feeBreakdown?.lpBaseFee ?? settlement?.lpBaseFee ?? 0n) > 0n
+            ? (feeBreakdown?.lpBaseFee ?? settlement?.lpBaseFee)
+            : calculatedFees.lpBaseFee,
+        lpProfitShare: (feeBreakdown?.lpProfitShare ?? settlement?.lpProfitShare ?? 0n) > 0n
+            ? (feeBreakdown?.lpProfitShare ?? settlement?.lpProfitShare)
+            : calculatedFees.lpProfitShare,
+        insuranceFee: (feeBreakdown?.insuranceFee ?? settlement?.insuranceFee ?? 0n) > 0n
+            ? (feeBreakdown?.insuranceFee ?? settlement?.insuranceFee)
+            : calculatedFees.insuranceFee,
+        executorProfit: (feeBreakdown?.executorProfit ?? settlement?.executorProfit ?? 0n) !== 0n
+            ? (feeBreakdown?.executorProfit ?? settlement?.executorProfit)
+            : calculatedFees.executorProfit,
     };
 
     const formattedEntryPrice = entryPrice
@@ -224,21 +264,21 @@ export function SettlementModal({
 
                             <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-text-muted">LP Base Fee</span>
-                                    <span className="text-white">{formatValue(settlement?.lpBaseFee)}</span>
+                                    <span className="text-text-muted">LP Base Fee (0.5%)</span>
+                                    <span className="text-white">{formatValue(displayFees.lpBaseFee)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-text-muted">LP Profit Share (20%)</span>
-                                    <span className="text-white">{formatValue(settlement?.lpProfitShare)}</span>
+                                    <span className="text-white">{formatValue(displayFees.lpProfitShare)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-text-muted">Insurance Fund (2%)</span>
-                                    <span className="text-white">{formatValue(settlement?.insuranceFee)}</span>
+                                    <span className="text-white">{formatValue(displayFees.insuranceFee)}</span>
                                 </div>
                                 <div className="border-t border-white/10 pt-2 flex justify-between font-bold">
                                     <span className="text-white">Your Profit</span>
                                     <span className={isProfitable ? "text-accent" : "text-red-400"}>
-                                        {formatValue(settlement?.executorProfit)}
+                                        {formatValue(displayFees.executorProfit)}
                                     </span>
                                 </div>
                             </div>
@@ -259,7 +299,7 @@ export function SettlementModal({
                                     <span className="text-xs text-text-muted">Stake Returned</span>
                                 </div>
                                 <p className="text-lg font-bold text-white">{formatValue(settlement?.stakeReturned, 18, "")} <span className="text-xs text-text-muted">FLR</span></p>
-                                {settlement?.stakeSlashed && settlement.stakeSlashed > 0n && (
+                                {settlement?.stakeSlashed != null && settlement.stakeSlashed > 0n && (
                                     <p className="text-xs text-red-400">-{formatValue(settlement.stakeSlashed, 18, "")} FLR slashed</p>
                                 )}
                             </div>

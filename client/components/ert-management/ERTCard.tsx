@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useExecutionRights, useERTTimeRemaining, useERTDrawdownStatus, useCanSettle, useEstimatePnl } from "@/lib/hooks";
 import { formatUnits } from "viem";
-import { Clock, TrendingDown, TrendingUp, AlertCircle, CheckCircle, Banknote, Loader2 } from "lucide-react";
+import { Clock, TrendingDown, TrendingUp, AlertCircle, CheckCircle, Banknote, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SettlementModal } from "./SettlementModal";
 
@@ -13,9 +14,18 @@ interface ERTCardProps {
 }
 
 export function ERTCard({ ertId, onClick }: ERTCardProps) {
+    const router = useRouter();
     const [showSettlementModal, setShowSettlementModal] = useState(false);
 
     const { data: rights, isLoading } = useExecutionRights(ertId);
+
+    const handleCardClick = () => {
+        if (onClick) {
+            onClick();
+        } else {
+            router.push(`/dashboard/erts/${ertId.toString()}`);
+        }
+    };
     const { remainingFormatted, isExpired } = useERTTimeRemaining(ertId);
     const { drawdownPercentage, maxDrawdownPercentage } = useERTDrawdownStatus(ertId);
     const { data: canSettleResult } = useCanSettle(ertId);
@@ -59,7 +69,7 @@ export function ERTCard({ ertId, onClick }: ERTCardProps) {
     return (
         <>
             <div
-                onClick={onClick}
+                onClick={handleCardClick}
                 className="glass-panel rounded-2xl p-6 cursor-pointer hover:border-accent/30 transition-all hover:shadow-[0_0_20px_rgba(143,212,96,0.1)] group relative overflow-hidden"
             >
                 <div className="flex justify-between items-start mb-6">

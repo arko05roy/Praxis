@@ -26,7 +26,7 @@ export type {
 // Constants
 export { PROOF_GENERATION_STAGES } from "./types";
 
-// Proof generation
+// Proof generation (real cryptographic proofs)
 export {
   generatePrivateSwapProof,
   generatePrivateYieldProof,
@@ -60,7 +60,31 @@ export {
   MOCK_ADDRESSES,
 } from "./executor";
 
-// Demo proofs
+// Cryptographic utilities
+export {
+  poseidonHash,
+  computeMerkleRoot,
+  generateMerkleProof,
+  verifyMerkleProof,
+  addressToField,
+  generateCommitment,
+  randomFieldElement,
+} from "./crypto";
+
+// Proof engine (for advanced use)
+export {
+  generateSwapProof,
+  generateYieldProof,
+  generatePerpProof,
+  generateSettlementProof,
+  serializeProof,
+  generateProofHash,
+  checkAndProveInclusion,
+  buildAdapterMerkleTree,
+  buildAssetMerkleTree,
+} from "./proof-engine";
+
+// Legacy demo proofs (for backwards compatibility)
 export {
   DEMO_SWAP_PROOFS,
   DEMO_YIELD_PROOFS,

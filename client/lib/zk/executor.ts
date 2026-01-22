@@ -19,6 +19,9 @@ export const MOCK_ADDRESSES = {
   MockWFLR: addresses.MockWFLR,
   MockUSDC: addresses.MockUSDC,
   MockSFLR: addresses.MockSFLR,
+  MockFXRP: addresses.MockFXRP,
+  MockFBTC: addresses.MockFBTC,
+  MockFDOGE: addresses.MockFDOGE,
   SwapRouter: addresses.SwapRouter,
   PraxisGateway: addresses.PraxisGateway,
 } as const;
@@ -324,6 +327,30 @@ export function getSupportedTokens() {
       address: MOCK_ADDRESSES.MockUSDC,
       name: "USD Coin",
       decimals: 6,
+    },
+    {
+      symbol: "FXRP",
+      address: MOCK_ADDRESSES.MockFXRP,
+      name: "Flare XRP",
+      decimals: 18,
+    },
+    {
+      symbol: "FBTC",
+      address: MOCK_ADDRESSES.MockFBTC,
+      name: "Flare BTC",
+      decimals: 18,
+    },
+    {
+      symbol: "FDOGE",
+      address: MOCK_ADDRESSES.MockFDOGE,
+      name: "Flare DOGE",
+      decimals: 18,
+    },
+    {
+      symbol: "SFLR",
+      address: MOCK_ADDRESSES.MockSFLR,
+      name: "Staked FLR",
+      decimals: 18,
     },
   ];
 }

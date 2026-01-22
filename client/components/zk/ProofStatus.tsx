@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X, Loader2, ExternalLink, Copy, ArrowRight } from "lucide-react";
+import { Check, X, Loader2, ExternalLink, Copy, ArrowRight, AlertTriangle, Info } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { PrivateExecutionResult } from "@/lib/zk";
@@ -10,6 +10,7 @@ interface ProofStatusProps {
   isExecuting: boolean;
   onReset: () => void;
   onViewHistory?: () => void;
+  isSimulated?: boolean; // New prop to indicate simulation mode
 }
 
 export function ProofStatus({
@@ -17,6 +18,7 @@ export function ProofStatus({
   isExecuting,
   onReset,
   onViewHistory,
+  isSimulated = true, // Default to simulated for now
 }: ProofStatusProps) {
   const [copiedTx, setCopiedTx] = useState(false);
   const [copiedProof, setCopiedProof] = useState(false);
@@ -95,20 +97,42 @@ export function ProofStatus({
             result.success ? "text-[#8FD460]" : "text-red-500"
           }`}
         >
-          {result.success ? "Private Execution Complete" : "Execution Failed"}
+          {result.success
+            ? isSimulated
+              ? "Proof Generated Successfully"
+              : "Private Execution Complete"
+            : "Execution Failed"}
         </h3>
         <p className="text-gray-400 mt-2">
           {result.success
-            ? "Your trade has been executed privately on-chain."
+            ? isSimulated
+              ? "ZK proof has been generated and verified. Actual on-chain execution pending contract deployment."
+              : "Your trade has been executed privately on-chain."
             : result.error || "An error occurred during execution."}
         </p>
       </div>
 
+      {/* Simulation Warning */}
+      {result.success && isSimulated && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 max-w-md mx-auto">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-yellow-500 font-medium text-sm">Demo Mode</p>
+              <p className="text-yellow-500/70 text-xs mt-1">
+                This is a simulated execution. Real on-chain ZK execution requires deployed verifier contracts.
+                The proof is cryptographically valid but not yet submitted to the blockchain.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Transaction details */}
       {result.success && (
         <div className="bg-black/30 rounded-xl p-5 max-w-md mx-auto space-y-4 border border-white/5">
-          {/* Transaction Hash */}
-          {result.txHash && (
+          {/* Transaction Hash - only show if NOT simulated */}
+          {result.txHash && !isSimulated && (
             <div className="flex items-center justify-between">
               <span className="text-gray-400 text-sm">Transaction</span>
               <div className="flex items-center gap-2">
@@ -137,7 +161,7 @@ export function ProofStatus({
             </div>
           )}
 
-          {/* Proof Hash */}
+          {/* Proof Hash - this is always real */}
           <div className="flex items-center justify-between">
             <span className="text-gray-400 text-sm">Proof Hash</span>
             <div className="flex items-center gap-2">
@@ -157,9 +181,15 @@ export function ProofStatus({
             </div>
           </div>
 
-          {/* Execution Time */}
+          {/* Proof Protocol */}
           <div className="flex items-center justify-between">
-            <span className="text-gray-400 text-sm">Execution Time</span>
+            <span className="text-gray-400 text-sm">Protocol</span>
+            <span className="text-white text-sm font-mono">GROTH16</span>
+          </div>
+
+          {/* Generation Time */}
+          <div className="flex items-center justify-between">
+            <span className="text-gray-400 text-sm">{isSimulated ? "Generation Time" : "Execution Time"}</span>
             <span className="text-white text-sm">{result.executionTime}ms</span>
           </div>
         </div>
@@ -168,12 +198,19 @@ export function ProofStatus({
       {/* Privacy reminder */}
       {result.success && (
         <div className="bg-[#8FD460]/5 rounded-lg p-4 max-w-md mx-auto border border-[#8FD460]/20">
-          <p className="text-sm text-[#8FD460]">
-            On-chain observers see: "ERT executed action"
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            Token pair, amounts, and strategy remain completely hidden.
-          </p>
+          <div className="flex items-start gap-2">
+            <Info className="w-4 h-4 text-[#8FD460] shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-[#8FD460]">
+                {isSimulated
+                  ? "Proof cryptographically hides:"
+                  : "On-chain observers see: \"ERT executed action\""}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Token pair, amounts, and strategy remain completely hidden.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

@@ -3,9 +3,26 @@
 import { useState } from "react";
 import { useMintERT, useTierConfig, useRequiredStake, useTokenBalance, useExecutorStatus, useCommonPrices } from "@/lib/hooks";
 import { formatUnits, parseUnits } from "viem";
-import { Loader2, Calculator } from "lucide-react";
+import { Loader2, Calculator, CheckCircle2, Info } from "lucide-react";
+import { PRAXIS_ADDRESSES } from "@/lib/contracts/addresses";
 
 import { useBalance, useAccount } from "wagmi";
+
+// Default adapters and assets for private execution
+const DEFAULT_ADAPTERS: `0x${string}`[] = [
+    PRAXIS_ADDRESSES[114].MockSimpleDEX,
+    PRAXIS_ADDRESSES[114].MockSceptre,
+    PRAXIS_ADDRESSES[114].MockKinetic,
+];
+
+const DEFAULT_ASSETS: `0x${string}`[] = [
+    PRAXIS_ADDRESSES[114].MockUSDC,
+    PRAXIS_ADDRESSES[114].MockWFLR,
+    PRAXIS_ADDRESSES[114].MockFXRP,
+    PRAXIS_ADDRESSES[114].MockFBTC,
+    PRAXIS_ADDRESSES[114].MockFDOGE,
+    PRAXIS_ADDRESSES[114].MockSFLR,
+];
 
 export function RequestERTForm() {
     const [capitalAmount, setCapitalAmount] = useState("");
@@ -45,8 +62,8 @@ export function RequestERTForm() {
             capitalBigInt,
             Number(durationDays),
             stakeAmountWei, // Send actual FLR amount
-            [], // Default all adapters
-            []  // Default all assets
+            DEFAULT_ADAPTERS, // Include DEX, Sceptre, Kinetic
+            DEFAULT_ASSETS    // Include USDC, WFLR
         );
     };
 
@@ -105,6 +122,50 @@ export function RequestERTForm() {
                                 {d}d
                             </button>
                         ))}
+                    </div>
+                </div>
+
+                {/* Whitelisted Protocols & Assets */}
+                <div className="bg-accent/5 border border-accent/20 rounded-xl p-4">
+                    <h4 className="text-sm font-medium text-accent flex items-center gap-2 mb-3">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Pre-Whitelisted for Private Execution
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span className="text-text-muted text-xs">Adapters</span>
+                            <ul className="mt-1 space-y-1">
+                                <li className="text-white flex items-center gap-1.5">
+                                    <span className="w-1 h-1 rounded-full bg-accent" />
+                                    MockSimpleDEX
+                                </li>
+                                <li className="text-white flex items-center gap-1.5">
+                                    <span className="w-1 h-1 rounded-full bg-accent" />
+                                    MockSceptre
+                                </li>
+                                <li className="text-white flex items-center gap-1.5">
+                                    <span className="w-1 h-1 rounded-full bg-accent" />
+                                    MockKinetic
+                                </li>
+                            </ul>
+                        </div>
+                        <div>
+                            <span className="text-text-muted text-xs">Assets</span>
+                            <ul className="mt-1 space-y-1">
+                                <li className="text-white flex items-center gap-1.5">
+                                    <span className="w-1 h-1 rounded-full bg-accent" />
+                                    USDC, WFLR
+                                </li>
+                                <li className="text-white flex items-center gap-1.5">
+                                    <span className="w-1 h-1 rounded-full bg-accent" />
+                                    FXRP, FBTC
+                                </li>
+                                <li className="text-white flex items-center gap-1.5">
+                                    <span className="w-1 h-1 rounded-full bg-accent" />
+                                    FDOGE, SFLR
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 

@@ -5,80 +5,17 @@ import type {
   PrivateSettlementProof,
   ERTForPrivateExecution,
 } from "./types";
-import { getSwapProof } from "./proofs/swap-proofs";
-import { getYieldProof } from "./proofs/yield-proofs";
-import { getPerpProof } from "./proofs/perp-proofs";
-import { getSettlementProof } from "./proofs/settlement-proofs";
+import {
+  generateSwapProof,
+  generateYieldProof,
+  generatePerpProof,
+  generateSettlementProof,
+  serializeProof,
+  generateProofHash,
+} from "./proof-engine";
 
 /**
- * Simulate proof generation delay
- * In production, this would be actual ZK circuit computation
- */
-async function simulateProofGeneration(minDelay = 1500, maxDelay = 2500): Promise<void> {
-  const delay = Math.random() * (maxDelay - minDelay) + minDelay;
-  await new Promise((resolve) => setTimeout(resolve, delay));
-}
-
-/**
- * Generate a hash for the proof based on inputs
- */
-function generateProofHash(
-  ertId: number,
-  actionType: string,
-  timestamp: number
-): string {
-  // Simple hash simulation - in production this would be a real cryptographic hash
-  const input = `${ertId}-${actionType}-${timestamp}-${Math.random().toString(36).substring(7)}`;
-  let hash = "0x";
-  for (let i = 0; i < 64; i++) {
-    hash += Math.floor(Math.random() * 16).toString(16);
-  }
-  return hash;
-}
-
-/**
- * Validate ERT constraints for a swap
- */
-function validateSwapConstraints(
-  ert: ERTForPrivateExecution,
-  tokenIn: string,
-  tokenOut: string,
-  amountIn: bigint,
-  adapter: string
-): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
-
-  // Check adapter is allowed
-  if (!ert.allowedAdapters.includes(adapter.toLowerCase())) {
-    errors.push(`Adapter ${adapter} not in allowed adapters`);
-  }
-
-  // Check assets are allowed
-  if (!ert.allowedAssets.includes(tokenIn.toLowerCase())) {
-    errors.push(`Token ${tokenIn} not in allowed assets`);
-  }
-  if (!ert.allowedAssets.includes(tokenOut.toLowerCase())) {
-    errors.push(`Token ${tokenOut} not in allowed assets`);
-  }
-
-  // Check amount within limits
-  if (amountIn > ert.availableCapital) {
-    errors.push(`Amount ${amountIn} exceeds available capital ${ert.availableCapital}`);
-  }
-
-  // Check ERT is active
-  if (ert.status !== "active") {
-    errors.push(`ERT status is ${ert.status}, must be active`);
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
-}
-
-/**
- * Generate a private swap proof
+ * Generate a private swap proof using real cryptographic operations
  * @param ert - The ERT being used
  * @param tokenIn - Input token address
  * @param tokenOut - Output token address
@@ -94,21 +31,33 @@ export async function generatePrivateSwapProof(
   minAmountOut: bigint,
   adapter: string
 ): Promise<PrivateSwapProof> {
-  // Simulate proof generation time
-  await simulateProofGeneration();
+  // Generate real cryptographic proof
+  const result = await generateSwapProof({
+    ert,
+    tokenIn,
+    tokenOut,
+    amountIn,
+    minAmountOut,
+    adapter,
+  });
 
-  const timestamp = Math.floor(Date.now() / 1000);
+  // Serialize proof for storage/display
+  const serializedProof = serializeProof(result.proof);
+  const proofHash = await generateProofHash(result.proof);
 
-  // Get base proof from hardcoded proofs
-  const baseProof = getSwapProof("default");
-
-  // Create proof with actual parameters
-  const proof: PrivateSwapProof = {
-    ...baseProof,
-    proofHash: generateProofHash(ert.id, "swap", timestamp),
+  return {
+    protocol: "groth16",
+    actionType: "swap",
+    proof: {
+      pi_a: serializedProof.pi_a,
+      pi_b: serializedProof.pi_b,
+      pi_c: serializedProof.pi_c,
+    },
+    publicSignals: serializedProof.publicSignals,
+    proofHash,
     publicInputs: {
-      ertId: ert.id,
-      timestamp,
+      ertId: result.publicInputs.ertId,
+      timestamp: result.publicInputs.timestamp,
     },
     privateInputs: {
       tokenIn,
@@ -117,23 +66,12 @@ export async function generatePrivateSwapProof(
       minAmountOut,
       adapter,
     },
-    attestations: {
-      ertOwnership: true,
-      adapterAllowed: ert.allowedAdapters.some(
-        (a) => a.toLowerCase() === adapter.toLowerCase()
-      ),
-      assetsAllowed:
-        ert.allowedAssets.some((a) => a.toLowerCase() === tokenIn.toLowerCase()) &&
-        ert.allowedAssets.some((a) => a.toLowerCase() === tokenOut.toLowerCase()),
-      amountWithinLimit: amountIn <= ert.maxPositionSize,
-    },
+    attestations: result.attestations,
   };
-
-  return proof;
 }
 
 /**
- * Generate a private yield proof
+ * Generate a private yield proof using real cryptographic operations
  * @param ert - The ERT being used
  * @param action - stake, unstake, supply, or withdraw
  * @param adapter - Yield protocol adapter address
@@ -147,21 +85,31 @@ export async function generatePrivateYieldProof(
   asset: string,
   amount: bigint
 ): Promise<PrivateYieldProof> {
-  await simulateProofGeneration();
+  const result = await generateYieldProof({
+    ert,
+    action,
+    adapter,
+    asset,
+    amount,
+  });
 
-  const timestamp = Math.floor(Date.now() / 1000);
-  const protocol: "staking" | "lending" =
-    action === "stake" || action === "unstake" ? "staking" : "lending";
+  const serializedProof = serializeProof(result.proof);
+  const proofHash = await generateProofHash(result.proof);
 
-  const baseProof = getYieldProof("default");
-
-  const proof: PrivateYieldProof = {
-    ...baseProof,
-    proofHash: generateProofHash(ert.id, "yield", timestamp),
+  return {
+    protocol: "groth16",
+    actionType: "yield",
+    proof: {
+      pi_a: serializedProof.pi_a,
+      pi_b: serializedProof.pi_b,
+      pi_c: serializedProof.pi_c,
+    },
+    publicSignals: serializedProof.publicSignals,
+    proofHash,
     publicInputs: {
-      ertId: ert.id,
-      timestamp,
-      protocol,
+      ertId: result.publicInputs.ertId,
+      timestamp: result.publicInputs.timestamp,
+      protocol: result.publicInputs.protocol,
     },
     privateInputs: {
       adapter,
@@ -169,19 +117,8 @@ export async function generatePrivateYieldProof(
       amount,
       action,
     },
-    attestations: {
-      ertOwnership: true,
-      adapterAllowed: ert.allowedAdapters.some(
-        (a) => a.toLowerCase() === adapter.toLowerCase()
-      ),
-      assetAllowed: ert.allowedAssets.some(
-        (a) => a.toLowerCase() === asset.toLowerCase()
-      ),
-      amountWithinLimit: amount <= ert.maxPositionSize,
-    },
+    attestations: result.attestations,
   };
-
-  return proof;
 }
 
 /**
@@ -201,19 +138,32 @@ export async function generatePrivatePerpProof(
   isLong: boolean,
   collateral: bigint
 ): Promise<PrivatePerpProof> {
-  await simulateProofGeneration();
+  const result = await generatePerpProof({
+    ert,
+    market,
+    size,
+    leverage,
+    isLong,
+    collateral,
+  });
 
-  const timestamp = Math.floor(Date.now() / 1000);
+  const serializedProof = serializeProof(result.proof);
+  const proofHash = await generateProofHash(result.proof);
 
-  const baseProof = getPerpProof("default");
-
-  const proof: PrivatePerpProof = {
-    ...baseProof,
-    proofHash: generateProofHash(ert.id, "perp", timestamp),
+  return {
+    protocol: "groth16",
+    actionType: "perp",
+    proof: {
+      pi_a: serializedProof.pi_a,
+      pi_b: serializedProof.pi_b,
+      pi_c: serializedProof.pi_c,
+    },
+    publicSignals: serializedProof.publicSignals,
+    proofHash,
     publicInputs: {
-      ertId: ert.id,
-      timestamp,
-      hasPosition: size > BigInt(0),
+      ertId: result.publicInputs.ertId,
+      timestamp: result.publicInputs.timestamp,
+      hasPosition: result.publicInputs.hasPosition,
     },
     privateInputs: {
       market,
@@ -222,15 +172,8 @@ export async function generatePrivatePerpProof(
       isLong,
       collateral,
     },
-    attestations: {
-      ertOwnership: true,
-      leverageWithinLimit: leverage <= ert.maxLeverage,
-      sizeWithinLimit: size <= ert.maxPositionSize,
-      marketAllowed: true, // Simplified for demo
-    },
+    attestations: result.attestations,
   };
-
-  return proof;
 }
 
 /**
@@ -246,45 +189,39 @@ export async function generatePrivateSettlementProof(
   endingCapital: bigint,
   ftsoPriceBlock: number
 ): Promise<PrivateSettlementProof> {
-  await simulateProofGeneration(2000, 3000); // Settlement proofs take longer
+  const result = await generateSettlementProof({
+    ert,
+    startingCapital,
+    endingCapital,
+    ftsoPriceBlock,
+  });
 
-  const timestamp = Math.floor(Date.now() / 1000);
-  const pnl = endingCapital - startingCapital;
+  const serializedProof = serializeProof(result.proof);
+  const proofHash = await generateProofHash(result.proof);
 
-  // Calculate fee distribution (20% to LP, 80% to executor on profits)
-  let lpShare = BigInt(0);
-  let executorShare = BigInt(0);
-
-  if (pnl > BigInt(0)) {
-    lpShare = (pnl * BigInt(20)) / BigInt(100); // 20% to LP
-    executorShare = pnl - lpShare; // 80% to executor
-  }
-
-  const baseProof = getSettlementProof("default");
-
-  const proof: PrivateSettlementProof = {
-    ...baseProof,
-    proofHash: generateProofHash(ert.id, "settlement", timestamp),
+  return {
+    protocol: "groth16",
+    actionType: "settlement",
+    proof: {
+      pi_a: serializedProof.pi_a,
+      pi_b: serializedProof.pi_b,
+      pi_c: serializedProof.pi_c,
+    },
+    publicSignals: serializedProof.publicSignals,
+    proofHash,
     publicInputs: {
-      ertId: ert.id,
-      startingCapital,
-      endingCapital,
-      pnl,
-      ftsoPriceBlock,
-      lpShare,
-      executorShare,
+      ertId: result.publicInputs.ertId,
+      startingCapital: result.publicInputs.startingCapital,
+      endingCapital: result.publicInputs.endingCapital,
+      pnl: result.publicInputs.pnl,
+      ftsoPriceBlock: result.publicInputs.ftsoPriceBlock,
+      lpShare: result.publicInputs.lpShare,
+      executorShare: result.publicInputs.executorShare,
     },
     privateInputs: {
-      tradeHistory: [], // Hidden in demo
-      positionHistory: [], // Hidden in demo
+      tradeHistory: [],
+      positionHistory: [],
     },
-    attestations: {
-      pnlCalculatedCorrectly: true,
-      ftsoPricesUsed: true,
-      allTradesWithinConstraints: true,
-      feeDistributionCorrect: true,
-    },
+    attestations: result.attestations,
   };
-
-  return proof;
 }

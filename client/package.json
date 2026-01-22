@@ -9,6 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@noir-lang/backend_barretenberg": "^0.36.0",
+    "@noir-lang/noir_js": "^1.0.0-beta.18",
+    "@noir-lang/types": "^1.0.0-beta.18",
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",

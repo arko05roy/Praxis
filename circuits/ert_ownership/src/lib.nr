@@ -1,7 +1,7 @@
 // PRAXIS ERT Ownership Verification
 // Shared library for proving ERT ownership and constraint compliance
 
-use dep::std::hash::poseidon;
+use std::hash::poseidon2::Poseidon2;
 
 // =============================================================
 //                    ERT CONSTRAINTS STRUCTURE
