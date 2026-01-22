@@ -2,7 +2,7 @@
 // Generates real cryptographic proofs for private execution
 
 import {
-  poseidonHash,
+  pedersenHash,
   randomFieldElement,
   addressToField,
   computeMerkleRoot,
@@ -176,7 +176,7 @@ export async function generateSwapProof(
   ]);
 
   // 5. Generate action commitment (hash of swap details)
-  const swapDataHash = await poseidonHash([
+  const swapDataHash = await pedersenHash([
     tokenInField,
     tokenOutField,
     amountIn,
@@ -197,24 +197,24 @@ export async function generateSwapProof(
   // Here we generate cryptographically meaningful values
 
   const pi_a: [bigint, bigint] = [
-    await poseidonHash([ownershipCommitment, blindingFactors[0]]),
-    await poseidonHash([actionCommitment, blindingFactors[1]]),
+    await pedersenHash([ownershipCommitment, blindingFactors[0]]),
+    await pedersenHash([actionCommitment, blindingFactors[1]]),
   ];
 
   const pi_b: [[bigint, bigint], [bigint, bigint]] = [
     [
-      await poseidonHash([adapterCheck.root, blindingFactors[0]]),
-      await poseidonHash([tokenInField, blindingFactors[1]]),
+      await pedersenHash([adapterCheck.root, blindingFactors[0]]),
+      await pedersenHash([tokenInField, blindingFactors[1]]),
     ],
     [
-      await poseidonHash([tokenOutField, blindingFactors[2]]),
-      await poseidonHash([amountIn, BigInt(timestamp)]),
+      await pedersenHash([tokenOutField, blindingFactors[2]]),
+      await pedersenHash([amountIn, BigInt(timestamp)]),
     ],
   ];
 
   const pi_c: [bigint, bigint] = [
-    await poseidonHash([...pi_a, pi_b[0][0]]),
-    await poseidonHash([pi_b[1][1], blindingFactors[2]]),
+    await pedersenHash([...pi_a, pi_b[0][0]]),
+    await pedersenHash([pi_b[1][1], blindingFactors[2]]),
   ];
 
   // Public signals that the verifier can check
@@ -369,7 +369,7 @@ export async function generateYieldProof(
     blindingFactors[0],
   ]);
 
-  const yieldDataHash = await poseidonHash([
+  const yieldDataHash = await pedersenHash([
     adapterField,
     assetField,
     amount,
@@ -385,24 +385,24 @@ export async function generateYieldProof(
   ]);
 
   const pi_a: [bigint, bigint] = [
-    await poseidonHash([ownershipCommitment, blindingFactors[0]]),
-    await poseidonHash([actionCommitment, blindingFactors[1]]),
+    await pedersenHash([ownershipCommitment, blindingFactors[0]]),
+    await pedersenHash([actionCommitment, blindingFactors[1]]),
   ];
 
   const pi_b: [[bigint, bigint], [bigint, bigint]] = [
     [
-      await poseidonHash([adapterCheck.root, assetCheck.root]),
-      await poseidonHash([adapterField, assetField]),
+      await pedersenHash([adapterCheck.root, assetCheck.root]),
+      await pedersenHash([adapterField, assetField]),
     ],
     [
-      await poseidonHash([amount, BigInt(timestamp)]),
-      await poseidonHash([blindingFactors[0], blindingFactors[1]]),
+      await pedersenHash([amount, BigInt(timestamp)]),
+      await pedersenHash([blindingFactors[0], blindingFactors[1]]),
     ],
   ];
 
   const pi_c: [bigint, bigint] = [
-    await poseidonHash([...pi_a, pi_b[0][0]]),
-    await poseidonHash([pi_b[1][1], yieldDataHash]),
+    await pedersenHash([...pi_a, pi_b[0][0]]),
+    await pedersenHash([pi_b[1][1], yieldDataHash]),
   ];
 
   const publicSignals = [
@@ -488,7 +488,7 @@ export async function generatePerpProof(
     blindingFactors[0],
   ]);
 
-  const perpDataHash = await poseidonHash([
+  const perpDataHash = await pedersenHash([
     BigInt(market.split("-")[0].charCodeAt(0)), // Simple market encoding
     size,
     BigInt(leverage),
@@ -505,18 +505,18 @@ export async function generatePerpProof(
   ]);
 
   const pi_a: [bigint, bigint] = [
-    await poseidonHash([ownershipCommitment, blindingFactors[0]]),
-    await poseidonHash([actionCommitment, blindingFactors[1]]),
+    await pedersenHash([ownershipCommitment, blindingFactors[0]]),
+    await pedersenHash([actionCommitment, blindingFactors[1]]),
   ];
 
   const pi_b: [[bigint, bigint], [bigint, bigint]] = [
-    [await poseidonHash([size, collateral]), await poseidonHash([BigInt(leverage), isLong ? 1n : 0n])],
-    [await poseidonHash([perpDataHash, BigInt(timestamp)]), await poseidonHash([blindingFactors[0], blindingFactors[1]])],
+    [await pedersenHash([size, collateral]), await pedersenHash([BigInt(leverage), isLong ? 1n : 0n])],
+    [await pedersenHash([perpDataHash, BigInt(timestamp)]), await pedersenHash([blindingFactors[0], blindingFactors[1]])],
   ];
 
   const pi_c: [bigint, bigint] = [
-    await poseidonHash([...pi_a, pi_b[0][0]]),
-    await poseidonHash([pi_b[1][1], perpDataHash]),
+    await pedersenHash([...pi_a, pi_b[0][0]]),
+    await pedersenHash([pi_b[1][1], perpDataHash]),
   ];
 
   const publicSignals = [
@@ -609,7 +609,7 @@ export async function generateSettlementProof(
     blindingFactors[0],
   ]);
 
-  const settlementDataHash = await poseidonHash([
+  const settlementDataHash = await pedersenHash([
     startingCapital,
     endingCapital,
     pnl,
@@ -626,18 +626,18 @@ export async function generateSettlementProof(
   ]);
 
   const pi_a: [bigint, bigint] = [
-    await poseidonHash([ownershipCommitment, blindingFactors[0]]),
-    await poseidonHash([actionCommitment, blindingFactors[1]]),
+    await pedersenHash([ownershipCommitment, blindingFactors[0]]),
+    await pedersenHash([actionCommitment, blindingFactors[1]]),
   ];
 
   const pi_b: [[bigint, bigint], [bigint, bigint]] = [
-    [await poseidonHash([startingCapital, endingCapital]), await poseidonHash([pnl, lpShare])],
-    [await poseidonHash([executorShare, BigInt(ftsoPriceBlock)]), await poseidonHash([settlementDataHash, BigInt(timestamp)])],
+    [await pedersenHash([startingCapital, endingCapital]), await pedersenHash([pnl, lpShare])],
+    [await pedersenHash([executorShare, BigInt(ftsoPriceBlock)]), await pedersenHash([settlementDataHash, BigInt(timestamp)])],
   ];
 
   const pi_c: [bigint, bigint] = [
-    await poseidonHash([...pi_a, pi_b[0][0]]),
-    await poseidonHash([pi_b[1][1], settlementDataHash]),
+    await pedersenHash([...pi_a, pi_b[0][0]]),
+    await pedersenHash([pi_b[1][1], settlementDataHash]),
   ];
 
   const publicSignals = [
@@ -709,7 +709,7 @@ export function serializeProof(proof: ProofData): {
  * Generate a proof hash for identification
  */
 export async function generateProofHash(proof: ProofData): Promise<string> {
-  const hash = await poseidonHash([
+  const hash = await pedersenHash([
     proof.pi_a[0],
     proof.pi_a[1],
     proof.pi_c[0],

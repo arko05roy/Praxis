@@ -107,9 +107,13 @@ export const PraxisGatewayABI = [
         name: 'actions',
         type: 'tuple[]',
         components: [
+          { name: 'actionType', type: 'uint8' },
           { name: 'adapter', type: 'address' },
-          { name: 'data', type: 'bytes' },
-          { name: 'value', type: 'uint256' },
+          { name: 'tokenIn', type: 'address' },
+          { name: 'tokenOut', type: 'address' },
+          { name: 'amountIn', type: 'uint256' },
+          { name: 'minAmountOut', type: 'uint256' },
+          { name: 'extraData', type: 'bytes' },
         ],
       },
     ],
@@ -1152,3 +1156,71 @@ export const ERC20ABI = [
     outputs: [{ name: '', type: 'bool' }],
   },
 ] as const;
+
+// ZK Verifier ABIs
+export const PrivateSwapVerifierABI = [
+  {
+    name: 'verifyAndLog',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'proof', type: 'bytes' },
+      { name: 'publicInputs', type: 'uint256[]' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'PrivateSwapVerified',
+    type: 'event',
+    inputs: [
+      { name: 'ertId', type: 'uint256', indexed: true },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+      { name: 'actionCommitment', type: 'bytes32', indexed: false },
+    ],
+  },
+] as const;
+
+export const ZKExecutorABI = [
+  {
+    name: 'swap',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+      { name: 'amountIn', type: 'uint256' },
+      { name: 'minAmountOut', type: 'uint256' },
+      { name: 'to', type: 'address' },
+      { name: 'extraData', type: 'bytes' },
+    ],
+    outputs: [{ name: 'amountOut', type: 'uint256' }],
+  },
+] as const;
+
+// Duplicate removed
+
+export const ExecutionControllerABI = [
+  {
+    name: 'validateAndExecute',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'ertId', type: 'uint256' },
+      {
+        name: 'actions',
+        type: 'tuple[]',
+        components: [
+          { name: 'actionType', type: 'uint8' },
+          { name: 'adapter', type: 'address' },
+          { name: 'tokenIn', type: 'address' },
+          { name: 'tokenOut', type: 'address' },
+          { name: 'amountIn', type: 'uint256' },
+          { name: 'minAmountOut', type: 'uint256' },
+          { name: 'extraData', type: 'bytes' },
+        ],
+      },
+    ],
+    outputs: [{ name: 'results', type: 'bytes[]' }],
+  },
+] as const;
+

@@ -1,37 +1,38 @@
 // PRAXIS ERT Ownership Verification
 // Shared library for proving ERT ownership and constraint compliance
 
-use std::hash::poseidon2::Poseidon2;
+use dep::std;
 
 // =============================================================
 //                    ERT CONSTRAINTS STRUCTURE
 // =============================================================
 
 /// ERT constraints that govern execution rights
-struct ERTConstraints {
-    max_leverage: u32,           // Maximum leverage allowed (e.g., 5 = 5x)
-    max_drawdown_bps: u32,       // Maximum drawdown in basis points (e.g., 1000 = 10%)
-    max_position_size_bps: u32,  // Max position as % of capital (e.g., 5000 = 50%)
-    allowed_adapters_root: Field, // Merkle root of allowed adapter addresses
-    allowed_assets_root: Field,   // Merkle root of allowed asset addresses
+/// ERT constraints that govern execution rights
+pub struct ERTConstraints {
+    pub max_leverage: u32,           // Maximum leverage allowed (e.g., 5 = 5x)
+    pub max_drawdown_bps: u32,       // Maximum drawdown in basis points (e.g., 1000 = 10%)
+    pub max_position_size_bps: u32,  // Max position as % of capital (e.g., 5000 = 50%)
+    pub allowed_adapters_root: Field, // Merkle root of allowed adapter addresses
+    pub allowed_assets_root: Field,   // Merkle root of allowed asset addresses
 }
 
 /// ERT status information
-struct ERTStatus {
-    capital_limit: Field,        // Total capital allocated to this ERT
-    capital_deployed: Field,     // Currently deployed capital
-    start_time: u64,             // ERT start timestamp
-    expiry_time: u64,            // ERT expiry timestamp
-    is_active: bool,             // Whether ERT is currently active
+pub struct ERTStatus {
+    pub capital_limit: Field,        // Total capital allocated to this ERT
+    pub capital_deployed: Field,     // Currently deployed capital
+    pub start_time: u64,             // ERT start timestamp
+    pub expiry_time: u64,            // ERT expiry timestamp
+    pub is_active: bool,             // Whether ERT is currently active
 }
 
 /// Complete ERT data structure
-struct ERT {
-    token_id: Field,             // NFT token ID
-    executor: Field,             // Executor address (as field)
-    vault: Field,                // Vault address (as field)
-    constraints: ERTConstraints,
-    status: ERTStatus,
+pub struct ERT {
+    pub token_id: Field,             // NFT token ID
+    pub executor: Field,             // Executor address (as field)
+    pub vault: Field,                // Vault address (as field)
+    pub constraints: ERTConstraints,
+    pub status: ERTStatus,
 }
 
 // =============================================================
@@ -46,13 +47,13 @@ pub fn prove_ert_ownership(
     ert_ownership_commitment: Field  // Public: hash(executor, token_id)
 ) -> bool {
     // Derive executor address from private key (simplified)
-    let derived_executor = poseidon::bn254::hash_1([executor_private_key]);
+    let derived_executor = std::hash::pedersen_hash([executor_private_key]);
 
     // Verify executor matches ERT
     assert(derived_executor == ert.executor, "Executor mismatch");
 
     // Verify ownership commitment
-    let computed_commitment = poseidon::bn254::hash_2([ert.executor, ert.token_id]);
+    let computed_commitment = std::hash::pedersen_hash([ert.executor, ert.token_id]);
     assert(computed_commitment == ert_ownership_commitment, "Ownership commitment mismatch");
 
     // Verify ERT is active
@@ -78,10 +79,10 @@ pub fn verify_merkle_inclusion(
         let sibling = path[i];
         if indices[i] {
             // Current is on the right
-            current = poseidon::bn254::hash_2([sibling, current]);
+            current = std::hash::pedersen_hash([sibling, current]);
         } else {
             // Current is on the left
-            current = poseidon::bn254::hash_2([current, sibling]);
+            current = std::hash::pedersen_hash([current, sibling]);
         }
     }
 
@@ -167,7 +168,7 @@ pub fn generate_action_commitment(
     timestamp: u64,
     nonce: Field
 ) -> Field {
-    poseidon::bn254::hash_5([
+    std::hash::pedersen_hash([
         ert_id,
         action_type,
         action_data_hash,

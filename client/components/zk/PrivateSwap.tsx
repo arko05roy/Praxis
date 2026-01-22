@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   ArrowDown,
   Shield,
@@ -18,15 +18,19 @@ import { ProofVerifier } from "./ProofVerifier";
 import { ProofStatus } from "./ProofStatus";
 import {
   generatePrivateSwapProof,
-  executePrivateSwap,
   getSupportedTokens,
   MOCK_ADDRESSES,
 } from "@/lib/zk";
+import { useTokenApproval } from "@/lib/hooks/useTokenApproval";
+import { usePositions } from "@/lib/hooks/executor";
+import { useChainId } from "wagmi";
+import { getAddresses } from "@/lib/contracts/addresses";
 import type {
   ERTForPrivateExecution,
   PrivateSwapProof,
   PrivateExecutionResult,
 } from "@/lib/zk";
+import { usePrivateExecution } from "@/lib/hooks/usePrivateExecution";
 
 type Step = "input" | "proving" | "verified" | "executing" | "complete";
 
@@ -39,11 +43,20 @@ const parseAmount = (amount: string, decimals: number): bigint => {
   return BigInt(whole + paddedFraction);
 };
 
-const formatBalance = (balance: bigint, decimals: number): string => {
+// Helper to format balance with clamping and dust handling (moved up or used consistently)
+const safeFormatBalance = (balance: bigint, decimals: number) => {
+  if (balance <= 0n) return "0.00";
   const str = balance.toString().padStart(decimals + 1, "0");
   const whole = str.slice(0, -decimals) || "0";
   const fraction = str.slice(-decimals);
-  return `${Number(whole).toLocaleString()}.${fraction.slice(0, 2)}`;
+
+  const formatted = `${Number(whole).toLocaleString()}.${fraction.slice(0, 2)}`;
+
+  // If formatted is "0.00" but balance > 0, show precision
+  if (formatted === "0.00" && balance > 0n) {
+    return "< 0.01";
+  }
+  return formatted;
 };
 
 export function PrivateSwap() {
@@ -57,6 +70,30 @@ export function PrivateSwap() {
   const [result, setResult] = useState<PrivateExecutionResult | null>(null);
   const [showTokenInDropdown, setShowTokenInDropdown] = useState(false);
   const [showTokenOutDropdown, setShowTokenOutDropdown] = useState(false);
+
+  const {
+    executeSwap,
+    isPending,
+    isConfirming,
+    isSuccess,
+    hash
+  } = usePrivateExecution();
+
+  const chainId = useChainId();
+  const addresses = getAddresses(chainId);
+  // Default to zero address if not yet deployed to prevent crash, though it should be there.
+  const zkExecutorAddress = addresses.ZKExecutor || "0x0000000000000000000000000000000000000000";
+
+  const {
+    isApproved,
+    approve: approveToken,
+    isPending: isApprovePending,
+    isConfirming: isApproveConfirming
+  } = useTokenApproval(
+    tokenIn.address as `0x${string}`,
+    zkExecutorAddress,
+    parseAmount(amountIn, tokenIn.decimals)
+  );
 
   // Check compliance status
   const complianceStatus = useMemo(() => {
@@ -103,7 +140,7 @@ export function PrivateSwap() {
 
 
 
-  const calculateMinAmountOut = (): bigint => {
+  const calculateMinAmountOut = useCallback((): bigint => {
     const amountInBigInt = parseAmount(amountIn, tokenIn.decimals);
     const slippagePercent = parseFloat(slippage) / 100;
     const minOut = amountInBigInt - BigInt(Math.floor(Number(amountInBigInt) * slippagePercent));
@@ -113,7 +150,7 @@ export function PrivateSwap() {
       return minOut * BigInt(10 ** (tokenOut.decimals - tokenIn.decimals));
     }
     return minOut;
-  };
+  }, [amountIn, tokenIn, tokenOut, slippage]);
 
   const generateProof = useCallback(async (): Promise<PrivateSwapProof> => {
     if (!selectedERT) throw new Error("No ERT selected");
@@ -129,7 +166,7 @@ export function PrivateSwap() {
       minAmountOut,
       MOCK_ADDRESSES.MockSimpleDEX
     );
-  }, [selectedERT, tokenIn, tokenOut, amountIn]);
+  }, [selectedERT, tokenIn, tokenOut, amountIn, calculateMinAmountOut]);
 
   const handleProofComplete = (generatedProof: PrivateSwapProof) => {
     setProof(generatedProof);
@@ -138,12 +175,37 @@ export function PrivateSwap() {
 
   const handleExecute = async () => {
     if (!proof) return;
-    setStep("executing");
-
-    const executionResult = await executePrivateSwap(proof);
-    setResult(executionResult);
-    setStep("complete");
+    executeSwap(proof);
   };
+
+  useEffect(() => {
+    if (isSuccess && proof && selectedERT) {
+      // Defer state updates to avoid synchronous setState in effect
+      setTimeout(() => {
+        setStep("complete");
+
+        // Construct a result object based on success
+        const executionResult: PrivateExecutionResult = {
+          success: true,
+          txHash: hash || "0x",
+          proofHash: proof.proofHash,
+          executionTime: 0,
+        };
+        setResult(executionResult);
+
+        // Update local state to reflect spending
+        const amountSpent = parseAmount(amountIn, tokenIn.decimals);
+
+        if (tokenIn.symbol === "USDC") {
+          const newCapital = selectedERT.availableCapital - amountSpent;
+          setSelectedERT({
+            ...selectedERT,
+            availableCapital: newCapital
+          });
+        }
+      }, 0);
+    }
+  }, [isSuccess, proof, selectedERT, amountIn, tokenIn, hash, setSelectedERT]);
 
   const handleReset = () => {
     setStep("input");
@@ -152,11 +214,49 @@ export function PrivateSwap() {
     setAmountIn("");
   };
 
+  // Fetch positions for the selected ERT
+  const { data: positions } = usePositions(selectedERT ? BigInt(selectedERT.id) : undefined);
+
+  // Debug Logging
+  useEffect(() => {
+    if (selectedERT) {
+      console.log("Selected ERT:", selectedERT);
+      console.log("Positions:", positions);
+      console.log("Token In:", tokenIn);
+    }
+  }, [selectedERT, positions, tokenIn]);
+
+  // Calculate available balance based on token selection
+  const availableBalance = useMemo(() => {
+    if (!selectedERT) return BigInt(0);
+
+    // If swapping stablecoin (Base Asset), use Available Capital from ERT
+    if (tokenIn.symbol === "USDC") {
+      console.log("Using ERT Available Capital for USDC:", selectedERT.availableCapital);
+      return selectedERT.availableCapital;
+    }
+
+    // If swapping another asset (closing/reducing position), find the position size
+    if (positions) {
+      const position = positions.find(
+        (p) => p.asset.toLowerCase() === tokenIn.address.toLowerCase()
+      );
+      if (position) {
+        console.log("Found Position for", tokenIn.symbol, position);
+        return position.size;
+      } else {
+        console.log("No Position found for", tokenIn.symbol);
+      }
+    }
+
+    return BigInt(0);
+  }, [selectedERT, tokenIn, positions]);
+
   const isValidInput =
     selectedERT &&
     amountIn &&
     parseFloat(amountIn) > 0 &&
-    parseAmount(amountIn, tokenIn.decimals) <= selectedERT.availableCapital;
+    parseAmount(amountIn, tokenIn.decimals) <= availableBalance;
 
   // Check if token is whitelisted on ERT
   const isTokenWhitelisted = (address: string) => {
@@ -176,8 +276,8 @@ export function PrivateSwap() {
           {/* Compliance Pre-Check */}
           {selectedERT && (
             <div className={`rounded-xl p-4 border ${complianceStatus.allPassing
-                ? "bg-[#8FD460]/10 border-[#8FD460]/30"
-                : "bg-yellow-500/10 border-yellow-500/30"
+              ? "bg-[#8FD460]/10 border-[#8FD460]/30"
+              : "bg-yellow-500/10 border-yellow-500/30"
               }`}>
               <h4 className={`font-medium flex items-center gap-2 mb-3 ${complianceStatus.allPassing ? "text-[#8FD460]" : "text-yellow-500"
                 }`}>
@@ -232,7 +332,7 @@ export function PrivateSwap() {
               </div>
               {!complianceStatus.allPassing && (
                 <p className="text-xs text-yellow-500/80 mt-3">
-                  Your ERT doesn't whitelist these tokens/adapter. The proof will show compliance failures.
+                  Your ERT doesn&apos;t whitelist these tokens/adapter. The proof will show compliance failures.
                   Mint a new ERT with MockSimpleDEX, MockWFLR, and MockUSDC whitelisted.
                 </p>
               )}
@@ -243,14 +343,14 @@ export function PrivateSwap() {
           <div className="space-y-3 mt-6">
             {/* Token In */}
             <div className={`bg-black/30 rounded-xl p-4 border ${selectedERT && !complianceStatus.tokenInAllowed
-                ? "border-red-500/30"
-                : "border-white/5"
+              ? "border-red-500/30"
+              : "border-white/5"
               }`}>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-gray-400">You Send (Private)</span>
                 {selectedERT && (
                   <span className="text-xs text-gray-500">
-                    Available: {formatBalance(selectedERT.availableCapital, 6)} USDC
+                    Available: {safeFormatBalance(availableBalance, tokenIn.decimals)} {tokenIn.symbol}
                   </span>
                 )}
               </div>
@@ -266,8 +366,8 @@ export function PrivateSwap() {
                   <button
                     onClick={() => setShowTokenInDropdown(!showTokenInDropdown)}
                     className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors ${selectedERT && !complianceStatus.tokenInAllowed
-                        ? "bg-red-500/20 hover:bg-red-500/30"
-                        : "bg-white/5 hover:bg-white/10"
+                      ? "bg-red-500/20 hover:bg-red-500/30"
+                      : "bg-white/5 hover:bg-white/10"
                       }`}
                   >
                     <span className="text-white font-medium">{tokenIn.symbol}</span>
@@ -325,8 +425,8 @@ export function PrivateSwap() {
 
             {/* Token Out */}
             <div className={`bg-black/30 rounded-xl p-4 border ${selectedERT && !complianceStatus.tokenOutAllowed
-                ? "border-red-500/30"
-                : "border-white/5"
+              ? "border-red-500/30"
+              : "border-white/5"
               }`}>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-gray-400">You Receive (Private)</span>
@@ -343,8 +443,8 @@ export function PrivateSwap() {
                   <button
                     onClick={() => setShowTokenOutDropdown(!showTokenOutDropdown)}
                     className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors ${selectedERT && !complianceStatus.tokenOutAllowed
-                        ? "bg-red-500/20 hover:bg-red-500/30"
-                        : "bg-white/5 hover:bg-white/10"
+                      ? "bg-red-500/20 hover:bg-red-500/30"
+                      : "bg-white/5 hover:bg-white/10"
                       }`}
                   >
                     <span className="text-white font-medium">{tokenOut.symbol}</span>
@@ -400,8 +500,8 @@ export function PrivateSwap() {
                   key={val}
                   onClick={() => setSlippage(val)}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${slippage === val
-                      ? "bg-[#8FD460]/20 text-[#8FD460]"
-                      : "bg-white/5 text-gray-400 hover:text-white"
+                    ? "bg-[#8FD460]/20 text-[#8FD460]"
+                    : "bg-white/5 text-gray-400 hover:text-white"
                     }`}
                 >
                   {val}%
@@ -437,8 +537,8 @@ export function PrivateSwap() {
             onClick={() => setStep("proving")}
             disabled={!isValidInput}
             className={`w-full font-medium py-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed ${complianceStatus.allPassing
-                ? "bg-[#8FD460] hover:bg-[#7ac350] text-black"
-                : "bg-yellow-500 hover:bg-yellow-600 text-black"
+              ? "bg-[#8FD460] hover:bg-[#7ac350] text-black"
+              : "bg-yellow-500 hover:bg-yellow-600 text-black"
               }`}
           >
             <span className="flex items-center gap-2">
@@ -473,18 +573,47 @@ export function PrivateSwap() {
       )}
 
       {step === "verified" && proof && (
-        <ProofVerifier
-          proof={proof}
-          onExecute={handleExecute}
-          isExecuting={false}
-        />
+        <div className="space-y-4">
+          {!isApproved ? (
+            <div className="glass-panel rounded-2xl p-6 text-center space-y-4 border-yellow-500/20 bg-yellow-500/5">
+              <div className="w-16 h-16 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center">
+                <Shield className="w-8 h-8 text-yellow-500" />
+              </div>
+              <h3 className="text-lg font-medium text-white">Approval Required</h3>
+              <p className="text-gray-400 text-sm">
+                You need to approve the ZK Executor contract to spend your {tokenIn.symbol} before executing the private swap.
+              </p>
+              <Button
+                onClick={() => approveToken()}
+                disabled={isApprovePending || isApproveConfirming}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-medium py-6 rounded-xl"
+              >
+                {isApprovePending || isApproveConfirming ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-black"></span>
+                    Approving...
+                  </span>
+                ) : (
+                  `Approve ${tokenIn.symbol}`
+                )}
+              </Button>
+            </div>
+          ) : (
+            <ProofVerifier
+              proof={proof}
+              onExecute={handleExecute}
+              isExecuting={isPending || isConfirming}
+            />
+          )}
+        </div>
       )}
 
       {(step === "executing" || step === "complete") && (
         <ProofStatus
           result={result}
-          isExecuting={step === "executing"}
+          isExecuting={step === "executing" && (isPending || isConfirming)}
           onReset={handleReset}
+          isSimulated={false}
         />
       )}
     </div>

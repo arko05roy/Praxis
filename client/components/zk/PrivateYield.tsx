@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   TrendingUp,
   Shield,
@@ -26,6 +26,7 @@ import type {
   PrivateYieldProof,
   PrivateExecutionResult,
 } from "@/lib/zk";
+import { usePositions } from "@/lib/hooks/executor";
 
 type Step = "input" | "proving" | "verified" | "executing" | "complete";
 type YieldAction = "stake" | "unstake" | "supply" | "withdraw";
@@ -33,6 +34,29 @@ type Protocol = "staking" | "lending";
 
 const SUPPORTED_TOKENS = getSupportedTokens();
 const SUPPORTED_ADAPTERS = getSupportedAdapters();
+
+const parseAmount = (amountStr: string, decimals: number): bigint => {
+  if (!amountStr || isNaN(parseFloat(amountStr))) return BigInt(0);
+  const [whole, fraction = ""] = amountStr.split(".");
+  const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
+  return BigInt(whole + paddedFraction);
+};
+
+// Helper to format balance with clamping and dust handling
+const safeFormatBalance = (balance: bigint, decimals: number) => {
+  if (balance <= 0n) return "0.00";
+  const str = balance.toString().padStart(decimals + 1, "0");
+  const whole = str.slice(0, -decimals) || "0";
+  const fraction = str.slice(-decimals);
+
+  const formatted = `${Number(whole).toLocaleString()}.${fraction.slice(0, 2)}`;
+
+  // If formatted is "0.00" but balance > 0, show precision
+  if (formatted === "0.00" && balance > 0n) {
+    return "< 0.01";
+  }
+  return formatted;
+};
 
 const PROTOCOL_INFO = {
   staking: {
@@ -64,26 +88,42 @@ export function PrivateYield() {
   const [result, setResult] = useState<PrivateExecutionResult | null>(null);
   const [showTokenDropdown, setShowTokenDropdown] = useState(false);
 
+
+
   const protocolInfo = PROTOCOL_INFO[protocol];
   const ProtocolIcon = protocolInfo.icon;
+
+  // Fetch positions for the selected ERT
+  const { data: positions } = usePositions(selectedERT ? BigInt(selectedERT.id) : undefined);
+
+  // Calculate available balance
+  const availableBalance = useCallback(() => {
+    if (!selectedERT) return BigInt(0);
+
+    // If using Base Asset (USDC), use Available Capital logic
+    // But only if we are supplying/depositing capital?
+    // Actually, if we are "Staking FLR", we need FLR position.
+
+    if (selectedToken.symbol === "USDC") {
+      // Clamp negative available capital to 0
+      return selectedERT.availableCapital > 0n ? selectedERT.availableCapital : 0n;
+    }
+
+    // For other assets, find position
+    if (positions) {
+      const position = positions.find(
+        (p) => p.asset.toLowerCase() === selectedToken.address.toLowerCase()
+      );
+      if (position) {
+        return position.size;
+      }
+    }
+    return BigInt(0);
+  }, [selectedERT, selectedToken, positions])(); // Immediately invoke or use useMemo
 
   const handleProtocolChange = (newProtocol: Protocol) => {
     setProtocol(newProtocol);
     setAction(PROTOCOL_INFO[newProtocol].actions[0]);
-  };
-
-  const parseAmount = (amountStr: string, decimals: number): bigint => {
-    if (!amountStr || isNaN(parseFloat(amountStr))) return BigInt(0);
-    const [whole, fraction = ""] = amountStr.split(".");
-    const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
-    return BigInt(whole + paddedFraction);
-  };
-
-  const formatBalance = (balance: bigint, decimals: number): string => {
-    const str = balance.toString().padStart(decimals + 1, "0");
-    const whole = str.slice(0, -decimals) || "0";
-    const fraction = str.slice(-decimals);
-    return `${Number(whole).toLocaleString()}.${fraction.slice(0, 2)}`;
   };
 
   const generateProof = useCallback(async (): Promise<PrivateYieldProof> => {
@@ -125,7 +165,8 @@ export function PrivateYield() {
     selectedERT &&
     amount &&
     parseFloat(amount) > 0 &&
-    parseAmount(amount, selectedToken.decimals) <= selectedERT.availableCapital;
+    parseFloat(amount) > 0 &&
+    parseAmount(amount, selectedToken.decimals) <= availableBalance;
 
   const getActionLabel = () => {
     switch (action) {
@@ -160,19 +201,17 @@ export function PrivateYield() {
                   <button
                     key={p}
                     onClick={() => handleProtocolChange(p)}
-                    className={`p-4 rounded-xl border transition-all ${
-                      protocol === p
-                        ? "bg-[#8FD460]/10 border-[#8FD460]/30"
-                        : "bg-black/30 border-white/5 hover:border-white/10"
-                    }`}
+                    className={`p-4 rounded-xl border transition-all ${protocol === p
+                      ? "bg-[#8FD460]/10 border-[#8FD460]/30"
+                      : "bg-black/30 border-white/5 hover:border-white/10"
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          protocol === p
-                            ? "bg-[#8FD460]/20 text-[#8FD460]"
-                            : "bg-white/5 text-gray-400"
-                        }`}
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center ${protocol === p
+                          ? "bg-[#8FD460]/20 text-[#8FD460]"
+                          : "bg-white/5 text-gray-400"
+                          }`}
                       >
                         <Icon className="w-5 h-5" />
                       </div>
@@ -197,11 +236,10 @@ export function PrivateYield() {
                 <button
                   key={a}
                   onClick={() => setAction(a)}
-                  className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
-                    action === a
-                      ? "bg-[#8FD460] text-black"
-                      : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
-                  }`}
+                  className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${action === a
+                    ? "bg-[#8FD460] text-black"
+                    : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+                    }`}
                 >
                   {a.charAt(0).toUpperCase() + a.slice(1)}
                 </button>
@@ -219,15 +257,15 @@ export function PrivateYield() {
                 <button
                   onClick={() =>
                     setAmount(
-                      formatBalance(
-                        selectedERT.availableCapital,
+                      safeFormatBalance(
+                        availableBalance,
                         selectedToken.decimals
                       ).replace(/,/g, "")
                     )
                   }
                   className="text-xs text-[#8FD460] hover:underline"
                 >
-                  Max: {formatBalance(selectedERT.availableCapital, 6)}
+                  Max: {safeFormatBalance(availableBalance, selectedToken.decimals)}
                 </button>
               )}
             </div>
@@ -303,7 +341,7 @@ export function PrivateYield() {
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#8FD460]" />
-                Only shows "deployed to yield"
+                Only shows &quot;deployed to yield&quot;
               </li>
             </ul>
           </div>

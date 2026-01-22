@@ -24,6 +24,10 @@ export const PRAXIS_ADDRESSES = {
     SwapRouter: '0x65e72849DD87978023Fef664a39b1FE0576c5C9D' as `0x${string}`,
     YieldRouter: '0x0000000000000000000000000000000000000000' as `0x${string}`,
 
+    // ZK Verifiers
+    PrivateSwapVerifier: '0x9510832286c35AeD7E4680c7E10128f7fa7970c5' as `0x${string}`,
+    ZKExecutor: '0x933A2320d9BBc4Cf68eA67c3a016462C39148c44' as `0x${string}`,
+
     // Asset token (MockUSDC for testnet)
     Asset: '0x9401FCe40Cb84b051215d96e85BecD733043a33D' as `0x${string}`,
 

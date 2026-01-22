@@ -13,6 +13,9 @@ const DEFAULT_ADAPTERS: `0x${string}`[] = [
     PRAXIS_ADDRESSES[114].MockSimpleDEX,
     PRAXIS_ADDRESSES[114].MockSceptre,
     PRAXIS_ADDRESSES[114].MockKinetic,
+    PRAXIS_ADDRESSES[114].ZKExecutor,
+    PRAXIS_ADDRESSES[114].PrivateSwapVerifier,
+    PRAXIS_ADDRESSES[114].SwapRouter,
 ];
 
 const DEFAULT_ASSETS: `0x${string}`[] = [
@@ -146,6 +149,10 @@ export function RequestERTForm() {
                                 <li className="text-white flex items-center gap-1.5">
                                     <span className="w-1 h-1 rounded-full bg-accent" />
                                     MockKinetic
+                                </li>
+                                <li className="text-white flex items-center gap-1.5">
+                                    <span className="w-1 h-1 rounded-full bg-accent" />
+                                    ZK Private Swaps
                                 </li>
                             </ul>
                         </div>

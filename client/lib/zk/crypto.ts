@@ -29,10 +29,10 @@ export async function sha256(data: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Poseidon-like hash (simplified for browser - uses SHA-256 as base)
- * In production, this would use actual Poseidon implementation
+ * Pedersen-like hash (simplified for browser - uses SHA-256 as base)
+ * In production, this would use actual Pedersen implementation
  */
-export async function poseidonHash(inputs: bigint[]): Promise<bigint> {
+export async function pedersenHash(inputs: bigint[]): Promise<bigint> {
   // Concatenate inputs as 32-byte big-endian values
   const data = new Uint8Array(inputs.length * 32);
   for (let i = 0; i < inputs.length; i++) {
@@ -94,7 +94,7 @@ export async function computeMerkleRoot(leaves: bigint[]): Promise<bigint> {
   while (currentLevel.length > 1) {
     const nextLevel: bigint[] = [];
     for (let i = 0; i < currentLevel.length; i += 2) {
-      const hash = await poseidonHash([currentLevel[i], currentLevel[i + 1]]);
+      const hash = await pedersenHash([currentLevel[i], currentLevel[i + 1]]);
       nextLevel.push(hash);
     }
     currentLevel = nextLevel;
@@ -133,7 +133,7 @@ export async function generateMerkleProof(
     // Build next level
     const nextLevel: bigint[] = [];
     for (let i = 0; i < currentLevel.length; i += 2) {
-      const hash = await poseidonHash([currentLevel[i], currentLevel[i + 1] || 0n]);
+      const hash = await pedersenHash([currentLevel[i], currentLevel[i + 1] || 0n]);
       nextLevel.push(hash);
     }
     currentLevel = nextLevel;
@@ -157,10 +157,10 @@ export async function verifyMerkleProof(
   for (let i = 0; i < path.length; i++) {
     if (indices[i]) {
       // Current is on the right
-      current = await poseidonHash([path[i], current]);
+      current = await pedersenHash([path[i], current]);
     } else {
       // Current is on the left
-      current = await poseidonHash([current, path[i]]);
+      current = await pedersenHash([current, path[i]]);
     }
   }
 
@@ -181,7 +181,7 @@ export function addressToField(address: string): bigint {
  * Generate a commitment (hash of multiple values)
  */
 export async function generateCommitment(values: bigint[]): Promise<bigint> {
-  return poseidonHash(values);
+  return pedersenHash(values);
 }
 
 /**
@@ -192,7 +192,7 @@ export async function pedersenCommit(
   value: bigint,
   blinding: bigint
 ): Promise<bigint> {
-  return poseidonHash([value, blinding]);
+  return pedersenHash([value, blinding]);
 }
 
 /**
@@ -203,6 +203,6 @@ export async function verifyPedersenCommit(
   value: bigint,
   blinding: bigint
 ): Promise<boolean> {
-  const computed = await poseidonHash([value, blinding]);
+  const computed = await pedersenHash([value, blinding]);
   return computed === commitment;
 }

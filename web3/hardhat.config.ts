@@ -1,4 +1,4 @@
-import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import "@nomicfoundation/hardhat-ethers";
 import { defineConfig } from "hardhat/config";
 import dotenv from "dotenv";
 
@@ -11,7 +11,7 @@ const PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // Default Hardhat test key
 
 export default defineConfig({
-  plugins: [hardhatToolboxMochaEthersPlugin],
+  // plugins: [hardhatToolboxMochaEthersPlugin],
   solidity: {
     profiles: {
       default: {

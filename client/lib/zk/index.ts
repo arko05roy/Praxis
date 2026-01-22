@@ -62,7 +62,7 @@ export {
 
 // Cryptographic utilities
 export {
-  poseidonHash,
+  pedersenHash,
   computeMerkleRoot,
   generateMerkleProof,
   verifyMerkleProof,

@@ -35,10 +35,14 @@ export function PrivateExecutionHistory({
   };
 
   useEffect(() => {
-    refreshHistory();
+    // Initial fetch deferred to next tick
+    const timer = setTimeout(refreshHistory, 0);
     // Set up polling
     const interval = setInterval(refreshHistory, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [maxItems]);
 
   const handleClearHistory = () => {
@@ -164,15 +168,14 @@ export function PrivateExecutionHistory({
               <div className="flex items-center gap-3">
                 {/* Action Icon */}
                 <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    entry.actionType === "swap"
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center ${entry.actionType === "swap"
                       ? "bg-blue-500/20 text-blue-400"
                       : entry.actionType === "yield"
-                      ? "bg-green-500/20 text-green-400"
-                      : entry.actionType === "perp"
-                      ? "bg-purple-500/20 text-purple-400"
-                      : "bg-[#8FD460]/20 text-[#8FD460]"
-                  }`}
+                        ? "bg-green-500/20 text-green-400"
+                        : entry.actionType === "perp"
+                          ? "bg-purple-500/20 text-purple-400"
+                          : "bg-[#8FD460]/20 text-[#8FD460]"
+                    }`}
                 >
                   {getActionIcon(entry.actionType)}
                 </div>

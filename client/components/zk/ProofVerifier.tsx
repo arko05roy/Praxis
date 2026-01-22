@@ -31,11 +31,23 @@ export function ProofVerifier({ proof, onExecute, isExecuting = false }: ProofVe
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setIsVerifying(true);
-    verifyProof(proof).then((result) => {
-      setVerification(result);
-      setIsVerifying(false);
-    });
+    let mounted = true;
+    // Push to next tick to avoid synchronous state update warning
+    const timer = setTimeout(() => {
+      if (!mounted) return;
+      setIsVerifying(true);
+      verifyProof(proof).then((result) => {
+        if (mounted) {
+          setVerification(result);
+          setIsVerifying(false);
+        }
+      });
+    }, 0);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
   }, [proof]);
 
   const privacyInfo = getPrivacyDescription(proof);
@@ -53,13 +65,12 @@ export function ProofVerifier({ proof, onExecute, isExecuting = false }: ProofVe
       {/* Proof Header */}
       <div className="flex items-center gap-4">
         <div
-          className={`w-14 h-14 rounded-full flex items-center justify-center ${
-            isVerifying
+          className={`w-14 h-14 rounded-full flex items-center justify-center ${isVerifying
               ? "bg-gray-500/20"
               : verification?.valid
-              ? "bg-[#8FD460]/20"
-              : "bg-red-500/20"
-          }`}
+                ? "bg-[#8FD460]/20"
+                : "bg-red-500/20"
+            }`}
         >
           {isVerifying ? (
             <Loader2 className="w-7 h-7 text-gray-400 animate-spin" />
@@ -74,8 +85,8 @@ export function ProofVerifier({ proof, onExecute, isExecuting = false }: ProofVe
             {isVerifying
               ? "Verifying Proof..."
               : verification?.valid
-              ? "Proof Verified"
-              : "Verification Failed"}
+                ? "Proof Verified"
+                : "Verification Failed"}
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-gray-400 text-sm font-mono truncate max-w-[200px]">
@@ -109,9 +120,8 @@ export function ProofVerifier({ proof, onExecute, isExecuting = false }: ProofVe
             >
               <span className="text-gray-300">{formatAttestationKey(key)}</span>
               <span
-                className={`flex items-center gap-1.5 ${
-                  value ? "text-[#8FD460]" : "text-red-500"
-                }`}
+                className={`flex items-center gap-1.5 ${value ? "text-[#8FD460]" : "text-red-500"
+                  }`}
               >
                 {value ? (
                   <>

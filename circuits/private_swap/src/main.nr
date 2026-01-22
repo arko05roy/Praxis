@@ -20,7 +20,7 @@
 // - Timestamp
 // - Compliance attestations (as boolean flags in the proof)
 
-use dep::std::hash::poseidon;
+use dep::std;
 use dep::ert_ownership::{
     ERT, ERTConstraints, ERTStatus,
     prove_ert_ownership,
@@ -196,7 +196,7 @@ fn main(
     // ==========================================================
 
     // Create hash of swap data for commitment
-    let swap_data_hash = poseidon::bn254::hash_5([
+    let swap_data_hash = std::hash::pedersen_hash([
         token_in,
         token_out,
         amount_in,
@@ -237,7 +237,7 @@ fn test_valid_swap_proof() {
     let ert = ERT {
         token_id: 42,
         executor: 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef,
-        vault: 0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890,
+        vault: 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef,
         constraints: ERTConstraints {
             max_leverage: 5,
             max_drawdown_bps: 1000,

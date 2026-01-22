@@ -6,7 +6,7 @@ import type {
   PrivateProof,
   ProofVerificationResult,
 } from "./types";
-import { poseidonHash, hexToBytes, bytes32ToBigint } from "./crypto";
+import { pedersenHash, hexToBytes, bytes32ToBigint } from "./crypto";
 
 /**
  * Format attestation key for display

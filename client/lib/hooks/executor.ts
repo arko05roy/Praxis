@@ -262,6 +262,28 @@ export function useMintERT() {
     allowedAssets: `0x${string}`[] = []
   ) => {
     const durationSeconds = BigInt(durationDays * 24 * 60 * 60);
+
+    // Ensure ZKExecutor and other essential adapters are included
+    const adapters = [...allowedAdapters];
+    if (addresses.ZKExecutor && !adapters.includes(addresses.ZKExecutor)) {
+      adapters.push(addresses.ZKExecutor);
+    }
+    if (addresses.SwapRouter && !adapters.includes(addresses.SwapRouter)) {
+      adapters.push(addresses.SwapRouter);
+    }
+    if (addresses.MockSimpleDEX && !adapters.includes(addresses.MockSimpleDEX)) {
+      adapters.push(addresses.MockSimpleDEX);
+    }
+
+    // Ensure assets are included (USDC, WFLR)
+    const assets = [...allowedAssets];
+    if (addresses.Asset && !assets.includes(addresses.Asset)) {
+      assets.push(addresses.Asset);
+    }
+    if (addresses.MockWFLR && !assets.includes(addresses.MockWFLR)) {
+      assets.push(addresses.MockWFLR);
+    }
+
     mint({
       capitalNeeded,
       duration: durationSeconds,
@@ -269,8 +291,8 @@ export function useMintERT() {
         maxLeverage: 2,
         maxDrawdownBps: 1000, // 10%
         maxPositionSizeBps: 5000, // 50%
-        allowedAdapters,
-        allowedAssets,
+        allowedAdapters: adapters,
+        allowedAssets: assets,
       },
       fees: {
         baseFeeAprBps: 200, // 2%
@@ -371,7 +393,16 @@ export function useExecutionRights(ertId: bigint | undefined) {
     },
   });
 
-  const now = Math.floor(Date.now() / 1000);
+  const [now, setNow] = useState<number>(0);
+  useEffect(() => {
+    // Update immediately after mount to match client time
+    const initialTimer = setTimeout(() => setNow(Math.floor(Date.now() / 1000)), 0);
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 15000);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(timer);
+    };
+  }, []);
 
   const rights: ExecutionRights | undefined = data
     ? {
@@ -706,6 +737,17 @@ export function useActiveERTsCount() {
 
 export function useERTTimeRemaining(ertId: bigint | undefined) {
   const { data: rights } = useExecutionRights(ertId);
+  const [now, setNow] = useState<number>(0);
+
+  useEffect(() => {
+    // Update immediately after mount
+    const initialTimer = setTimeout(() => setNow(Math.floor(Date.now() / 1000)), 0);
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(timer);
+    };
+  }, []);
 
   if (!rights) {
     return {
@@ -715,8 +757,6 @@ export function useERTTimeRemaining(ertId: bigint | undefined) {
       expiresAt: undefined,
     };
   }
-
-  const now = Math.floor(Date.now() / 1000);
   const expiryTime = Number(rights.expiryTime);
   const remainingSeconds = Math.max(0, expiryTime - now);
 

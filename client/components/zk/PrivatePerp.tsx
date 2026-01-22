@@ -48,11 +48,11 @@ export function PrivatePerp() {
     return BigInt(Math.floor(value * 1e6));
   };
 
-  const calculateCollateral = (): bigint => {
+  const calculateCollateral = useCallback((): bigint => {
     const sizeBigInt = parseSize(size);
     if (sizeBigInt === BigInt(0)) return BigInt(0);
     return sizeBigInt / BigInt(leverage);
-  };
+  }, [size, leverage]);
 
   const formatUSD = (value: bigint): string => {
     return `$${(Number(value) / 1e6).toLocaleString(undefined, {
@@ -75,7 +75,7 @@ export function PrivatePerp() {
       isLong,
       collateral
     );
-  }, [selectedERT, market, size, leverage, isLong]);
+  }, [selectedERT, market, size, leverage, isLong, calculateCollateral]);
 
   const handleProofComplete = (generatedProof: PrivatePerpProof) => {
     setProof(generatedProof);
@@ -154,9 +154,8 @@ export function PrivatePerp() {
                     Max {market.maxLeverage}x
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform ${
-                      showMarketDropdown ? "rotate-180" : ""
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform ${showMarketDropdown ? "rotate-180" : ""
+                      }`}
                   />
                 </div>
               </button>
@@ -174,9 +173,8 @@ export function PrivatePerp() {
                           setLeverage(m.maxLeverage);
                         }
                       }}
-                      className={`w-full p-4 flex items-center gap-4 hover:bg-white/5 transition-colors ${
-                        market.symbol === m.symbol ? "bg-[#8FD460]/10" : ""
-                      }`}
+                      className={`w-full p-4 flex items-center gap-4 hover:bg-white/5 transition-colors ${market.symbol === m.symbol ? "bg-[#8FD460]/10" : ""
+                        }`}
                     >
                       <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
                         <Activity className="w-5 h-5 text-purple-400" />
@@ -201,22 +199,20 @@ export function PrivatePerp() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setIsLong(true)}
-                className={`p-4 rounded-xl border transition-all flex items-center justify-center gap-3 ${
-                  isLong
-                    ? "bg-green-500/10 border-green-500/30 text-green-400"
-                    : "bg-black/30 border-white/5 text-gray-400 hover:border-white/10"
-                }`}
+                className={`p-4 rounded-xl border transition-all flex items-center justify-center gap-3 ${isLong
+                  ? "bg-green-500/10 border-green-500/30 text-green-400"
+                  : "bg-black/30 border-white/5 text-gray-400 hover:border-white/10"
+                  }`}
               >
                 <TrendingUp className="w-5 h-5" />
                 <span className="font-medium">Long</span>
               </button>
               <button
                 onClick={() => setIsLong(false)}
-                className={`p-4 rounded-xl border transition-all flex items-center justify-center gap-3 ${
-                  !isLong
-                    ? "bg-red-500/10 border-red-500/30 text-red-400"
-                    : "bg-black/30 border-white/5 text-gray-400 hover:border-white/10"
-                }`}
+                className={`p-4 rounded-xl border transition-all flex items-center justify-center gap-3 ${!isLong
+                  ? "bg-red-500/10 border-red-500/30 text-red-400"
+                  : "bg-black/30 border-white/5 text-gray-400 hover:border-white/10"
+                  }`}
               >
                 <TrendingDown className="w-5 h-5" />
                 <span className="font-medium">Short</span>
