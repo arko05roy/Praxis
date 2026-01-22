@@ -209,6 +209,11 @@ export {
   // Comparison & Analysis
   useCompareAllDEXQuotes,
   usePriceImpact,
+  // Token Approval for SwapRouter
+  useTokenAllowance,
+  useSwapRouterAllowance,
+  useApproveToken,
+  useApproveForSwapRouter,
   // Types
   type SwapRoute,
   type DEXQuote,

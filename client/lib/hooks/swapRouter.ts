@@ -62,7 +62,6 @@ const SwapRouterABI = [
       { name: 'tokenOut', type: 'address' },
       { name: 'amountIn', type: 'uint256' },
       { name: 'minAmountOut', type: 'uint256' },
-      { name: 'to', type: 'address' },
       { name: 'deadline', type: 'uint256' },
     ],
     outputs: [{ name: 'amountOut', type: 'uint256' }],
@@ -77,7 +76,6 @@ const SwapRouterABI = [
       { name: 'tokenOut', type: 'address' },
       { name: 'amountIn', type: 'uint256' },
       { name: 'minAmountOut', type: 'uint256' },
-      { name: 'to', type: 'address' },
       { name: 'deadline', type: 'uint256' },
       { name: 'extraData', type: 'bytes' },
     ],
@@ -365,7 +363,6 @@ export function useAggregatedSwap() {
         params.tokenOut,
         params.amountIn,
         params.minAmountOut,
-        address,
         deadline,
       ],
     });
@@ -416,7 +413,6 @@ export function useSwapViaAdapter() {
         params.tokenOut,
         params.amountIn,
         params.minAmountOut,
-        address,
         deadline,
         extraData,
       ],
@@ -712,5 +708,123 @@ export function usePriceImpact(
     isSevere: impact > 5, // > 5% is severe
     isModerate: impact > 1 && impact <= 5,
     isLow: impact <= 1,
+  };
+}
+
+// =============================================================
+//               TOKEN APPROVAL FOR SWAP ROUTER
+// =============================================================
+
+const ERC20ABI = [
+  {
+    name: 'allowance',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
+
+export function useTokenAllowance(
+  tokenAddress: `0x${string}` | undefined,
+  spenderAddress: `0x${string}` | undefined
+) {
+  const { address } = useAccount();
+
+  const { data: allowance, isLoading, error, refetch } = useReadContract({
+    address: tokenAddress,
+    abi: ERC20ABI,
+    functionName: 'allowance',
+    args: address && spenderAddress ? [address, spenderAddress] : undefined,
+    query: {
+      enabled: !!address && !!tokenAddress && !!spenderAddress,
+    },
+  });
+
+  return {
+    data: allowance,
+    isLoading,
+    error,
+    refetch,
+  };
+}
+
+export function useSwapRouterAllowance(tokenAddress: `0x${string}` | undefined) {
+  const chainId = useChainId();
+  const praxisAddresses = getAddresses(chainId);
+
+  return useTokenAllowance(tokenAddress, praxisAddresses.SwapRouter);
+}
+
+export function useApproveToken() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const approve = async (tokenAddress: `0x${string}`, spender: `0x${string}`, amount: bigint) => {
+    writeContract({
+      address: tokenAddress,
+      abi: ERC20ABI,
+      functionName: 'approve',
+      args: [spender, amount],
+    });
+  };
+
+  const approveMax = async (tokenAddress: `0x${string}`, spender: `0x${string}`) => {
+    const maxUint256 = 2n ** 256n - 1n;
+    writeContract({
+      address: tokenAddress,
+      abi: ERC20ABI,
+      functionName: 'approve',
+      args: [spender, maxUint256],
+    });
+  };
+
+  return {
+    approve,
+    approveMax,
+    hash,
+    isPending,
+    isConfirming,
+    isSuccess,
+    receipt,
+    error,
+  };
+}
+
+export function useApproveForSwapRouter() {
+  const chainId = useChainId();
+  const praxisAddresses = getAddresses(chainId);
+  const { approve, approveMax, ...rest } = useApproveToken();
+
+  const approveForSwapRouter = async (tokenAddress: `0x${string}`, amount: bigint) => {
+    if (!praxisAddresses.SwapRouter) return;
+    await approve(tokenAddress, praxisAddresses.SwapRouter, amount);
+  };
+
+  const approveMaxForSwapRouter = async (tokenAddress: `0x${string}`) => {
+    if (!praxisAddresses.SwapRouter) return;
+    await approveMax(tokenAddress, praxisAddresses.SwapRouter);
+  };
+
+  return {
+    approve: approveForSwapRouter,
+    approveMax: approveMaxForSwapRouter,
+    ...rest,
   };
 }

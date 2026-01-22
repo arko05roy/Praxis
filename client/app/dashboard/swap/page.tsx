@@ -3,7 +3,7 @@
 import { SwapInterface } from "@/components/swap-aggregator/SwapInterface";
 import { QuotesComparison } from "@/components/swap-aggregator/QuotesComparison";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useAllSwapQuotes, useBestSwapRoute, useAggregatedSwap, useRegisteredAdapters, usePriceImpact, useCommonPrices, useBlazeSwapQuote, useBlazeSwapSwap } from "@/lib/hooks";
+import { useAllSwapQuotes, useBestSwapRoute, useAggregatedSwap, useRegisteredAdapters, usePriceImpact, useCommonPrices, useBlazeSwapQuote, useBlazeSwapSwap, useSwapRouterAllowance, useApproveForSwapRouter } from "@/lib/hooks";
 import { parseUnits, formatUnits } from "viem";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { COSTON2_TOKENS, TOKEN_DECIMALS } from "@/lib/contracts/external";
@@ -104,6 +104,26 @@ export default function SwapAggregatorPage() {
     // Use BlazeSwap swap hook as fallback
     const { swap: blazeSwap, isPending: blazeSwapPending, isConfirming: blazeConfirming, isSuccess: blazeSuccess, error: blazeError } = useBlazeSwapSwap();
 
+    // Token approval for SwapRouter
+    const { data: allowance, refetch: refetchAllowance } = useSwapRouterAllowance(tokenIn);
+    const {
+        approve: approveForSwapRouter,
+        isPending: approvePending,
+        isConfirming: approveConfirming,
+        isSuccess: approveSuccess,
+        error: approveError
+    } = useApproveForSwapRouter();
+
+    // Check if approval is needed
+    const needsApproval = amountIn && allowance !== undefined && allowance < amountIn;
+
+    // Refetch allowance after successful approval
+    useEffect(() => {
+        if (approveSuccess) {
+            refetchAllowance();
+        }
+    }, [approveSuccess, refetchAllowance]);
+
     // Combine quotes: prefer SwapRouter quotes, fallback to BlazeSwap direct, then mock
     const combinedQuotes = useMemo(() => {
         const result = quotes ? [...quotes] : [];
@@ -172,6 +192,13 @@ export default function SwapAggregatorPage() {
     // Handle swap execution - use BlazeSwap direct if that's the best quote
     const [mockSwapMessage, setMockSwapMessage] = useState<string | null>(null);
 
+    // Handle token approval
+    const handleApprove = useCallback(async () => {
+        if (!tokenIn || !amountIn) return;
+        // Approve max to avoid repeated approvals
+        await approveForSwapRouter(tokenIn, 2n ** 256n - 1n);
+    }, [tokenIn, amountIn, approveForSwapRouter]);
+
     const handleSwap = useCallback(async () => {
         if (!amountIn || !bestQuote) return;
 
@@ -219,10 +246,10 @@ export default function SwapAggregatorPage() {
     }, [amountIn, refetchQuotes]);
 
     const isLoading = quotesLoading || routeLoading || blazeLoading;
-    const anySwapPending = swapPending || blazeSwapPending;
-    const anyConfirming = isConfirming || blazeConfirming;
+    const anySwapPending = swapPending || blazeSwapPending || approvePending;
+    const anyConfirming = isConfirming || blazeConfirming || approveConfirming;
     const anySuccess = isSuccess || blazeSuccess;
-    const anyError = swapError || blazeError;
+    const anyError = swapError || blazeError || approveError;
 
     // Effective adapter count (includes direct DEX if available)
     const effectiveAdapterCount = adapterCount + (blazeAvailable ? 1 : 0);
@@ -285,7 +312,13 @@ export default function SwapAggregatorPage() {
                         {(anySwapPending || anyConfirming) && (
                             <div className="flex items-center justify-center gap-2 text-accent text-sm py-2">
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                {anySwapPending ? 'Confirm in wallet...' : 'Transaction pending...'}
+                                {approvePending || approveConfirming ? 'Approving token...' : anySwapPending ? 'Confirm in wallet...' : 'Transaction pending...'}
+                            </div>
+                        )}
+                        {approveSuccess && needsApproval === false && (
+                            <div className="flex items-center justify-center gap-2 text-blue-400 text-sm py-2">
+                                <CheckCircle2 className="w-4 h-4" />
+                                Token approved! Now click Swap.
                             </div>
                         )}
                         {anySuccess && (
@@ -317,7 +350,9 @@ export default function SwapAggregatorPage() {
                         quotes={formattedQuotes}
                         isLoading={isLoading}
                         onSwap={handleSwap}
+                        onApprove={handleApprove}
                         swapPending={anySwapPending || anyConfirming}
+                        needsApproval={needsApproval}
                     />
                 </div>
             </div>

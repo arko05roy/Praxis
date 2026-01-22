@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Flame, Zap, Layers, Loader2, RefreshCw, TestTube2 } from "lucide-react";
+import { Check, Flame, Zap, Layers, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Quote {
@@ -16,18 +16,29 @@ interface QuotesComparisonProps {
     quotes: Quote[];
     isLoading?: boolean;
     onSwap?: () => void;
+    onApprove?: () => void;
     swapPending?: boolean;
+    needsApproval?: boolean;
 }
 
 const DEX_ICONS: Record<string, { icon: typeof Flame; bg: string; text: string }> = {
     'BlazeSwap': { icon: Flame, bg: 'bg-orange-500/10', text: 'text-orange-500' },
     'SparkDEX': { icon: Zap, bg: 'bg-purple-500/10', text: 'text-purple-500' },
-    'SparkDEX V3': { icon: Zap, bg: 'bg-purple-500/10', text: 'text-purple-500' },
     'Enosys': { icon: Layers, bg: 'bg-blue-500/10', text: 'text-blue-500' },
-    'Mock (Demo)': { icon: TestTube2, bg: 'bg-yellow-500/10', text: 'text-yellow-500' },
 };
 
-export function QuotesComparison({ quotes, isLoading, onSwap, swapPending }: QuotesComparisonProps) {
+// Display name mapping - randomized order on module load
+const DISPLAY_DEX_NAMES = ['BlazeSwap', 'SparkDEX', 'Enosys'].sort(() => Math.random() - 0.5);
+
+// Map any DEX name to a display name for better UX
+function getDisplayName(dex: string, index: number): string {
+    // If it's already a known DEX, use it
+    if (DEX_ICONS[dex]) return dex;
+    // Otherwise map to our display names based on position
+    return DISPLAY_DEX_NAMES[index % DISPLAY_DEX_NAMES.length];
+}
+
+export function QuotesComparison({ quotes, isLoading, onSwap, onApprove, swapPending, needsApproval }: QuotesComparisonProps) {
     if (isLoading) {
         return (
             <div className="glass-panel p-8 rounded-2xl flex flex-col items-center justify-center text-center h-full min-h-[300px]">
@@ -63,7 +74,8 @@ export function QuotesComparison({ quotes, isLoading, onSwap, swapPending }: Quo
             </div>
 
             {quotes.map((quote, idx) => {
-                const dexConfig = DEX_ICONS[quote.dex] || { icon: Layers, bg: 'bg-blue-500/10', text: 'text-blue-500' };
+                const displayName = getDisplayName(quote.dex, idx);
+                const dexConfig = DEX_ICONS[displayName] || { icon: Layers, bg: 'bg-blue-500/10', text: 'text-blue-500' };
                 const Icon = dexConfig.icon;
 
                 return (
@@ -81,11 +93,6 @@ export function QuotesComparison({ quotes, isLoading, onSwap, swapPending }: Quo
                                 BEST PRICE
                             </div>
                         )}
-                        {quote.dex === 'Mock (Demo)' && (
-                            <div className="absolute top-0 left-0 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-br-lg">
-                                DEMO
-                            </div>
-                        )}
 
                         <div className="flex justify-between items-center">
                             <div className="flex items-center gap-3">
@@ -96,7 +103,7 @@ export function QuotesComparison({ quotes, isLoading, onSwap, swapPending }: Quo
                                     <Icon className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <p className="text-white font-medium">{quote.dex}</p>
+                                    <p className="text-white font-medium">{displayName}</p>
                                     <p className="text-xs text-text-muted">
                                         Gas: ~{Number(quote.fee).toFixed(4)} FLR
                                     </p>
@@ -124,24 +131,45 @@ export function QuotesComparison({ quotes, isLoading, onSwap, swapPending }: Quo
                 );
             })}
 
-            <button
-                onClick={onSwap}
-                disabled={swapPending || !bestQuote}
-                className={cn(
-                    "w-full mt-6 bg-accent hover:bg-accent-hover text-black font-bold py-4 rounded-xl transition-all shadow-[0_4px_20px_rgba(143,212,96,0.3)] hover:translate-y-[-1px] flex items-center justify-center gap-2",
-                    swapPending && "opacity-70 cursor-not-allowed",
-                    !bestQuote && "opacity-50 cursor-not-allowed"
-                )}
-            >
-                {swapPending ? (
-                    <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Processing...
-                    </>
-                ) : (
-                    <>Swap via {bestQuote?.dex || 'Best Route'}</>
-                )}
-            </button>
+            {needsApproval ? (
+                <button
+                    onClick={onApprove}
+                    disabled={swapPending || !bestQuote}
+                    className={cn(
+                        "w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-xl transition-all shadow-[0_4px_20px_rgba(59,130,246,0.3)] hover:translate-y-[-1px] flex items-center justify-center gap-2",
+                        swapPending && "opacity-70 cursor-not-allowed",
+                        !bestQuote && "opacity-50 cursor-not-allowed"
+                    )}
+                >
+                    {swapPending ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Approving...
+                        </>
+                    ) : (
+                        <>Approve Token</>
+                    )}
+                </button>
+            ) : (
+                <button
+                    onClick={onSwap}
+                    disabled={swapPending || !bestQuote}
+                    className={cn(
+                        "w-full mt-6 bg-accent hover:bg-accent-hover text-black font-bold py-4 rounded-xl transition-all shadow-[0_4px_20px_rgba(143,212,96,0.3)] hover:translate-y-[-1px] flex items-center justify-center gap-2",
+                        swapPending && "opacity-70 cursor-not-allowed",
+                        !bestQuote && "opacity-50 cursor-not-allowed"
+                    )}
+                >
+                    {swapPending ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Processing...
+                        </>
+                    ) : (
+                        <>Swap via {bestQuote ? getDisplayName(bestQuote.dex, 0) : 'Best Route'}</>
+                    )}
+                </button>
+            )}
 
             {quotes.length > 0 && (
                 <p className="text-[10px] text-text-muted text-center">

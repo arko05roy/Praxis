@@ -1,9 +1,10 @@
 "use client";
 
-import { useMyERTs, useExecutionRights } from "@/lib/hooks";
+import { useMyERTs, useExecutionRights, useERTByIndex } from "@/lib/hooks";
 import { formatUnits } from "viem";
-import { ChevronDown, Clock, Wallet } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+import { useAccount } from "wagmi";
 
 interface ERTSelectorProps {
     selectedId: bigint | undefined;
@@ -47,7 +48,7 @@ export function ERTSelector({ selectedId, onSelect }: ERTSelectorProps) {
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 w-full mt-2 glass-panel bg-[#0a0f0d] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+                <div className="absolute top-full left-0 w-full mt-2 glass-panel bg-[#0a0f0d] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-[100]">
                     {indices.map((index) => (
                         <ERTOptionByIndex
                             key={index}
@@ -66,14 +67,12 @@ export function ERTSelector({ selectedId, onSelect }: ERTSelectorProps) {
     );
 }
 
-import { useERTByIndex } from "@/lib/hooks";
-import { useAccount } from "wagmi";
-
 function ERTOptionByIndex({ index, onSelect }: { index: number, onSelect: (id: bigint) => void }) {
     const { address } = useAccount();
     const { data: tokenId, isLoading } = useERTByIndex(address, BigInt(index));
+    const { data: rights, isLoading: rightsLoading } = useExecutionRights(tokenId);
 
-    if (isLoading || tokenId === undefined) {
+    if (isLoading || rightsLoading || tokenId === undefined) {
         return (
             <div className="p-3 border-b border-white/5 flex items-center gap-3 animate-pulse">
                 <div className="w-8 h-4 bg-white/10 rounded"></div>
@@ -82,13 +81,19 @@ function ERTOptionByIndex({ index, onSelect }: { index: number, onSelect: (id: b
         );
     }
 
+    // Don't show settled, expired, or liquidated ERTs
+    // Status: 0=PENDING, 1=ACTIVE, 2=SETTLED, 3=EXPIRED, 4=LIQUIDATED
+    if (rights && (rights.ertStatus === 2 || rights.ertStatus === 3 || rights.ertStatus === 4)) {
+        return null;
+    }
+
     return (
         <div
             onClick={() => onSelect(tokenId)}
             className="p-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 flex items-center gap-3"
         >
             <span className="font-mono text-xs text-text-muted">#{tokenId.toString()}</span>
-            <span className="text-sm text-white">ERT Contract</span>
+            <span className="text-sm text-white">{rights?.ertStatusName ?? "ERT"}</span>
         </div>
     );
 }
