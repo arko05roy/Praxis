@@ -6,13 +6,14 @@ import {
     useFAssetBalance,
     useFAssetApprove,
     useFAssetInfo,
-    useFTSOPrice,
+    useEnhancedPrice,
     useExternalProtocolsAvailable,
     FAssetType,
 } from "@/lib/hooks";
 import { Send, Download, Loader2, AlertTriangle, CheckCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseUnits } from "viem";
+import { PriceFreshnessIndicator, FTSOSourceBadge, StalenessWarningBadge } from "@/components/ui/PriceFeedIndicators";
 
 const FASSET_TYPES: FAssetType[] = ['FXRP', 'FBTC', 'FDOGE'];
 
@@ -33,7 +34,7 @@ export function FAssetActionPanel() {
     // FAsset data hooks
     const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = useFAssetBalance(selectedAsset);
     const { data: assetInfo } = useFAssetInfo(selectedAsset);
-    const { data: priceData } = useFTSOPrice(FASSET_FEED_IDS[selectedAsset]);
+    const { enhanced: priceData } = useEnhancedPrice(FASSET_FEED_IDS[selectedAsset]);
 
     // Transfer hook (for redemption simulation - actual minting/redeeming goes through FAsset system)
     const {
@@ -152,9 +153,26 @@ export function FAssetActionPanel() {
                 </div>
 
                 <div className="bg-white/5 rounded-xl p-4 text-xs space-y-2">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-start">
                         <span className="text-text-muted">Current Price</span>
-                        <span className="text-white font-mono">${currentPrice}</span>
+                        <div className="text-right">
+                            <div className="flex items-center gap-2 justify-end">
+                                <span className="text-white font-mono">${currentPrice}</span>
+                                {priceData && (
+                                    <>
+                                        <PriceFreshnessIndicator freshness={priceData.freshness} />
+                                        <FTSOSourceBadge source={priceData.source} size="sm" />
+                                    </>
+                                )}
+                            </div>
+                            {priceData?.freshness === 'stale' ? (
+                                <div className="mt-1 flex justify-end">
+                                    <StalenessWarningBadge />
+                                </div>
+                            ) : priceData ? (
+                                <span className="text-[10px] text-text-muted">{priceData.ageFormatted}</span>
+                            ) : null}
+                        </div>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-text-muted">Collateral Ratio</span>
@@ -169,6 +187,16 @@ export function FAssetActionPanel() {
                         <span className="text-white font-mono">~5 mins</span>
                     </div>
                 </div>
+
+                {/* Stale price warning for minting/redeeming */}
+                {priceData?.freshness === 'stale' && (
+                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-orange-400">
+                            Price data is stale. {activeTab === 'mint' ? 'Minting' : 'Redemption'} may use outdated pricing.
+                        </p>
+                    </div>
+                )}
 
                 {/* Info notice */}
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-2">

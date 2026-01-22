@@ -1,8 +1,9 @@
 "use client";
 
-import { useAllFAssetBalances, useFTSOPrice, useExternalProtocolsAvailable, FAssetBalance } from "@/lib/hooks";
+import { useAllFAssetBalances, useEnhancedPrice, useExternalProtocolsAvailable, FAssetBalance } from "@/lib/hooks";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PriceFreshnessIndicator, FTSOSourceBadge, StalenessWarningBadge } from "@/components/ui/PriceFeedIndicators";
 
 // Asset styling configuration
 const ASSET_CONFIG = {
@@ -19,11 +20,11 @@ interface FAssetCardProps {
 
 function FAssetCard({ type, balance, isLoading }: FAssetCardProps) {
     const config = ASSET_CONFIG[type];
-    const { data: priceData, isLoading: priceLoading } = useFTSOPrice(config.feedId);
+    const { enhanced, isLoading: priceLoading } = useEnhancedPrice(config.feedId);
 
     // Calculate USD value
-    const usdValue = balance && priceData
-        ? (Number(balance.formatted) * Number(priceData.price) / 10 ** priceData.decimals)
+    const usdValue = balance && enhanced
+        ? (Number(balance.formatted) * Number(enhanced.price) / 10 ** enhanced.decimals)
         : 0;
 
     const formatBalance = (val: string | undefined) => {
@@ -38,17 +39,23 @@ function FAssetCard({ type, balance, isLoading }: FAssetCardProps) {
         return `$${val.toFixed(2)}`;
     };
 
+    const formattedPrice = enhanced
+        ? (Number(enhanced.price) / 10 ** enhanced.decimals).toFixed(4)
+        : null;
+
     return (
         <div className="glass-panel p-6 rounded-2xl relative overflow-hidden group">
             <div className="flex justify-between items-start mb-4">
                 <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm", config.iconBg, config.color)}>
                     {type[1]}
                 </div>
-                {priceData && (
-                    <div className="flex items-center gap-1 text-[10px] bg-white/5 px-2 py-1 rounded text-text-muted">
-                        <span className="text-white">
-                            ${(Number(priceData.price) / 10 ** priceData.decimals).toFixed(4)}
+                {enhanced && (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-white bg-white/5 px-2 py-1 rounded">
+                            ${formattedPrice}
                         </span>
+                        <PriceFreshnessIndicator freshness={enhanced.freshness} />
+                        <FTSOSourceBadge source={enhanced.source} size="sm" />
                     </div>
                 )}
             </div>
@@ -61,11 +68,18 @@ function FAssetCard({ type, balance, isLoading }: FAssetCardProps) {
                         <p className="text-3xl font-bold text-white tracking-tight">
                             {formatBalance(balance?.formatted)}
                         </p>
-                        <p className="text-sm text-text-muted flex items-center gap-2">
-                            {priceLoading ? '...' : formatUSD(usdValue)}
-                            <span className="w-1 h-1 rounded-full bg-text-muted" />
-                            {type}
-                        </p>
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-text-muted flex items-center gap-2">
+                                {priceLoading ? '...' : formatUSD(usdValue)}
+                                <span className="w-1 h-1 rounded-full bg-text-muted" />
+                                {type}
+                            </p>
+                            {enhanced?.freshness === 'stale' ? (
+                                <StalenessWarningBadge />
+                            ) : enhanced ? (
+                                <span className="text-[10px] text-text-muted">{enhanced.ageFormatted}</span>
+                            ) : null}
+                        </div>
                     </>
                 )}
             </div>

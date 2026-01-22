@@ -128,6 +128,14 @@ export interface PriceData {
   isStale: boolean;
 }
 
+export interface EnhancedPriceData extends PriceData {
+  ageSeconds: number;
+  ageFormatted: string;      // "30s ago", "2m ago"
+  freshness: 'fresh' | 'recent' | 'stale';  // green/yellow/red
+  source: 'ftso_v2' | 'mock';
+  isTrustless: boolean;
+}
+
 export interface TokenPrice {
   token: `0x${string}`;
   priceUsd: bigint;
@@ -248,6 +256,39 @@ export function useFlareOraclePrice(feedName: string | undefined) {
     error,
     refetch,
   };
+}
+
+// =============================================================
+//              ENHANCED PRICE HOOK
+// =============================================================
+
+// Helper function for formatting age
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+export function useEnhancedPrice(feedName: string | undefined) {
+  const result = useFlareOraclePrice(feedName);
+
+  if (!result.data) return { ...result, enhanced: undefined };
+
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const ageSeconds = Number(now - result.data.timestamp);
+  // Mock data has current timestamp (age ~0)
+  const isMock = ageSeconds <= 1;
+
+  const enhanced: EnhancedPriceData = {
+    ...result.data,
+    ageSeconds,
+    ageFormatted: formatAge(ageSeconds),
+    freshness: ageSeconds < 60 ? 'fresh' : ageSeconds < 300 ? 'recent' : 'stale',
+    source: isMock ? 'mock' : 'ftso_v2',
+    isTrustless: !isMock,
+  };
+
+  return { ...result, enhanced };
 }
 
 // =============================================================

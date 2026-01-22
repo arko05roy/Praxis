@@ -8,6 +8,7 @@ import {
   SPARKDEX_ETERNAL_MARKETS,
   encodeMarketId,
 } from '../contracts/external';
+import { useFlareOraclePrice } from './oracle';
 
 // =============================================================
 //                 SPARKDEX ETERNAL ABIS
@@ -242,6 +243,71 @@ export interface ClosePositionParams {
 }
 
 // =============================================================
+//                   MOCK DATA CONFIG
+// =============================================================
+
+// Map market names to FTSO feed names
+const MARKET_TO_FEED: Record<string, string> = {
+  'ETH-USD': 'ETH/USD',
+  'BTC-USD': 'BTC/USD',
+  'FLR-USD': 'FLR/USD',
+  'XRP-USD': 'XRP/USD',
+};
+
+// Mock market configuration (used when contracts not available)
+const MOCK_MARKET_CONFIG: Record<string, {
+  maxLeverage: bigint;
+  maxOI: bigint;
+  fee: bigint;
+  fundingFactor: bigint;
+  minSize: bigint;
+  mockLongOI: bigint;
+  mockShortOI: bigint;
+  mockFundingRate: bigint;
+}> = {
+  'ETH-USD': {
+    maxLeverage: 50n,
+    maxOI: 10000000n * 10n ** 18n, // 10M
+    fee: 10n, // 0.1% (basis points / 100)
+    fundingFactor: 100n,
+    minSize: 10n ** 16n, // 0.01 ETH
+    mockLongOI: 4500000n * 10n ** 18n,
+    mockShortOI: 3200000n * 10n ** 18n,
+    mockFundingRate: 125n * 10n ** 14n, // 0.0125% per 8h
+  },
+  'BTC-USD': {
+    maxLeverage: 50n,
+    maxOI: 50000000n * 10n ** 18n, // 50M
+    fee: 10n,
+    fundingFactor: 100n,
+    minSize: 10n ** 14n, // 0.0001 BTC
+    mockLongOI: 28000000n * 10n ** 18n,
+    mockShortOI: 22000000n * 10n ** 18n,
+    mockFundingRate: -85n * 10n ** 14n, // -0.0085% per 8h
+  },
+  'FLR-USD': {
+    maxLeverage: 20n,
+    maxOI: 5000000n * 10n ** 18n, // 5M
+    fee: 15n,
+    fundingFactor: 150n,
+    minSize: 100n * 10n ** 18n, // 100 FLR
+    mockLongOI: 1800000n * 10n ** 18n,
+    mockShortOI: 1200000n * 10n ** 18n,
+    mockFundingRate: 250n * 10n ** 14n, // 0.025% per 8h
+  },
+  'XRP-USD': {
+    maxLeverage: 30n,
+    maxOI: 8000000n * 10n ** 18n, // 8M
+    fee: 12n,
+    fundingFactor: 120n,
+    minSize: 10n * 10n ** 18n, // 10 XRP
+    mockLongOI: 3500000n * 10n ** 18n,
+    mockShortOI: 2800000n * 10n ** 18n,
+    mockFundingRate: 95n * 10n ** 14n, // 0.0095% per 8h
+  },
+};
+
+// =============================================================
 //                   PERP MARKETS HOOK
 // =============================================================
 
@@ -272,12 +338,18 @@ export function usePerpMarketInfo(marketName: string | undefined) {
 
   const marketId = marketName ? encodeMarketId(marketName) : undefined;
 
+  // Get FTSO price for this market
+  const feedName = marketName ? MARKET_TO_FEED[marketName] : undefined;
+  const { data: ftsoPrice } = useFlareOraclePrice(feedName);
+
+  const hasValidAddresses = addresses?.store && addresses.store !== '0x0000000000000000000000000000000000000000';
+
   const { data: marketData, isLoading: marketLoading } = useReadContract({
     address: addresses?.store || '0x0000000000000000000000000000000000000000',
     abi: StoreABI,
     functionName: 'getMarket',
     args: marketId ? [marketId as `0x${string}`] : undefined,
-    query: { enabled: isAvailable && !!marketId },
+    query: { enabled: hasValidAddresses && !!marketId },
   });
 
   const { data: longOI } = useReadContract({
@@ -285,7 +357,7 @@ export function usePerpMarketInfo(marketName: string | undefined) {
     abi: StoreABI,
     functionName: 'getOI',
     args: marketId ? [marketId as `0x${string}`, true] : undefined,
-    query: { enabled: isAvailable && !!marketId },
+    query: { enabled: hasValidAddresses && !!marketId },
   });
 
   const { data: shortOI } = useReadContract({
@@ -293,7 +365,7 @@ export function usePerpMarketInfo(marketName: string | undefined) {
     abi: StoreABI,
     functionName: 'getOI',
     args: marketId ? [marketId as `0x${string}`, false] : undefined,
-    query: { enabled: isAvailable && !!marketId },
+    query: { enabled: hasValidAddresses && !!marketId },
   });
 
   const { data: fundingRate } = useReadContract({
@@ -301,27 +373,34 @@ export function usePerpMarketInfo(marketName: string | undefined) {
     abi: StoreABI,
     functionName: 'getFundingRate',
     args: marketId ? [marketId as `0x${string}`] : undefined,
-    query: { enabled: isAvailable && !!marketId },
+    query: { enabled: hasValidAddresses && !!marketId },
   });
 
-  const { data: markPrice } = useReadContract({
-    address: addresses?.store || '0x0000000000000000000000000000000000000000',
-    abi: StoreABI,
-    functionName: 'getMarkPrice',
-    args: marketId ? [marketId as `0x${string}`] : undefined,
-    query: { enabled: isAvailable && !!marketId },
-  });
+  // Use FTSO price as mark/index price (converted to 8 decimals)
+  let ftsoMarkPrice: bigint | undefined;
+  if (ftsoPrice?.price) {
+    const decimalDiff = ftsoPrice.decimals - 8;
+    if (decimalDiff > 0) {
+      // Price has more decimals than needed, divide
+      ftsoMarkPrice = ftsoPrice.price / BigInt(10 ** decimalDiff);
+    } else if (decimalDiff < 0) {
+      // Price has fewer decimals than needed, multiply
+      ftsoMarkPrice = ftsoPrice.price * BigInt(10 ** Math.abs(decimalDiff));
+    } else {
+      // Same decimals
+      ftsoMarkPrice = ftsoPrice.price;
+    }
+  }
 
-  const { data: indexPrice } = useReadContract({
-    address: addresses?.store || '0x0000000000000000000000000000000000000000',
-    abi: StoreABI,
-    functionName: 'getIndexPrice',
-    args: marketId ? [marketId as `0x${string}`] : undefined,
-    query: { enabled: isAvailable && !!marketId },
-  });
+  // Build market data - use contract data if available, otherwise mock
+  let market: PerpMarket | undefined;
 
-  const market: PerpMarket | undefined = marketData && marketName && marketId
-    ? {
+  if (marketName && marketId) {
+    const mockConfig = MOCK_MARKET_CONFIG[marketName];
+
+    if (marketData && marketData.maxLeverage > 0n) {
+      // Use real contract data
+      market = {
         marketId: marketId as `0x${string}`,
         name: marketName,
         maxLeverage: marketData.maxLeverage,
@@ -333,14 +412,32 @@ export function usePerpMarketInfo(marketName: string | undefined) {
         longOI,
         shortOI,
         fundingRate,
-        markPrice,
-        indexPrice,
-      }
-    : undefined;
+        markPrice: ftsoMarkPrice,
+        indexPrice: ftsoMarkPrice,
+      };
+    } else if (mockConfig) {
+      // Use mock data with real FTSO price
+      market = {
+        marketId: marketId as `0x${string}`,
+        name: marketName,
+        maxLeverage: mockConfig.maxLeverage,
+        maxOI: mockConfig.maxOI,
+        fee: mockConfig.fee,
+        fundingFactor: mockConfig.fundingFactor,
+        minSize: mockConfig.minSize,
+        isActive: true,
+        longOI: mockConfig.mockLongOI,
+        shortOI: mockConfig.mockShortOI,
+        fundingRate: mockConfig.mockFundingRate,
+        markPrice: ftsoMarkPrice,
+        indexPrice: ftsoMarkPrice,
+      };
+    }
+  }
 
   return {
     data: market,
-    isLoading: marketLoading,
+    isLoading: marketLoading && !market,
     isAvailable,
   };
 }
@@ -356,13 +453,14 @@ export function usePerpPosition(marketName: string | undefined, isLong: boolean 
   const addresses = isAvailable ? getSparkDEXEternalAddresses(chainId) : null;
 
   const marketId = marketName ? encodeMarketId(marketName) : undefined;
+  const hasValidAddresses = addresses?.store && addresses.store !== '0x0000000000000000000000000000000000000000';
 
   const { data: positionData, isLoading, refetch } = useReadContract({
     address: addresses?.store || '0x0000000000000000000000000000000000000000',
     abi: StoreABI,
     functionName: 'getPosition',
     args: address && marketId ? [address, marketId as `0x${string}`, isLong] : undefined,
-    query: { enabled: isAvailable && !!address && !!marketId },
+    query: { enabled: hasValidAddresses && !!address && !!marketId },
   });
 
   const { data: pnl } = useReadContract({
@@ -370,7 +468,7 @@ export function usePerpPosition(marketName: string | undefined, isLong: boolean 
     abi: PerpPositionManagerABI,
     functionName: 'getPositionPnl',
     args: address && marketId ? [address, marketId as `0x${string}`, isLong] : undefined,
-    query: { enabled: isAvailable && !!address && !!marketId && positionData?.size > 0n },
+    query: { enabled: hasValidAddresses && !!address && !!marketId && positionData?.size > 0n },
   });
 
   const { data: liquidationPrice } = useReadContract({
@@ -378,7 +476,7 @@ export function usePerpPosition(marketName: string | undefined, isLong: boolean 
     abi: PerpPositionManagerABI,
     functionName: 'getLiquidationPrice',
     args: address && marketId ? [address, marketId as `0x${string}`, isLong] : undefined,
-    query: { enabled: isAvailable && !!address && !!marketId && positionData?.size > 0n },
+    query: { enabled: hasValidAddresses && !!address && !!marketId && positionData?.size > 0n },
   });
 
   const position: PerpPosition | undefined = positionData && marketName && marketId && positionData.size > 0n
@@ -628,24 +726,29 @@ export function useFundingRate(marketName: string | undefined) {
   const addresses = isAvailable ? getSparkDEXEternalAddresses(chainId) : null;
 
   const marketId = marketName ? encodeMarketId(marketName) : undefined;
+  const hasValidAddresses = addresses?.store && addresses.store !== '0x0000000000000000000000000000000000000000';
 
   const { data: fundingRate, isLoading, refetch } = useReadContract({
     address: addresses?.store || '0x0000000000000000000000000000000000000000',
     abi: StoreABI,
     functionName: 'getFundingRate',
     args: marketId ? [marketId as `0x${string}`] : undefined,
-    query: { enabled: isAvailable && !!marketId },
+    query: { enabled: hasValidAddresses && !!marketId },
   });
 
+  // Use mock data if contract data not available
+  const mockConfig = marketName ? MOCK_MARKET_CONFIG[marketName] : undefined;
+  const effectiveFundingRate = fundingRate ?? mockConfig?.mockFundingRate;
+
   // Calculate APR from funding rate (funding rate is per 8 hours typically)
-  const fundingRateApr = fundingRate
-    ? Number(fundingRate) * 3 * 365 / 1e18 * 100 // Convert to annual percentage
+  const fundingRateApr = effectiveFundingRate
+    ? Number(effectiveFundingRate) * 3 * 365 / 1e18 * 100 // Convert to annual percentage
     : undefined;
 
   return {
-    data: fundingRate,
+    data: effectiveFundingRate,
     fundingRateApr,
-    isLoading,
+    isLoading: isLoading && !effectiveFundingRate,
     refetch,
     isAvailable,
   };
@@ -662,13 +765,14 @@ export function useLiquidationPrice(marketName: string | undefined, isLong: bool
   const addresses = isAvailable ? getSparkDEXEternalAddresses(chainId) : null;
 
   const marketId = marketName ? encodeMarketId(marketName) : undefined;
+  const hasValidAddresses = addresses?.positionManager && addresses.positionManager !== '0x0000000000000000000000000000000000000000';
 
   const { data: liquidationPrice, isLoading, refetch } = useReadContract({
     address: addresses?.positionManager || '0x0000000000000000000000000000000000000000',
     abi: PerpPositionManagerABI,
     functionName: 'getLiquidationPrice',
     args: address && marketId ? [address, marketId as `0x${string}`, isLong] : undefined,
-    query: { enabled: isAvailable && !!address && !!marketId },
+    query: { enabled: hasValidAddresses && !!address && !!marketId },
   });
 
   return {
@@ -690,13 +794,14 @@ export function usePositionPnl(marketName: string | undefined, isLong: boolean =
   const addresses = isAvailable ? getSparkDEXEternalAddresses(chainId) : null;
 
   const marketId = marketName ? encodeMarketId(marketName) : undefined;
+  const hasValidAddresses = addresses?.positionManager && addresses.positionManager !== '0x0000000000000000000000000000000000000000';
 
   const { data: pnl, isLoading, refetch } = useReadContract({
     address: addresses?.positionManager || '0x0000000000000000000000000000000000000000',
     abi: PerpPositionManagerABI,
     functionName: 'getPositionPnl',
     args: address && marketId ? [address, marketId as `0x${string}`, isLong] : undefined,
-    query: { enabled: isAvailable && !!address && !!marketId },
+    query: { enabled: hasValidAddresses && !!address && !!marketId },
   });
 
   return {
@@ -718,18 +823,37 @@ export function useMarkPrice(marketName: string | undefined) {
   const addresses = isAvailable ? getSparkDEXEternalAddresses(chainId) : null;
 
   const marketId = marketName ? encodeMarketId(marketName) : undefined;
+  const hasValidAddresses = addresses?.store && addresses.store !== '0x0000000000000000000000000000000000000000';
+
+  // Get FTSO price as fallback
+  const feedName = marketName ? MARKET_TO_FEED[marketName] : undefined;
+  const { data: ftsoPrice } = useFlareOraclePrice(feedName);
 
   const { data: markPrice, isLoading, refetch } = useReadContract({
     address: addresses?.store || '0x0000000000000000000000000000000000000000',
     abi: StoreABI,
     functionName: 'getMarkPrice',
     args: marketId ? [marketId as `0x${string}`] : undefined,
-    query: { enabled: isAvailable && !!marketId },
+    query: { enabled: hasValidAddresses && !!marketId },
   });
 
+  // Use FTSO price if contract doesn't return data (convert to 8 decimals)
+  let ftsoPriceTo8Decimals: bigint | undefined;
+  if (ftsoPrice?.price) {
+    const decimalDiff = ftsoPrice.decimals - 8;
+    if (decimalDiff > 0) {
+      ftsoPriceTo8Decimals = ftsoPrice.price / BigInt(10 ** decimalDiff);
+    } else if (decimalDiff < 0) {
+      ftsoPriceTo8Decimals = ftsoPrice.price * BigInt(10 ** Math.abs(decimalDiff));
+    } else {
+      ftsoPriceTo8Decimals = ftsoPrice.price;
+    }
+  }
+  const effectiveMarkPrice = markPrice ?? ftsoPriceTo8Decimals;
+
   return {
-    data: markPrice,
-    isLoading,
+    data: effectiveMarkPrice,
+    isLoading: isLoading && !effectiveMarkPrice,
     refetch,
     isAvailable,
   };
@@ -745,18 +869,37 @@ export function useIndexPrice(marketName: string | undefined) {
   const addresses = isAvailable ? getSparkDEXEternalAddresses(chainId) : null;
 
   const marketId = marketName ? encodeMarketId(marketName) : undefined;
+  const hasValidAddresses = addresses?.store && addresses.store !== '0x0000000000000000000000000000000000000000';
+
+  // Get FTSO price as fallback
+  const feedName = marketName ? MARKET_TO_FEED[marketName] : undefined;
+  const { data: ftsoPrice } = useFlareOraclePrice(feedName);
 
   const { data: indexPrice, isLoading, refetch } = useReadContract({
     address: addresses?.store || '0x0000000000000000000000000000000000000000',
     abi: StoreABI,
     functionName: 'getIndexPrice',
     args: marketId ? [marketId as `0x${string}`] : undefined,
-    query: { enabled: isAvailable && !!marketId },
+    query: { enabled: hasValidAddresses && !!marketId },
   });
 
+  // Use FTSO price if contract doesn't return data (convert to 8 decimals)
+  let ftsoPriceTo8Decimals: bigint | undefined;
+  if (ftsoPrice?.price) {
+    const decimalDiff = ftsoPrice.decimals - 8;
+    if (decimalDiff > 0) {
+      ftsoPriceTo8Decimals = ftsoPrice.price / BigInt(10 ** decimalDiff);
+    } else if (decimalDiff < 0) {
+      ftsoPriceTo8Decimals = ftsoPrice.price * BigInt(10 ** Math.abs(decimalDiff));
+    } else {
+      ftsoPriceTo8Decimals = ftsoPrice.price;
+    }
+  }
+  const effectiveIndexPrice = indexPrice ?? ftsoPriceTo8Decimals;
+
   return {
-    data: indexPrice,
-    isLoading,
+    data: effectiveIndexPrice,
+    isLoading: isLoading && !effectiveIndexPrice,
     refetch,
     isAvailable,
   };

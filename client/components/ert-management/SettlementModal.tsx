@@ -1,23 +1,41 @@
 "use client";
 
-import { useEstimateSettlement, useEstimatePnl, useFeeBreakdown, useCanSettle, useSettleERT, useForceSettleERT } from "@/lib/hooks";
+import { useEstimateSettlement, useEstimatePnl, useFeeBreakdown, useCanSettle, useSettleERT, useForceSettleERT, useEnhancedPrice } from "@/lib/hooks";
 import { formatUnits } from "viem";
-import { X, Loader2, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, DollarSign, Shield, Percent } from "lucide-react";
+import { X, Loader2, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, DollarSign, Shield, Percent, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TrustlessPriceBadge } from "@/components/ui/TrustlessPriceBadge";
+import { PriceFreshnessIndicator, FTSOSourceBadge, StalenessWarningBadge } from "@/components/ui/PriceFeedIndicators";
 
 interface SettlementModalProps {
     ertId: bigint;
     isOpen: boolean;
     onClose: () => void;
     isExpired?: boolean;
+    feedName?: string; // e.g., "BTC/USD" for price verification
+    entryPrice?: bigint;
+    entryPriceDecimals?: number;
+    entryTimestamp?: Date;
 }
 
-export function SettlementModal({ ertId, isOpen, onClose, isExpired }: SettlementModalProps) {
+export function SettlementModal({
+    ertId,
+    isOpen,
+    onClose,
+    isExpired,
+    feedName = "BTC/USD",
+    entryPrice,
+    entryPriceDecimals = 18,
+    entryTimestamp,
+}: SettlementModalProps) {
     // Settlement estimation hooks
     const { data: settlement, isLoading: settlementLoading } = useEstimateSettlement(ertId);
     const { data: pnl, isProfitable, isLoading: pnlLoading } = useEstimatePnl(ertId);
     const { data: feeBreakdown, isLoading: feeLoading } = useFeeBreakdown(ertId, pnl);
     const { data: canSettleResult, isLoading: canSettleLoading } = useCanSettle(ertId);
+
+    // Current FTSO price for verification display
+    const { enhanced: currentFTSOPrice } = useEnhancedPrice(feedName);
 
     // Settlement execution hooks
     const {
@@ -58,13 +76,25 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
         return `${isNegative ? "-" : ""}${prefix}${Number(formatUnits(absValue, decimals)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: decimals === 18 ? 4 : 2 })}`;
     };
 
+    const formattedEntryPrice = entryPrice
+        ? Number(formatUnits(entryPrice, entryPriceDecimals)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : undefined;
+
+    const formattedCurrentPrice = currentFTSOPrice
+        ? Number(currentFTSOPrice.formatted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '-';
+
+    const formattedEntryDate = entryTimestamp
+        ? entryTimestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : undefined;
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
             {/* Modal */}
-            <div className="relative bg-background-secondary border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+            <div className="relative bg-background-secondary border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
@@ -99,7 +129,7 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
                     </div>
                 ) : (
                     <>
-                        {/* PnL Summary */}
+                        {/* PnL Summary with Trustless Badge */}
                         <div className={cn(
                             "p-4 rounded-xl mb-4",
                             isProfitable ? "bg-green-500/10 border border-green-500/20" : "bg-red-500/10 border border-red-500/20"
@@ -112,7 +142,10 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
                                         <TrendingDown className="w-6 h-6 text-red-500" />
                                     )}
                                     <div>
-                                        <p className="text-xs text-text-muted">Total PnL</p>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <p className="text-xs text-text-muted">Total PnL</p>
+                                            <TrustlessPriceBadge size="sm" showLabel={false} />
+                                        </div>
                                         <p className={cn("text-2xl font-bold", isProfitable ? "text-green-500" : "text-red-500")}>
                                             {formatValue(settlement?.totalPnl)}
                                         </p>
@@ -123,6 +156,62 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
                                     isProfitable ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
                                 )}>
                                     {isProfitable ? "PROFITABLE" : "LOSS"}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Price Verification Section */}
+                        <div className="glass-panel p-4 rounded-xl mb-4 space-y-3">
+                            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                                <Info className="w-4 h-4 text-accent" />
+                                Price Verification
+                            </h3>
+
+                            <div className="space-y-2 text-sm">
+                                {/* Entry Price Row */}
+                                {formattedEntryPrice && (
+                                    <div className="flex justify-between items-start">
+                                        <span className="text-text-muted">Entry Price</span>
+                                        <div className="text-right">
+                                            <span className="text-white font-mono">${formattedEntryPrice}</span>
+                                            {formattedEntryDate && (
+                                                <p className="text-[10px] text-text-muted mt-0.5">{formattedEntryDate}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Current FTSO Price Row */}
+                                <div className="flex justify-between items-start">
+                                    <span className="text-text-muted">Current FTSO</span>
+                                    <div className="text-right">
+                                        <div className="flex items-center gap-2 justify-end">
+                                            <span className="text-white font-mono">${formattedCurrentPrice}</span>
+                                            {currentFTSOPrice && (
+                                                <>
+                                                    <PriceFreshnessIndicator freshness={currentFTSOPrice.freshness} />
+                                                    <FTSOSourceBadge source={currentFTSOPrice.source} size="sm" />
+                                                </>
+                                            )}
+                                        </div>
+                                        {currentFTSOPrice?.freshness === 'stale' ? (
+                                            <div className="mt-1 flex justify-end">
+                                                <StalenessWarningBadge />
+                                            </div>
+                                        ) : currentFTSOPrice ? (
+                                            <span className="text-[10px] text-text-muted">{currentFTSOPrice.ageFormatted}</span>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Info notice */}
+                            <div className="border-t border-white/5 pt-3 mt-3">
+                                <div className="flex items-start gap-2 bg-accent/5 rounded-lg p-2">
+                                    <Shield className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" />
+                                    <p className="text-[11px] text-accent/80">
+                                        Settlement uses trustless FTSO prices - cannot be manipulated by executors.
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -183,6 +272,17 @@ export function SettlementModal({ ertId, isOpen, onClose, isExpired }: Settlemen
                                 <div>
                                     <p className="text-sm font-medium text-yellow-500">Cannot Settle</p>
                                     <p className="text-xs text-yellow-400/80">{canSettleResult.reason}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Stale Price Warning */}
+                        {currentFTSOPrice?.freshness === 'stale' && (
+                            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 mb-4 flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-medium text-orange-500">Stale Price Data</p>
+                                    <p className="text-xs text-orange-400/80">Current FTSO price is outdated. Settlement may use stale pricing.</p>
                                 </div>
                             </div>
                         )}

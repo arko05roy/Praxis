@@ -170,6 +170,7 @@ export {
   // FTSO v2 Price Feeds
   useFTSOPrice,
   useFlareOraclePrice,
+  useEnhancedPrice,
   useTokenPriceUSD,
   useMultiplePrices,
   useCommonPrices,
@@ -182,6 +183,7 @@ export {
   useMaxPriceAge,
   // Types
   type PriceData,
+  type EnhancedPriceData,
   type PriceFeed,
   type PriceValidation,
   type CommonPrices,
