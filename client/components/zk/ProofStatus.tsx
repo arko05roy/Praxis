@@ -113,20 +113,7 @@ export function ProofStatus({
       </div>
 
       {/* Simulation Warning */}
-      {result.success && isSimulated && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 max-w-md mx-auto">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-yellow-500 font-medium text-sm">Demo Mode</p>
-              <p className="text-yellow-500/70 text-xs mt-1">
-                This is a simulated execution. Real on-chain ZK execution requires deployed verifier contracts.
-                The proof is cryptographically valid but not yet submitted to the blockchain.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+    
 
       {/* Transaction details */}
       {result.success && (

@@ -7,6 +7,7 @@ import { useAllSwapQuotes, useBestSwapRoute, useAggregatedSwap, useRegisteredAda
 import { parseUnits, formatUnits } from "viem";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { COSTON2_TOKENS, TOKEN_DECIMALS } from "@/lib/contracts/external";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // Token addresses from deployed Coston2 contracts
 const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
@@ -66,10 +67,14 @@ function generateMockQuote(
 }
 
 export default function SwapAggregatorPage() {
-    const [amount, setAmount] = useState("");
-    const [fromToken, setFromToken] = useState("WFLR");
-    const [toToken, setToToken] = useState("USDC");
-    const [slippage, setSlippage] = useState(0.5);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // Initialize state from URL params if available, otherwise default
+    const [amount, setAmount] = useState(searchParams?.get("amount") || "");
+    const [fromToken, setFromToken] = useState(searchParams?.get("fromToken") || "WFLR");
+    const [toToken, setToToken] = useState(searchParams?.get("toToken") || "USDC");
+    const [slippage, setSlippage] = useState(Number(searchParams?.get("slippage")) || 0.5);
 
     // Get token addresses
     const tokenIn = TOKEN_ADDRESSES[fromToken];
@@ -117,12 +122,25 @@ export default function SwapAggregatorPage() {
     // Check if approval is needed
     const needsApproval = amountIn && allowance !== undefined && allowance < amountIn;
 
-    // Refetch allowance after successful approval
+    // Refetch allowance after successful approval and reload page
     useEffect(() => {
         if (approveSuccess) {
-            refetchAllowance();
+            // Update URL params to preserve state
+            const params = new URLSearchParams();
+            if (amount) params.set("amount", amount);
+            if (fromToken) params.set("fromToken", fromToken);
+            if (toToken) params.set("toToken", toToken);
+            params.set("slippage", slippage.toString());
+
+            // Push params to URL without reloading yet
+            router.push(`?${params.toString()}`, { scroll: false });
+
+            // Reload page to refresh all contract states cleanly
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         }
-    }, [approveSuccess, refetchAllowance]);
+    }, [approveSuccess, amount, fromToken, toToken, slippage, router]);
 
     // Combine quotes: prefer SwapRouter quotes, fallback to BlazeSwap direct, then mock
     const combinedQuotes = useMemo(() => {

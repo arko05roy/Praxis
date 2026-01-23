@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTokenBalance, useAllowance, useApproveVault, useLPDeposit, usePreviewDeposit } from "@/lib/hooks";
 import { formatUnits } from "viem";
 import { Loader2, ArrowRight } from "lucide-react";
 
 export function DepositForm() {
-    const [amount, setAmount] = useState("");
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const [amount, setAmount] = useState(searchParams?.get("amount") || "");
     const { data: balance } = useTokenBalance();
     const { data: allowance } = useAllowance();
-    const { approve, isPending: isApprovePending } = useApproveVault(); // Need to check if useApproveVault returns isPending directly or inside an object
+    const { approve, isPending: isApprovePending, isSuccess: approveSuccess } = useApproveVault(); // Need to check if useApproveVault returns isPending directly or inside an object
     const { depositFormatted, isPending: isDepositPending } = useLPDeposit();
 
     // Need to verify checking allowance logic properly
@@ -24,6 +27,20 @@ export function DepositForm() {
             depositFormatted(amount, 6);
         }
     };
+
+    // Auto-reload on approval success
+    useEffect(() => {
+        if (approveSuccess) {
+            const params = new URLSearchParams();
+            if (amount) params.set("amount", amount);
+
+            router.push(`?${params.toString()}`, { scroll: false });
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
+    }, [approveSuccess, amount, router]);
 
     const isPending = isApprovePending || isDepositPending;
 

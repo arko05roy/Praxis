@@ -14,6 +14,7 @@ import {
 import { Landmark, Loader2, AlertTriangle, CheckCircle, Wallet } from "lucide-react";
 import { parseUnits, formatUnits } from "viem";
 import { cn } from "@/lib/utils";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // Kinetic kToken addresses (mainnet)
 const KINETIC_MARKETS = {
@@ -40,8 +41,10 @@ const KINETIC_MARKETS = {
 type MarketKey = keyof typeof KINETIC_MARKETS;
 
 export function KineticLendingCard() {
-    const [selectedMarket, setSelectedMarket] = useState<MarketKey>("USDC");
-    const [amount, setAmount] = useState("");
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const [selectedMarket, setSelectedMarket] = useState<MarketKey>((searchParams?.get("market") as MarketKey) || "USDC");
+    const [amount, setAmount] = useState(searchParams?.get("amount") || "");
 
     const isAvailable = useExternalProtocolsAvailable();
     const market = KINETIC_MARKETS[selectedMarket];
@@ -102,12 +105,22 @@ export function KineticLendingCard() {
         await supply(market.kToken, parsedAmount);
     };
 
-    // Refetch allowance after successful approval
+    // Refetch allowance after successful approval and reload
     useEffect(() => {
         if (approveSuccess) {
             refetchAllowance();
+
+            const params = new URLSearchParams();
+            if (amount) params.set("amount", amount);
+            if (selectedMarket) params.set("market", selectedMarket);
+
+            router.push(`?${params.toString()}`, { scroll: false });
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         }
-    }, [approveSuccess, refetchAllowance]);
+    }, [approveSuccess, refetchAllowance, amount, selectedMarket, router]);
 
     // Reset form after successful supply
     useEffect(() => {

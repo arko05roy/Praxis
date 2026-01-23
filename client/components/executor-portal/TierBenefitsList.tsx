@@ -54,8 +54,21 @@ const TIERS = [
 ];
 
 export function TierBenefitsList() {
-    const { data: status } = useExecutorStatus();
+    const { data: status, isLoading } = useExecutorStatus();
     const currentTier = status?.tier || 0;
+
+    if (isLoading) {
+        return (
+            <div className="glass-panel p-6 rounded-2xl bg-white/5 border border-white/5 animate-pulse">
+                <div className="h-6 w-32 bg-white/10 rounded mb-6"></div>
+                <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-40 bg-white/5 rounded-xl"></div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="glass-panel p-6 rounded-2xl bg-white/5 border border-white/5">
