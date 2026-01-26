@@ -25,6 +25,7 @@ import type {
   ERTForPrivateExecution,
   PrivateYieldProof,
   PrivateExecutionResult,
+  PrivateProof,
 } from "@/lib/zk";
 import { usePositions } from "@/lib/hooks/executor";
 
@@ -140,8 +141,8 @@ export function PrivateYield() {
     );
   }, [selectedERT, action, selectedToken, amount, protocolInfo]);
 
-  const handleProofComplete = (generatedProof: PrivateYieldProof) => {
-    setProof(generatedProof);
+  const handleProofComplete = (generatedProof: PrivateProof) => {
+    setProof(generatedProof as PrivateYieldProof);
     setStep("verified");
   };
 

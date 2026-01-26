@@ -291,9 +291,9 @@ export function getTokenAddresses(chainId: number): TokenAddresses | null {
 
 export interface FAssetAddresses {
   assetManager: `0x${string}`;
-  fxrp: `0x${string}`;
-  fbtc: `0x${string}`;
-  fdoge: `0x${string}`;
+  FXRP: `0x${string}`;
+  FBTC: `0x${string}`;
+  FDOGE: `0x${string}`;
 }
 
 const FASSET_ADDRESSES: Record<number, FAssetAddresses> = {
@@ -301,16 +301,16 @@ const FASSET_ADDRESSES: Record<number, FAssetAddresses> = {
   // For mainnet, these would be the actual FAsset contract addresses
   14: {
     assetManager: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    fxrp: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    fbtc: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    fdoge: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+    FXRP: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+    FBTC: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+    FDOGE: '0x0000000000000000000000000000000000000000' as `0x${string}`,
   },
   // Coston2 testnet uses our mock FAssets
   114: {
     assetManager: '0x0000000000000000000000000000000000000000' as `0x${string}`, // Not used for basic balances
-    fxrp: COSTON2_TOKENS.MockFXRP,
-    fbtc: COSTON2_TOKENS.MockFBTC,
-    fdoge: COSTON2_TOKENS.MockFDOGE,
+    FXRP: COSTON2_TOKENS.MockFXRP,
+    FBTC: COSTON2_TOKENS.MockFBTC,
+    FDOGE: COSTON2_TOKENS.MockFDOGE,
   },
 };
 

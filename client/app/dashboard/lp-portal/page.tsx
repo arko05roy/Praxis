@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { VaultInfoPanel } from "@/components/lp-portal/VaultInfoPanel";
 import { useVaultInfo } from "@/lib/hooks";
 import { LPBalanceCard } from "@/components/lp-portal/LPBalanceCard";
@@ -19,7 +20,9 @@ export default function LPPortalPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <DepositForm />
+                        <Suspense fallback={<div className="glass-panel p-6 rounded-2xl animate-pulse h-64" />}>
+                            <DepositForm />
+                        </Suspense>
                         <WithdrawForm />
                     </div>
                 </div>

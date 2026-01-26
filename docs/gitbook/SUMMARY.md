@@ -1,0 +1,15 @@
+# Table of contents
+
+* [So You Think This Won't Work](README.md)
+* [1 - WTF is an Execution Right?](1-wtf-is-execution-right.md)
+* [2 - The "Aha!" Moment](2-the-aha-moment.md)
+* [3 - How Money Moves](3-how-money-moves.md)
+* [4 - LP Guide](4-lp-guide.md)
+* [5 - Executor Guide](5-executor-guide.md)
+* [6 - FAQ](6-faq.md)
+* [7 - Architecture](7-architecture.md)
+* [8 - Safety](8-safety.md)
+* [9 - Why Flare](9-why-flare.md)
+* [10 - ZK Privacy](10-zk-privacy.md)
+* [11 - Contracts](11-contracts.md)
+* [12 - Glossary](12-glossary.md)

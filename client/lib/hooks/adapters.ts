@@ -1064,7 +1064,7 @@ export function useNativeBalance() {
 
   return {
     balance: data?.value,
-    formatted: data?.formatted,
+    formatted: data ? formatUnits(data.value, data.decimals) : undefined,
     symbol: data?.symbol,
     isLoading,
     refetch,

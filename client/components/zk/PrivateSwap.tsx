@@ -29,6 +29,7 @@ import type {
   ERTForPrivateExecution,
   PrivateSwapProof,
   PrivateExecutionResult,
+  PrivateProof,
 } from "@/lib/zk";
 import { usePrivateExecution } from "@/lib/hooks/usePrivateExecution";
 
@@ -168,8 +169,8 @@ export function PrivateSwap() {
     );
   }, [selectedERT, tokenIn, tokenOut, amountIn, calculateMinAmountOut]);
 
-  const handleProofComplete = (generatedProof: PrivateSwapProof) => {
-    setProof(generatedProof);
+  const handleProofComplete = (generatedProof: PrivateProof) => {
+    setProof(generatedProof as PrivateSwapProof);
     setStep("verified");
   };
 

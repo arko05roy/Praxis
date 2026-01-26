@@ -200,7 +200,7 @@ export function RequestERTForm() {
                     className="w-full bg-accent hover:bg-accent-hover text-black font-bold py-4 rounded-xl transition-all shadow-[0_4px_20px_rgba(143,212,96,0.3)] hover:shadow-[0_6px_25px_rgba(143,212,96,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                     {isPending ? <Loader2 className="animate-spin w-5 h-5" /> : null}
-                    {hasInsufficientBalance ? `Insufficient FLR Balance (${balanceData ? Number(balanceData.formatted).toFixed(2) : '0'})` : 'Mint Execution Rights (ERT)'}
+                    {hasInsufficientBalance ? `Insufficient FLR Balance (${balanceData ? Number(formatUnits(balanceData.value, balanceData.decimals)).toFixed(2) : '0'})` : 'Mint Execution Rights (ERT)'}
                 </button>
             </div>
         </div>

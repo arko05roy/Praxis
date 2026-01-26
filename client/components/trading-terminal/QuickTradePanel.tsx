@@ -19,9 +19,13 @@ export function QuickTradePanel({ ertId }: QuickTradePanelProps) {
         // In reality, this would encode valid ABI data for the chosen adapter
         execute(ertId, [
             {
+                actionType: 0, // Swap action
                 adapter: "0x123...abc" as `0x${string}`, // Mock Adapter Address
-                data: "0x", // Mock Encoded Data
-                value: 0n
+                tokenIn: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+                tokenOut: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+                amountIn: 0n,
+                minAmountOut: 0n,
+                extraData: "0x" as `0x${string}`
             }
         ]);
     };

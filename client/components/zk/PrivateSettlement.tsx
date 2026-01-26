@@ -24,6 +24,7 @@ import type {
   ERTForPrivateExecution,
   PrivateSettlementProof,
   PrivateExecutionResult,
+  PrivateProof,
 } from "@/lib/zk";
 
 type Step = "input" | "proving" | "verified" | "executing" | "complete";
@@ -113,8 +114,8 @@ export function PrivateSettlement() {
     );
   }, [selectedERT, performance]);
 
-  const handleProofComplete = (generatedProof: PrivateSettlementProof) => {
-    setProof(generatedProof);
+  const handleProofComplete = (generatedProof: PrivateProof) => {
+    setProof(generatedProof as PrivateSettlementProof);
     setStep("verified");
   };
 

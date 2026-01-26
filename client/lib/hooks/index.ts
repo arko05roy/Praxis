@@ -42,8 +42,6 @@ export {
   type ExecutionRights,
   type TrackedPosition,
   type ExecuteAction,
-  type ERTInfo,
-  type ERTDrawdownInfo,
 } from './executor';
 
 // Settlement Hooks
@@ -105,9 +103,6 @@ export {
   type SwapQuote,
   type SceptreStats,
   type KineticMarketData,
-  type KineticMarketInfo,
-  type AccountHealth,
-  type CollateralStatus,
 } from './adapters';
 
 // =============================================================
@@ -159,7 +154,7 @@ export {
   // Types
   type FAssetInfo,
   type FAssetBalance,
-  type FAssetPool,
+  type FAssetType,
 } from './fassets';
 
 // =============================================================
@@ -184,8 +179,6 @@ export {
   // Types
   type PriceData,
   type EnhancedPriceData,
-  type PriceFeed,
-  type PriceValidation,
   type CommonPrices,
 } from './oracle';
 
@@ -215,10 +208,9 @@ export {
   useApproveToken,
   useApproveForSwapRouter,
   // Types
-  type SwapRoute,
-  type DEXQuote,
-  type SwapComparison,
-  type AdapterInfo,
+  type SwapQuote as DEXQuote,
+  type BestRoute,
+  type SwapParams,
 } from './swapRouter';
 
 // =============================================================

@@ -110,7 +110,7 @@ export async function verifyProof(proof: PrivateProof): Promise<ProofVerificatio
   details.push(...structureResult.details);
 
   // Check all attestations
-  const attestations = proof.attestations as Record<string, boolean>;
+  const attestations = proof.attestations as unknown as Record<string, boolean>;
   for (const [key, value] of Object.entries(attestations)) {
     details.push(`${formatAttestationKey(key)}: ${value ? "PASS" : "FAIL"}`);
   }

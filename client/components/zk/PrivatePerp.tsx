@@ -24,6 +24,7 @@ import type {
   ERTForPrivateExecution,
   PrivatePerpProof,
   PrivateExecutionResult,
+  PrivateProof,
 } from "@/lib/zk";
 
 type Step = "input" | "proving" | "verified" | "executing" | "complete";
@@ -77,8 +78,8 @@ export function PrivatePerp() {
     );
   }, [selectedERT, market, size, leverage, isLong, calculateCollateral]);
 
-  const handleProofComplete = (generatedProof: PrivatePerpProof) => {
-    setProof(generatedProof);
+  const handleProofComplete = (generatedProof: PrivateProof) => {
+    setProof(generatedProof as PrivatePerpProof);
     setStep("verified");
   };
 

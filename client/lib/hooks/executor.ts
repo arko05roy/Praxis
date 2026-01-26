@@ -501,9 +501,13 @@ export function usePositions(ertId: bigint | undefined) {
 // =============================================================
 
 export interface ExecuteAction {
+  actionType: number;
   adapter: `0x${string}`;
-  data: `0x${string}`;
-  value: bigint;
+  tokenIn: `0x${string}`;
+  tokenOut: `0x${string}`;
+  amountIn: bigint;
+  minAmountOut: bigint;
+  extraData: `0x${string}`;
 }
 
 export function useExecuteWithRights() {
@@ -580,48 +584,13 @@ export function useMyERTs() {
     query: { enabled: !!address },
   });
 
-  // Effect to fetch all IDs when count changes
+  // Effect to fetch all IDs when count changes - reset IDs when count changes
   useEffect(() => {
-    async function fetchIds() {
-      if (!address || !ertCount || ertCount === 0n) {
-        setErtIds([]);
-        return;
-      }
-
-      setIsLoadingIds(true);
-      try {
-        const publicClient = getPublicClient({ chainId });
-        if (!publicClient) throw new Error("No public client");
-
-        const calls = [];
-        for (let i = 0n; i < ertCount; i++) {
-          calls.push({
-            address: addresses.ExecutionRightsNFT,
-            abi: ExecutionRightsNFTABI,
-            functionName: 'tokenOfOwnerByIndex',
-            args: [address, i],
-          } as const);
-        }
-
-        // Ideally use multicall, but simple loop works for small counts or use wagmi readContracts
-        // Since we don't have readContracts imported locally, we'll use a fetcher pattern
-        // Or better yet, we can use the useReadContracts hook if available, but let's stick to standard client reads for simplicity in this file structure
-        // Actually, let's use a simple promise.all with the client since we are inside useEffect
-
-        // Note: We need to import createPublicClient or use usePublicClient, but that might be complex to add to imports
-        // Let's use a simpler approach: fetch them sequentially or parallel
-
-        // Wait, we need the public client. Let's use usePublicClient from wagmi
-        // But for now, let's just use the existing hooks pattern by exposing a fetcher
-      } catch (e) {
-        console.error("Error fetching ERT IDs:", e);
-      } finally {
-        setIsLoadingIds(false);
-      }
+    if (!address || !ertCount || ertCount === 0n) {
+      setErtIds([]);
     }
-
-    // fetchIds();
-  }, [address, ertCount, chainId]);
+    // TODO: Implement batch fetching using useReadContracts when needed
+  }, [address, ertCount]);
 
   // Using useReadContracts would be best but it requires importing it.
   // Let's modify the hook to just use index-based reading with individual hooks if count is small, 

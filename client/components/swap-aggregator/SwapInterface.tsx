@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNativeBalance } from "@/lib/hooks";
+import { useNativeBalance, useTokenBalance } from "@/lib/hooks";
 import { ArrowDown, Settings, RotateCw, Check } from "lucide-react";
 import { formatUnits } from "viem";
-import { useAccount, useBalance } from "wagmi";
+import { useAccount } from "wagmi";
 import { COSTON2_TOKENS, TOKEN_DECIMALS } from "@/lib/contracts/external";
 
 const AVAILABLE_TOKENS = ['WFLR', 'USDC', 'FXRP', 'FBTC', 'FDOGE'];
@@ -57,13 +57,7 @@ export function SwapInterface({ onQuoteUpdate, bestQuote, isLoading }: SwapInter
     const fromTokenAddress = TOKEN_ADDRESSES[fromToken];
 
     // Query ERC20 balance for the selected token
-    const { data: tokenBalanceData } = useBalance({
-        address,
-        token: fromTokenAddress,
-        query: {
-            enabled: !!address && !!fromTokenAddress,
-        },
-    });
+    const { data: tokenBalanceData } = useTokenBalance(fromTokenAddress);
 
     // Use ERC20 balance
     const displayBalance = tokenBalanceData?.value;

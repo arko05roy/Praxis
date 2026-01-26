@@ -26,7 +26,7 @@ export function OrderForm({ market = "ETH-USD" }: OrderFormProps) {
     // Hooks for market data
     const { data: marketInfo, isLoading: marketLoading } = usePerpMarketInfo(market);
     const { data: markPrice, isLoading: priceLoading } = useMarkPrice(market);
-    const { data: nativeBalance } = useNativeBalance();
+    const { balance: nativeBalance } = useNativeBalance();
     const { data: existingPosition } = usePerpPosition(market, side === 'long');
 
     // Hook for opening positions

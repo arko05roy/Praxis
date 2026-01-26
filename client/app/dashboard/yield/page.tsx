@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { SceptreStakingCard } from "@/components/yield-hub/SceptreStakingCard";
 import { KineticLendingCard } from "@/components/yield-hub/KineticLendingCard";
 import { YieldComparisonTable } from "@/components/yield-hub/YieldComparisonTable";
@@ -82,7 +83,9 @@ export default function YieldHubPage() {
             {/* Yield Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SceptreStakingCard />
-                <KineticLendingCard />
+                <Suspense fallback={<div className="glass-panel rounded-2xl p-6 animate-pulse h-96" />}>
+                    <KineticLendingCard />
+                </Suspense>
             </div>
 
             {/* Comparison Table */}

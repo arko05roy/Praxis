@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { SwapInterface } from "@/components/swap-aggregator/SwapInterface";
 import { QuotesComparison } from "@/components/swap-aggregator/QuotesComparison";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -67,6 +68,14 @@ function generateMockQuote(
 }
 
 export default function SwapAggregatorPage() {
+    return (
+        <Suspense fallback={<div className="max-w-5xl mx-auto animate-pulse"><div className="h-96 bg-white/5 rounded-2xl" /></div>}>
+            <SwapAggregatorContent />
+        </Suspense>
+    );
+}
+
+function SwapAggregatorContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -120,7 +129,7 @@ export default function SwapAggregatorPage() {
     } = useApproveForSwapRouter();
 
     // Check if approval is needed
-    const needsApproval = amountIn && allowance !== undefined && allowance < amountIn;
+    const needsApproval = !!(amountIn && allowance !== undefined && allowance < amountIn);
 
     // Refetch allowance after successful approval and reload page
     useEffect(() => {
@@ -174,8 +183,8 @@ export default function SwapAggregatorPage() {
     const prices = useCommonPrices();
 
     // Calculate price impact
-    const expectedRate = prices?.flr?.price && fromToken === 'FLR'
-        ? BigInt(Math.floor(Number(prices.flr.price) * 1e6)) // FLR price in USDC terms
+    const expectedRate = prices?.FLR?.price && fromToken === 'FLR'
+        ? BigInt(Math.floor(Number(prices.FLR.price) * 1e6)) // FLR price in USDC terms
         : undefined;
 
     const { priceImpact, isSevere, isModerate } = usePriceImpact(

@@ -24,7 +24,7 @@ export function bytesToHex(bytes: Uint8Array): string {
  * SHA-256 hash using browser crypto
  */
 export async function sha256(data: Uint8Array): Promise<Uint8Array> {
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
   return new Uint8Array(hashBuffer);
 }
 

@@ -42,7 +42,7 @@ export const coston2 = {
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
 export const config = createConfig({
-  chains: [flare, coston2],
+  chains: [coston2, flare],
   connectors: [
     injected(),
     walletConnect({
@@ -56,8 +56,8 @@ export const config = createConfig({
     }),
   ],
   transports: {
-    [flare.id]: http(),
     [coston2.id]: http(),
+    [flare.id]: http(),
   },
 });
 

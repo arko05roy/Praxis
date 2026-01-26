@@ -497,10 +497,9 @@ export function useAllFAssets() {
 export function useFAssetPools(assetType: FAssetType) {
   const chainId = useChainId();
   const isAvailable = areExternalProtocolsAvailable(chainId);
-  const addresses = isAvailable ? getFAssetAddresses(chainId) : null;
 
-  // Return known pool addresses for the FAsset
-  const pools = addresses?.pools?.[assetType] || [];
+  // TODO: Add pool addresses when FAsset pools are deployed
+  const pools: `0x${string}`[] = [];
 
   return {
     data: pools,

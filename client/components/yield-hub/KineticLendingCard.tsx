@@ -8,8 +8,8 @@ import {
     useKineticBalance,
     useTokenBalance,
     useExternalProtocolsAvailable,
-    useApproveVault,
-    useAllowance,
+    useApproveToken,
+    useTokenAllowance,
 } from "@/lib/hooks";
 import { Landmark, Loader2, AlertTriangle, CheckCircle, Wallet } from "lucide-react";
 import { parseUnits, formatUnits } from "viem";
@@ -58,7 +58,7 @@ export function KineticLendingCard() {
     const { underlyingBalance: suppliedBalance, isLoading: suppliedLoading } = useKineticBalance(market.kToken);
 
     // Allowance for ERC20 approval
-    const { data: allowance, refetch: refetchAllowance } = useAllowance(market.underlying, market.kToken);
+    const { data: allowance, refetch: refetchAllowance } = useTokenAllowance(market.underlying, market.kToken);
 
     // Supply hook
     const {
@@ -69,13 +69,13 @@ export function KineticLendingCard() {
         error,
     } = useKineticSupply();
 
-    // Approval hook (reusing vault approve)
+    // Approval hook for ERC20 tokens
     const {
-        approve,
+        approveMax,
         isPending: approvePending,
         isConfirming: approveConfirming,
         isSuccess: approveSuccess,
-    } = useApproveVault();
+    } = useApproveToken();
 
     // Parse amount
     const parsedAmount = amount && Number(amount) > 0
@@ -96,7 +96,7 @@ export function KineticLendingCard() {
 
     // Handle approve
     const handleApprove = async () => {
-        await approve(market.underlying, market.kToken);
+        await approveMax(market.underlying, market.kToken);
     };
 
     // Handle supply

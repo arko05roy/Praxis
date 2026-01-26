@@ -18,6 +18,7 @@ export const coston2 = defineChain({
     },
     rpcUrls: {
         default: { http: ['https://coston2-api.flare.network/ext/C/rpc'] },
+        public: { http: ['https://coston2-api.flare.network/ext/C/rpc'] },
     },
     blockExplorers: {
         default: { name: 'Coston2 Explorer', url: 'https://coston2-explorer.flare.network' },
@@ -36,6 +37,7 @@ export const flare = defineChain({
     },
     rpcUrls: {
         default: { http: ['https://flare-api.flare.network/ext/C/rpc'] },
+        public: { http: ['https://flare-api.flare.network/ext/C/rpc'] },
     },
     blockExplorers: {
         default: { name: 'Flare Explorer', url: 'https://flare-explorer.flare.network' },

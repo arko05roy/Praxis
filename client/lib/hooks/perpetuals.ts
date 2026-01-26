@@ -468,7 +468,7 @@ export function usePerpPosition(marketName: string | undefined, isLong: boolean 
     abi: PerpPositionManagerABI,
     functionName: 'getPositionPnl',
     args: address && marketId ? [address, marketId as `0x${string}`, isLong] : undefined,
-    query: { enabled: hasValidAddresses && !!address && !!marketId && positionData?.size > 0n },
+    query: { enabled: hasValidAddresses && !!address && !!marketId && (positionData?.size ?? 0n) > 0n },
   });
 
   const { data: liquidationPrice } = useReadContract({
@@ -476,7 +476,7 @@ export function usePerpPosition(marketName: string | undefined, isLong: boolean 
     abi: PerpPositionManagerABI,
     functionName: 'getLiquidationPrice',
     args: address && marketId ? [address, marketId as `0x${string}`, isLong] : undefined,
-    query: { enabled: hasValidAddresses && !!address && !!marketId && positionData?.size > 0n },
+    query: { enabled: hasValidAddresses && !!address && !!marketId && (positionData?.size ?? 0n) > 0n },
   });
 
   const position: PerpPosition | undefined = positionData && marketName && marketId && positionData.size > 0n

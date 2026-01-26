@@ -58,7 +58,7 @@ export function ProofVerifier({ proof, onExecute, isExecuting = false }: ProofVe
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const attestations = proof.attestations as Record<string, boolean>;
+  const attestations = proof.attestations as unknown as Record<string, boolean>;
 
   return (
     <div className="space-y-6">
